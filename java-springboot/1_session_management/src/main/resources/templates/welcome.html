@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - Redis Session Management</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+    <div class="container">
+        <div class="welcome-card">
+            <div class="header">
+                <div class="logo-small">
+                    <svg width="32" height="32" viewBox="0 0 48 48" fill="none">
+                        <rect width="48" height="48" rx="8" fill="#DC382C"/>
+                        <path d="M24 12L36 18V30L24 36L12 30V18L24 12Z" fill="white"/>
+                    </svg>
+                </div>
+                <h1>Session Information</h1>
+            </div>
+
+            <div class="session-info">
+                <div class="info-grid">
+                    <div class="info-item" th:each="entry : ${sessionInfo}">
+                        <span class="info-label" th:text="${entry.key}">Label</span>
+                        <span class="info-value" th:text="${entry.value}">Value</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- STAGE 1: In-Memory Sessions (Problem) -->
+            <div class="instructions" th:if="${!redisEnabled && !stage1Completed}">
+                <h3>STAGE 1: Problem - In-Memory Sessions</h3>
+                <div class="alert alert-warning">
+                    <strong>Current State:</strong> Sessions are stored in-memory (not in Redis)
+                </div>
+                <p><strong>Let's see the problem:</strong></p>
+                <ol>
+                    <li><strong>Test 1:</strong> Note your Session ID above: <strong th:text="${sessionInfo.sessionId}"></strong></li>
+                    <li><strong>Test 2:</strong> Stop the application (Ctrl+C in terminal)</li>
+                    <li><strong>Test 3:</strong> Restart the application: <code>./gradlew :1_session_management:bootRun</code></li>
+                    <li><strong>Test 4:</strong> Try to refresh this page - you'll be logged out!</li>
+                    <li><strong>Test 5:</strong> After logging back in, click the button below to proceed to Stage 2</li>
+                </ol>
+                <button onclick="markStage1Complete()" class="btn btn-primary" style="margin-top: 1rem;">I've Completed Stage 1 - Show Me How to Fix This</button>
+            </div>
+
+            <!-- STAGE 2: Instructions (Only shown after Stage 1 is completed) -->
+            <div class="instructions" th:if="${!redisEnabled && stage1Completed}">
+                <h3>STAGE 2: Your Task - Enable Redis Session Management</h3>
+
+                <div class="alert alert-info" style="background: #094771; padding: 1rem; border-radius: 4px; margin-bottom: 1rem;">
+                    <strong>Option 1: Use the In-Browser Code Editor</strong>
+                    <p style="margin: 0.5rem 0 0 0;">
+                        <a href="/editor" style="color: #4fc3f7; text-decoration: none; font-weight: 500;">
+                            Open Code Editor →
+                        </a>
+                    </p>
+                </div>
+
+                <p><strong>Option 2: Edit files in your IDE</strong></p>
+                <p><strong>Follow these steps to fix the problem:</strong></p>
+
+                <h4 style="margin-top: 1.5rem; color: #4fc3f7;">Step 1: Add Redis Dependencies</h4>
+                <ol>
+                    <li>Open <code>build.gradle.kts</code></li>
+                    <li>Uncomment the Redis dependencies:
+                        <ul>
+                            <li><code>spring-boot-starter-data-redis</code></li>
+                            <li><code>spring-session-data-redis</code></li>
+                        </ul>
+                    </li>
+                </ol>
+
+                <h4 style="margin-top: 1.5rem; color: #4fc3f7;">Step 2: Configure Application Properties</h4>
+                <ol start="3">
+                    <li>Open <code>application.properties</code></li>
+                    <li>Change <code>spring.session.store-type=none</code> to <code>spring.session.store-type=redis</code></li>
+                    <li>Uncomment the 3 Redis session configuration lines below it</li>
+                </ol>
+
+                <h4 style="margin-top: 1.5rem; color: #4fc3f7;">Step 3: Enable Redis Session Configuration</h4>
+                <ol start="6">
+                    <li>Open <code>RedisSessionConfig.java</code></li>
+                    <li>Uncomment the <code>@Configuration</code> annotation</li>
+                    <li>Uncomment the <code>@EnableRedisHttpSession</code> annotation</li>
+                    <li>Uncomment the import statement for <code>EnableRedisHttpSession</code></li>
+                </ol>
+
+                <h4 style="margin-top: 1.5rem; color: #4fc3f7;">Step 4: Restart and Verify</h4>
+                <ol start="10">
+                    <li>Restart the application: <code>./gradlew :1_session_management:bootRun</code></li>
+                    <li>Come back to this page and see the difference!</li>
+                </ol>
+            </div>
+
+            <!-- STAGE 3: Redis Sessions (Solution) -->
+            <div class="instructions" th:if="${redisEnabled}">
+                <h3>STAGE 3: Success - Redis Session Management Enabled!</h3>
+                <div class="alert alert-success">
+                    <strong>Sessions are now stored in Redis (distributed storage)</strong>
+                </div>
+                <p><strong>Let's verify it works:</strong></p>
+                <ol>
+                    <li><strong>Test Session Persistence:</strong> Note your Session ID above</li>
+                    <li><strong>Restart the app:</strong> Stop (Ctrl+C) and restart: <code>./gradlew :1_session_management:bootRun</code></li>
+                    <li><strong>Refresh this page:</strong> You're still logged in! Same Session ID!</li>
+                    <li><strong>View in Redis:</strong> Use the embedded Redis Insight below and search for <code>spring:session</code></li>
+                    <li><strong>Test Multiple Sessions:</strong> Open in incognito/different browser - you'll get a different Session ID (max 2 concurrent sessions)</li>
+                    <li><strong>Test Max Sessions:</strong> Try a 3rd browser - login will be blocked (security feature)</li>
+                </ol>
+
+                <div style="margin: 1.5rem 0; padding: 1.5rem; border: 2px solid #3e3e42; border-radius: 8px; background: linear-gradient(135deg, #1e1e1e 0%, #2a2a2e 100%);">
+                    <h3 style="margin-bottom: 0.5rem; color: #4fc3f7;">Redis Insight - Explore Your Session Data</h3>
+                    <p style="color: #ccc; font-size: 0.95rem; margin-bottom: 1rem; line-height: 1.6;">
+                        Use Redis Insight to explore your session data stored in Redis. Search for <code style="background: #3e3e42; padding: 0.2rem 0.5rem; border-radius: 4px; color: #4fc3f7;">spring:session</code> to see all session keys.
+                    </p>
+                    <a href="http://localhost:5540" target="_blank"
+                       style="display: inline-block; background: #4fc3f7; color: #1e1e1e; padding: 0.75rem 1.5rem; border-radius: 6px; text-decoration: none; font-weight: 600; transition: all 0.2s;"
+                       onmouseover="this.style.background='#6dd5ff'; this.style.transform='translateY(-2px)'"
+                       onmouseout="this.style.background='#4fc3f7'; this.style.transform='translateY(0)'">
+                        Open Redis Insight →
+                    </a>
+                    <p style="color: #999; font-size: 0.85rem; margin-top: 1rem; font-style: italic;">
+                        Redis Insight will open in a new tab with a pre-configured connection to your local Redis instance.
+                    </p>
+                </div>
+
+                <h3>What You Learned</h3>
+                <ul>
+                    <li>Sessions persist across application restarts</li>
+                    <li>Multiple application instances can share sessions (horizontal scaling)</li>
+                    <li>Session data is stored in Redis, not in application memory</li>
+                    <li>Enables zero-downtime deployments and load balancing</li>
+                </ul>
+
+                <div class="alert alert-info" style="margin-top: 1.5rem;">
+                    <strong>Want to try again?</strong> Click the button below to restore all files to their original state and restart the lab from Stage 1.
+                </div>
+                <button onclick="restartLab()" class="btn btn-warning" id="restart-lab-btn" style="margin-top: 1rem;">
+                    Restart Lab
+                </button>
+            </div>
+
+            <div class="actions">
+                <form th:action="@{/logout}" method="post">
+                    <button type="submit" class="btn btn-danger">Logout</button>
+                </form>
+                <button onclick="location.reload()" class="btn btn-secondary">Refresh Session</button>
+            </div>
+
+            <div class="footer-info">
+                <p><strong>Tip:</strong> Session data persists in Redis even if the application restarts!</p>
+            </div>
+        </div>
+    </div>
+
+    <script th:inline="javascript">
+        function markStage1Complete() {
+            const token = /*[[${_csrf.token}]]*/ '';
+            const header = /*[[${_csrf.headerName}]]*/ '';
+
+            fetch('/mark-stage1-complete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [header]: token
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    location.reload();
+                }
+            })
+            .catch(error => console.error('Error:', error));
+        }
+
+        function restartLab() {
+            const token = /*[[${_csrf.token}]]*/ '';
+            const header = /*[[${_csrf.headerName}]]*/ '';
+
+            if (!confirm('Are you sure you want to restart the lab? This will restore all files to their original state. You will need to restart the application after this.')) {
+                return;
+            }
+
+            const btn = document.getElementById('restart-lab-btn');
+            btn.disabled = true;
+            btn.textContent = 'Restoring files...';
+
+            fetch('/editor/restore', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    [header]: token
+                }
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    alert(data.message + '\n\nPlease restart the application:\n./gradlew :1_session_management:bootRun\n\nThen refresh this page to start from Stage 1.');
+                    btn.textContent = 'Lab Reset! Restart App Now';
+                    btn.style.backgroundColor = '#28a745';
+                } else {
+                    alert('Error: ' + (data.error || 'Failed to restore files'));
+                    btn.disabled = false;
+                    btn.textContent = 'Restart Lab';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Failed to restore files. Please try again.');
+                btn.disabled = false;
+                btn.textContent = 'Restart Lab';
+            });
+        }
+    </script>
+</body>
+</html>
+
