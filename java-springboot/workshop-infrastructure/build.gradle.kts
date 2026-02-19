@@ -21,7 +21,8 @@ dependencies {
     // Spring Boot dependencies for the infrastructure
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
-    
+    implementation("org.springframework.boot:spring-boot-starter-security")
+
     // Make this a library (not a standalone application)
     compileOnly("org.springframework.boot:spring-boot-starter")
 }

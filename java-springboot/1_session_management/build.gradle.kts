@@ -26,8 +26,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-security")
 
     // TODO: Uncomment the lines below to enable Redis session management
-    implementation("org.springframework.boot:spring-boot-starter-data-redis")
-    implementation("org.springframework.session:spring-session-data-redis")
+    // implementation("org.springframework.boot:spring-boot-starter-data-redis")
+    // implementation("org.springframework.session:spring-session-data-redis")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testImplementation("org.springframework.security:spring-security-test")

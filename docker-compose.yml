@@ -1,34 +1,19 @@
-version: '3.8'
-
 services:
-  redis:
-    image: redis:latest
+  # Workshop Hub with Docker-in-Docker
+  # Contains the Hub app, Docker daemon, and all workshop source files
+  workshop-hub:
+    build:
+      context: .
+      dockerfile: java-springboot/workshop-hub/Dockerfile
     ports:
-      - "6379:6379"
-    volumes:
-      - redis-data:/data
-    healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
-
-  redis-insight:
-    image: redis/redisinsight:latest
-    ports:
-      - "5540:5540"
+      - "9000:9000"    # Hub UI
+      - "5540:5540"    # Redis Insight (from internal container)
+    privileged: true   # Required for Docker-in-Docker
     environment:
-      - RI_REDIS_HOST=redis
-      - RI_REDIS_PORT=6379
-      - RI_REDIS_ALIAS=Local Redis
-      - RI_REDIS_USERNAME=default
-      - RI_REDIS_PASSWORD=
-      - RI_REDIS_TLS=FALSE
+      - WORKSHOP_ROOT_PATH=/workshops
     volumes:
-      - redis-insight-data:/db
-    depends_on:
-      - redis
+      # Persist Docker data (images, containers) between restarts
+      - dind-data:/var/lib/docker
 
 volumes:
-  redis-data:
-  redis-insight-data:
+  dind-data:

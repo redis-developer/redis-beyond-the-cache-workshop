@@ -34,22 +34,28 @@ public interface WorkshopConfig {
     /**
      * Get the base path for this workshop module.
      * Override this if your module has a different structure.
-     * 
+     *
      * @return The base path where files are located
      */
     default String getBasePath() {
+        // Check for environment variable (used in Docker with volume mounts)
+        String envBasePath = System.getenv("WORKSHOP_BASE_PATH");
+        if (envBasePath != null && !envBasePath.isEmpty()) {
+            return envBasePath;
+        }
+
         String userDir = System.getProperty("user.dir");
-        
+
         // If running from the root project, append the module path
         if (userDir.endsWith("redis-beyond-the-cache-workshop")) {
             return userDir + "/java-springboot/" + getModuleName();
         }
-        
+
         // If running from java-springboot directory
         if (userDir.endsWith("java-springboot")) {
             return userDir + "/" + getModuleName();
         }
-        
+
         // Otherwise assume we're already in the module directory
         return userDir;
     }

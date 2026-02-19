@@ -1,0 +1,23 @@
+version: '3.8'
+
+services:
+  workshop-hub:
+    build:
+      context: ../..
+      dockerfile: java-springboot/workshop-hub/Dockerfile
+    ports:
+      - "9000:9000"
+    environment:
+      # Path to the workshop root inside the container (where docker-compose.yml is)
+      - WORKSHOP_ROOT_PATH=/workspace
+      # Host's actual path - needed for volume mounts when running docker-compose from container
+      # Docker daemon runs on host and needs host paths for volume mounts
+      - HOST_PROJECT_PATH=${HOST_PROJECT_PATH:-${PWD}/../..}
+    volumes:
+      # Mount Docker socket to allow container to control host Docker
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Mount the entire workshop repository for building workshops
+      - ../..:/workspace
+    # Run as root to access Docker socket (or configure proper group)
+    user: root
+

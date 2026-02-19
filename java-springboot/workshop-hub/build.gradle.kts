@@ -20,7 +20,6 @@ repositories {
 dependencies {
     // Spring Boot starters
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
     
     // Development tools
     developmentOnly("org.springframework.boot:spring-boot-devtools")

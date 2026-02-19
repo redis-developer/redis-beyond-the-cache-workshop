@@ -113,7 +113,6 @@ body {
 }
 
 .workshop-card:hover {
-    transform: translateY(-2px);
     border-color: rgba(0, 188, 212, 0.6);
     box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
 }
@@ -131,6 +130,95 @@ body {
     color: #e2e8f0;
     flex: 1;
     font-weight: 600;
+}
+
+.header-icons {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-shrink: 0;
+}
+
+.info-icon,
+.status-icon {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    color: #64748b;
+    cursor: help;
+    transition: color 0.2s ease;
+    flex-shrink: 0;
+}
+
+.info-icon:hover,
+.status-icon:hover {
+    color: #94a3b8;
+}
+
+.info-icon::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    padding: 0.75rem 1rem;
+    background-color: #1e293b;
+    color: #e2e8f0;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    white-space: normal;
+    width: 280px;
+    max-width: 90vw;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.info-icon:hover::after {
+    opacity: 1;
+    visibility: visible;
+}
+
+.status-tooltip {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 0.5rem;
+    padding: 0.75rem;
+    background-color: #1e293b;
+    border: 1px solid #334155;
+    border-radius: 6px;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
+    pointer-events: none;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    min-width: 160px;
+}
+
+.status-icon:hover .status-tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+.status-tooltip-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0;
+}
+
+.status-tooltip-item:not(:last-child) {
+    border-bottom: 1px solid rgba(71, 85, 105, 0.3);
 }
 
 .difficulty-badge {
@@ -254,6 +342,11 @@ body {
     animation: pulse 1.5s ease-in-out infinite;
 }
 
+.status-indicator.restarting {
+    background-color: #f59e0b;
+    animation: pulse 1.5s ease-in-out infinite;
+}
+
 .status-indicator.error {
     background-color: #fca5a5;
 }
@@ -272,8 +365,16 @@ body {
 .workshop-controls {
     display: flex;
     gap: 0.5rem;
-    margin-bottom: 1rem;
     flex-wrap: wrap;
+}
+
+.workshop-controls.single-button {
+    display: block;
+}
+
+.workshop-controls.single-button .control-btn {
+    width: 100%;
+    justify-content: center;
 }
 
 .control-btn {
@@ -289,6 +390,8 @@ body {
     transition: all 0.2s ease;
     background: transparent;
     font-family: inherit;
+    text-decoration: none;
+    flex: 1;
 }
 
 .control-btn:disabled {
@@ -327,6 +430,17 @@ body {
 .stop-btn:hover:not(:disabled) {
     background-color: rgba(239, 68, 68, 0.3);
     border-color: rgba(239, 68, 68, 0.6);
+}
+
+.open-btn {
+    background-color: rgba(0, 188, 212, 0.2);
+    border-color: rgba(0, 188, 212, 0.4);
+    color: #00bcd4;
+}
+
+.open-btn:hover:not(:disabled) {
+    background-color: rgba(0, 188, 212, 0.3);
+    border-color: rgba(0, 188, 212, 0.6);
 }
 
 .start-button {

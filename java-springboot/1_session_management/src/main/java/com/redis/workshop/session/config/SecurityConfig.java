@@ -4,9 +4,6 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
-import org.springframework.security.config.http.SessionCreationPolicy;
-import org.springframework.security.core.session.SessionRegistry;
-import org.springframework.security.core.session.SessionRegistryImpl;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
@@ -14,25 +11,14 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.HttpStatusEntryPoint;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.http.HttpStatus;
+// TODO: Uncomment the imports below to enable session persistence
+// import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+// import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 
-/**
- * WORKSHOP TEACHING CONTENT - Security Configuration
- *
- * This configuration sets up Spring Security for the workshop with:
- * - Form-based authentication (login page)
- * - Session management with concurrent session control
- * - Maximum 2 concurrent sessions per user
- * - In-memory user store (username: "user", password: "password")
- *
- * Key Learning Points:
- * - How Spring Security integrates with HTTP sessions
- * - How session concurrency control works
- * - How SessionRegistry tracks active sessions
- *
- * Note: This works with both in-memory and Redis session storage.
- * The session storage mechanism is configured separately in RedisSessionConfig.
- */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
@@ -40,31 +26,42 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
+            // TODO: Uncomment the lines below to store SecurityContext in HTTP session
+            // .securityContext(context -> context
+            //     .securityContextRepository(securityContextRepository())
+            // )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/css/**", "/js/**", "/images/**").permitAll()
+                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                .requestMatchers("/login").permitAll()
                 .anyRequest().authenticated()
+            )
+            .exceptionHandling(exceptions -> exceptions
+                // For API endpoints, return 401 instead of redirecting to login
+                .defaultAuthenticationEntryPointFor(
+                    new HttpStatusEntryPoint(HttpStatus.UNAUTHORIZED),
+                    new AntPathRequestMatcher("/api/**")
+                )
             )
             .formLogin(form -> form
                 .loginPage("/login")
-                .permitAll()
+                .loginProcessingUrl("/login")
                 .defaultSuccessUrl("/welcome", true)
+                .permitAll()
             )
             .logout(logout -> logout
                 .logoutSuccessUrl("/login?logout")
                 .permitAll()
             )
-            .sessionManagement(session -> session
-                .sessionCreationPolicy(SessionCreationPolicy.ALWAYS)
-                .invalidSessionUrl("/login?invalid")
-                .sessionFixation(fixation -> fixation.newSession())
-                .maximumSessions(2)
-                .maxSessionsPreventsLogin(true)
-                .expiredUrl("/login?expired")
-                .sessionRegistry(sessionRegistry())
-            );
+            .csrf(csrf -> csrf.disable());
 
         return http.build();
     }
+
+    // TODO: Uncomment the bean below to enable session-based security context
+    // @Bean
+    // public SecurityContextRepository securityContextRepository() {
+    //     return new HttpSessionSecurityContextRepository();
+    // }
 
     @Bean
     public UserDetailsService userDetailsService() {
@@ -83,13 +80,7 @@ public class SecurityConfig {
     }
 
     @Bean
-    public SessionRegistry sessionRegistry() {
-        return new SessionRegistryImpl();
-    }
-
-    @Bean
     public HttpSessionEventPublisher httpSessionEventPublisher() {
         return new HttpSessionEventPublisher();
     }
 }
-

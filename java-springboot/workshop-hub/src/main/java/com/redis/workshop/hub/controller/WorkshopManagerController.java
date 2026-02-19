@@ -6,7 +6,6 @@ import com.redis.workshop.hub.service.WorkshopManagerService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
-import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,12 +16,6 @@ public class WorkshopManagerController {
 
     @Autowired
     private WorkshopManagerService workshopManagerService;
-
-    @GetMapping
-    public String managerPage(Model model) {
-        return "manager";
-    }
-
     @GetMapping("/api/status")
     @ResponseBody
     public ResponseEntity<List<ServiceStatus>> getStatus() {
@@ -62,6 +55,13 @@ public class WorkshopManagerController {
     @ResponseBody
     public ResponseEntity<CommandResponse> restartWorkshop(@PathVariable String id) {
         CommandResponse response = workshopManagerService.restartWorkshop(id);
+        return ResponseEntity.ok(response);
+    }
+
+    @PostMapping("/api/workshop/{id}/restart-no-build")
+    @ResponseBody
+    public ResponseEntity<CommandResponse> restartWorkshopWithoutBuild(@PathVariable String id) {
+        CommandResponse response = workshopManagerService.restartWorkshopWithoutBuild(id);
         return ResponseEntity.ok(response);
     }
 }
