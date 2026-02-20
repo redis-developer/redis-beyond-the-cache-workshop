@@ -67,7 +67,7 @@ WORKDIR /app
 # Copy the built JAR
 COPY --from=builder /workspace/java-springboot/workshop-hub/build/libs/workshop-hub-1.0.0.jar app.jar
 
-# Copy the internal docker-compose file for DinD
+# Copy the docker-compose file for DinD mode
 COPY java-springboot/workshop-hub/docker-compose.internal.yml /app/docker-compose.internal.yml
 
 # Copy all workshop source files (for building workshops inside DinD)
@@ -77,8 +77,10 @@ COPY . /workshops
 COPY java-springboot/workshop-hub/scripts/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
-# Environment variables
+# Environment variables for container (DinD) mode
 ENV WORKSHOP_ROOT_PATH=/workshops
+ENV WORKSHOP_LOCAL_MODE=false
+ENV WORKSHOP_COMPOSE_DIR=/app
 ENV DOCKER_HOST=unix:///var/run/docker.sock
 
 # Expose ports: 9000 for Hub

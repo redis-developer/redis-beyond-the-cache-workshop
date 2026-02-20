@@ -1,40 +1,39 @@
 # Docker Compose for running workshops inside Docker-in-Docker
-# This file is used by the Workshop Hub when running in DinD mode
+# This file is used by the Workshop Hub to start workshops (both in DinD mode and local mode)
+#
+# Environment variables:
+# - WORKSHOP_ROOT_PATH: Path to the repository root (default: /workshops for container, . for local)
+#
+# Note: All services use host network mode so that the Hub Java app can reach them via localhost.
+# In DinD mode, "host" network means the Hub container's network namespace.
+# In local mode, "host" network means the host machine's network namespace.
 
 services:
   redis:
     image: redis:latest
-    ports:
-      - "6379:6379"
+    network_mode: host
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
       interval: 5s
       timeout: 5s
       retries: 5
 
   redis-insight:
     image: redis/redisinsight:latest
-    ports:
-      - "5540:5540"
+    network_mode: host
     environment:
-      - RI_REDIS_HOST=redis
+      - RI_REDIS_HOST=localhost
       - RI_REDIS_PORT=6379
-    depends_on:
-      - redis
 
   session-management:
     build:
-      context: /workshops
+      context: ${WORKSHOP_ROOT_PATH:-/workshops}
       dockerfile: java-springboot/1_session_management/Dockerfile
-    ports:
-      - "8080:8080"
+    network_mode: host
     environment:
-      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_HOST=localhost
       - SPRING_DATA_REDIS_PORT=6379
-      - WORKSHOP_BASE_PATH=/workspace/1_session_management
+      - WORKSHOP_BASE_PATH=/workshop-sources
     volumes:
-      # Mount workshop source files for editing (from the Hub container)
-      - /workshops/java-springboot/1_session_management:/workspace/1_session_management
-    depends_on:
-      - redis
+      - ${WORKSHOP_ROOT_PATH:-/workshops}/java-springboot/1_session_management:/workshop-sources
 

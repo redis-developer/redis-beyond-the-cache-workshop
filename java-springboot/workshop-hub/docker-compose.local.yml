@@ -1,0 +1,41 @@
+# Docker Compose for local development mode - uses port mappings
+#
+# Environment variables:
+# - WORKSHOP_ROOT_PATH: Path to the repository root
+
+services:
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "-p", "6379", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_REDIS_HOST=redis
+      - RI_REDIS_PORT=6379
+    depends_on:
+      - redis
+
+  session-management:
+    build:
+      context: ${WORKSHOP_ROOT_PATH:-.}
+      dockerfile: java-springboot/1_session_management/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - WORKSHOP_BASE_PATH=/workshop-sources
+    volumes:
+      - ${WORKSHOP_ROOT_PATH:-.}/java-springboot/1_session_management:/workshop-sources
+    depends_on:
+      - redis
+

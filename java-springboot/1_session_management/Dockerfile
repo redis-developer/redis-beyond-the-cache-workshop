@@ -51,8 +51,9 @@ COPY java-springboot/1_session_management/frontend/vue.config.js 1_session_manag
 COPY java-springboot/workshop-infrastructure/src workshop-infrastructure/src
 COPY java-springboot/workshop-hub/src workshop-hub/src
 
-# Build Vue frontend with proxy base path
-# This sets the publicPath so assets work via the Hub proxy
+# Build Vue frontend with configurable base path
+# Default: /workshop/session-management/ (for Hub proxy)
+# Override with --build-arg VUE_APP_BASE_PATH=/ for standalone deployment
 ARG VUE_APP_BASE_PATH=/workshop/session-management/
 ENV VUE_APP_BASE_PATH=${VUE_APP_BASE_PATH}
 RUN cd 1_session_management/frontend && npm run build
@@ -68,8 +69,15 @@ WORKDIR /app
 # Copy the Spring Boot fat jar from the build stage
 COPY --from=builder /workspace/java-springboot/1_session_management/build/libs/1_session_management-0.0.1-SNAPSHOT.jar app.jar
 
-# Source files for in-browser editing are provided via volume mount in docker-compose.yml
-# The WORKSHOP_BASE_PATH environment variable tells the app where to find them
+# Copy editable source files for in-browser editing (used in containerized mode)
+# These files can be modified at runtime via the code editor
+COPY --from=builder /workspace/java-springboot/1_session_management/build.gradle.kts /workshop-sources/build.gradle.kts
+COPY --from=builder /workspace/java-springboot/1_session_management/src/main/resources/application.properties /workshop-sources/src/main/resources/application.properties
+COPY --from=builder /workspace/java-springboot/1_session_management/src/main/java/com/redis/workshop/session/config/SecurityConfig.java /workshop-sources/src/main/java/com/redis/workshop/session/config/SecurityConfig.java
+
+# Set environment variable to point to the editable source files
+# This can be overridden at runtime for local development
+ENV WORKSHOP_BASE_PATH=/workshop-sources
 
 EXPOSE 8080
 

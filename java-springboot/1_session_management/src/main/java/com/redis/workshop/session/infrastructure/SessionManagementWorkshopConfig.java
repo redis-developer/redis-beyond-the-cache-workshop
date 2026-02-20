@@ -109,6 +109,7 @@ public class SessionManagementWorkshopConfig implements WorkshopConfig {
             // import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
             // import org.springframework.security.web.context.SecurityContextRepository;
             import org.springframework.security.web.session.HttpSessionEventPublisher;
+            import org.springframework.http.HttpStatus;
 
             @Configuration
             @EnableWebSecurity
@@ -125,6 +126,18 @@ public class SessionManagementWorkshopConfig implements WorkshopConfig {
                             .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                             .requestMatchers("/login").permitAll()
                             .anyRequest().authenticated()
+                        )
+                        // Return 401 for unauthenticated API requests instead of redirecting to login page
+                        .exceptionHandling(ex -> ex
+                            .authenticationEntryPoint((request, response, authException) -> {
+                                if (request.getRequestURI().startsWith("/api/")) {
+                                    response.setStatus(HttpStatus.UNAUTHORIZED.value());
+                                    response.setContentType("application/json");
+                                    response.getWriter().write("{\\"error\\":\\"Unauthorized\\"}");
+                                } else {
+                                    response.sendRedirect("/login");
+                                }
+                            })
                         )
                         .formLogin(form -> form
                             .loginPage("/login")

@@ -22,8 +22,20 @@ public class WorkshopManagerService {
     @Value("${workshop.root.path:/workshops}")
     private String workshopRootPath;
 
-    // Path to the internal docker-compose file (for DinD mode)
-    private static final String INTERNAL_COMPOSE_FILE = "/app/docker-compose.internal.yml";
+    // Local mode flag - set to true when running Hub locally (not in container)
+    // When true: uses docker-compose.local.yml and returns direct URLs (localhost:8080)
+    // When false: uses docker-compose.internal.yml and returns proxy URLs (/workshop/...)
+    @Value("${workshop.local.mode:false}")
+    private boolean localMode;
+
+    // Path to the docker-compose file directory
+    @Value("${workshop.compose.dir:java-springboot/workshop-hub}")
+    private String composeDir;
+
+    private String getComposeFile() {
+        String fileName = localMode ? "docker-compose.local.yml" : "docker-compose.internal.yml";
+        return composeDir + "/" + fileName;
+    }
 
     public List<ServiceStatus> getAllServiceStatus() {
         List<ServiceStatus> statuses = new ArrayList<>();
@@ -44,12 +56,12 @@ public class WorkshopManagerService {
         status.setType("infrastructure");
         status.setPort(port);
 
-        // For DinD, Redis Insight is accessible via localhost inside the container
+        // Set URL based on mode
         if ("redis".equals(serviceName)) {
             status.setUrl("redis://localhost:" + port);
         } else if ("redis-insight".equals(serviceName)) {
-            // Redis Insight accessible via proxy
-            status.setUrl("/workshop/redis-insight/");
+            // Local mode: direct URL, Container mode: proxy URL
+            status.setUrl(localMode ? "http://localhost:" + port : "/workshop/redis-insight/");
         } else {
             status.setUrl("http://localhost:" + port);
         }
@@ -78,8 +90,8 @@ public class WorkshopManagerService {
         status.setName(workshopId);
         status.setType("workshop");
         status.setPort(port);
-        // URL uses the proxy path instead of direct port access
-        status.setUrl("/workshop/session-management/");
+        // Local mode: direct URL, Container mode: proxy URL
+        status.setUrl(localMode ? "http://localhost:" + port + "/" : "/workshop/session-management/");
 
         try {
             ProcessBuilder pb = new ProcessBuilder("sh", "-c", "docker ps --format '{{.Names}} {{.Status}}' | grep session-management");
@@ -102,18 +114,20 @@ public class WorkshopManagerService {
 
     public CommandResponse startInfrastructure() {
         try {
-            logger.info("Starting infrastructure services inside DinD...");
+            logger.info("Starting infrastructure services (localMode={})...", localMode);
 
-            File composeFile = new File(INTERNAL_COMPOSE_FILE);
+            String composeFilePath = getComposeFile();
+            File composeFile = new File(composeFilePath);
             if (!composeFile.exists()) {
-                String error = "Internal docker-compose.yml not found at: " + INTERNAL_COMPOSE_FILE;
+                String error = "Docker compose file not found at: " + composeFilePath;
                 logger.error(error);
                 return new CommandResponse(false, error);
             }
 
             // Start only the infrastructure services (Redis and Redis Insight)
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", INTERNAL_COMPOSE_FILE, "up", "-d", "redis", "redis-insight");
+            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", composeFilePath, "up", "-d", "redis", "redis-insight");
             pb.redirectErrorStream(true);
+            configureDockerComposeEnvironment(pb);
 
             Process process = pb.start();
             StringBuilder output = new StringBuilder();
@@ -143,10 +157,11 @@ public class WorkshopManagerService {
 
     public CommandResponse stopInfrastructure() {
         try {
-            logger.info("Stopping infrastructure services inside DinD...");
+            logger.info("Stopping infrastructure services...");
 
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", INTERNAL_COMPOSE_FILE, "down");
+            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "down");
             pb.redirectErrorStream(true);
+            configureDockerComposeEnvironment(pb);
 
             Process process = pb.start();
             StringBuilder output = new StringBuilder();
@@ -174,7 +189,7 @@ public class WorkshopManagerService {
 
     public CommandResponse startWorkshop(String workshopId) {
         try {
-            logger.info("Starting workshop inside DinD: {}", workshopId);
+            logger.info("Starting workshop (localMode={}): {}", localMode, workshopId);
 
             // If something is already running, stop it first
             ServiceStatus status = checkWorkshopService(workshopId, getPortForWorkshop(workshopId));
@@ -185,8 +200,9 @@ public class WorkshopManagerService {
             }
 
             // Build the image and start the session-management service
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", INTERNAL_COMPOSE_FILE, "up", "-d", "--build", "session-management");
+            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "up", "-d", "--build", "session-management");
             pb.redirectErrorStream(true);
+            configureDockerComposeEnvironment(pb);
 
             Process process = pb.start();
             StringBuilder output = new StringBuilder();
@@ -215,10 +231,11 @@ public class WorkshopManagerService {
 
     public CommandResponse stopWorkshop(String workshopId) {
         try {
-            logger.info("Stopping workshop inside DinD: {}", workshopId);
+            logger.info("Stopping workshop: {}", workshopId);
 
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", INTERNAL_COMPOSE_FILE, "stop", "session-management");
+            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "stop", "session-management");
             pb.redirectErrorStream(true);
+            configureDockerComposeEnvironment(pb);
 
             Process process = pb.start();
             StringBuilder output = new StringBuilder();
@@ -280,8 +297,9 @@ public class WorkshopManagerService {
         }
 
         try {
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", INTERNAL_COMPOSE_FILE, "up", "-d", "--force-recreate", "session-management");
+            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "up", "-d", "--force-recreate", "session-management");
             pb.redirectErrorStream(true);
+            configureDockerComposeEnvironment(pb);
 
             Process process = pb.start();
             StringBuilder output = new StringBuilder();
@@ -313,6 +331,29 @@ public class WorkshopManagerService {
             case "1_session_management" -> "8080";
             default -> "8080";
         };
+    }
+
+    /**
+     * Configure environment variables for docker-compose commands.
+     * Sets WORKSHOP_ROOT_PATH so docker-compose.internal.yml can use it for build context.
+     */
+    private void configureDockerComposeEnvironment(ProcessBuilder pb) {
+        try {
+            // Get the canonical (absolute, normalized) path to the workshop root
+            File rootDir = new File(workshopRootPath);
+            String absolutePath = rootDir.getCanonicalPath();
+
+            pb.environment().put("WORKSHOP_ROOT_PATH", absolutePath);
+            logger.info("Setting WORKSHOP_ROOT_PATH={} for docker-compose (from configured path: {})",
+                       absolutePath, workshopRootPath);
+        } catch (Exception e) {
+            logger.error("Failed to resolve workshop root path: {}", workshopRootPath, e);
+            // Fallback to absolute path
+            File rootDir = new File(workshopRootPath);
+            String absolutePath = rootDir.getAbsolutePath();
+            pb.environment().put("WORKSHOP_ROOT_PATH", absolutePath);
+            logger.warn("Using fallback absolute path: {}", absolutePath);
+        }
     }
 }
 
