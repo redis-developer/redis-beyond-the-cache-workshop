@@ -3,19 +3,7 @@ import WorkshopService from '@/services/WorkshopService'
 
 export default createStore({
   state: {
-    workshops: [
-      {
-        id: '1_session_management',
-        title: 'Distributed Session Management',
-        description: 'Learn how to implement distributed session management using Redis and Spring Session. ' +
-          'Experience the problem of in-memory sessions, then solve it with Redis-backed sessions ' +
-          'that persist across application restarts and enable horizontal scaling.',
-        difficulty: 'Beginner',
-        estimatedMinutes: 30,
-        url: '/workshop/session-management/',
-        topics: ['Sessions', 'Spring Session', 'Distributed Systems', 'Scalability']
-      }
-    ],
+    workshops: [],
     services: [],
     restartingWorkshops: new Set(),
     // Track restart progress: { workshopId: { stage, startTime, isRebuild } }
@@ -60,6 +48,9 @@ export default createStore({
   },
 
   mutations: {
+    setWorkshops(state, workshops) {
+      state.workshops = workshops;
+    },
     setServices(state, services) {
       state.services = services;
     },
@@ -94,6 +85,15 @@ export default createStore({
   },
 
   actions: {
+    async fetchWorkshops({ commit }) {
+      try {
+        const workshops = await WorkshopService.getWorkshops();
+        commit('setWorkshops', workshops);
+      } catch (error) {
+        console.error('Error fetching workshops:', error);
+        commit('setError', error.message);
+      }
+    },
     async fetchStatus({ commit }) {
       try {
         const services = await WorkshopService.getAllStatus();
@@ -204,81 +204,55 @@ export default createStore({
     },
 
     async waitForWorkshopReady({ commit, dispatch, getters }, { workshopId, isRebuild }) {
-      const startTime = Date.now();
-
-      // Stage timing estimates (in ms)
-      const stages = isRebuild
-        ? [
-            { name: 'stopping', until: 3000 },
-            { name: 'building', until: 8000 },
-            { name: 'starting', until: 12000 },
-            { name: 'initializing', until: 999999 }
-          ]
-        : [
-            { name: 'stopping', until: 3000 },
-            { name: 'starting', until: 6000 },
-            { name: 'initializing', until: 999999 }
-          ];
-
-      // Wait for workshop to go down (max 20 seconds)
-      for (let i = 0; i < 10; i++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        // Update stage based on elapsed time
-        const elapsed = Date.now() - startTime;
-        const currentStage = stages.find(s => elapsed < s.until)?.name || 'initializing';
-        commit('setRestartProgress', { workshopId, stage: currentStage, isRebuild });
-
-        await dispatch('fetchStatus');
-        const status = getters.workshopStatus(workshopId);
-        if (status !== 'running') break;
-      }
-
-      // Wait for workshop to come back up (max 120 seconds)
+      // Wait for workshop to go down and come back up (max 120 seconds)
       for (let i = 0; i < 60; i++) {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // Update stage based on elapsed time
-        const elapsed = Date.now() - startTime;
-        const currentStage = stages.find(s => elapsed < s.until)?.name || 'initializing';
-        commit('setRestartProgress', { workshopId, stage: currentStage, isRebuild });
-
         await dispatch('fetchStatus');
+
+        // Get deployment stage from backend
+        const service = getters.getServiceByName(workshopId);
+        const deploymentStage = service?.deploymentStage;
+
+        console.log(`[${workshopId}] Backend stage:`, deploymentStage, 'Service:', service);
+
+        // Update progress with backend's actual stage
+        if (deploymentStage) {
+          commit('setRestartProgress', { workshopId, stage: deploymentStage, isRebuild });
+        }
+
+        // Check if deployment is complete
         const status = getters.workshopStatus(workshopId);
-        if (status === 'running') {
-          commit('setRestartProgress', { workshopId, stage: 'ready', isRebuild });
+        if (deploymentStage === 'ready' && status === 'running') {
           break;
         }
       }
     },
 
     async waitForWorkshopStart({ commit, dispatch, getters }, { workshopId }) {
-      const startTime = Date.now();
-
-      // Stage timing estimates for deploy (no stopping phase)
-      const stages = [
-        { name: 'building', until: 5000 },
-        { name: 'starting', until: 10000 },
-        { name: 'initializing', until: 999999 }
-      ];
-
       // Wait for workshop to come up (max 120 seconds)
       for (let i = 0; i < 60; i++) {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        // Update stage based on elapsed time
-        const elapsed = Date.now() - startTime;
-        const currentStage = stages.find(s => elapsed < s.until)?.name || 'initializing';
-        commit('setRestartProgress', { workshopId, stage: currentStage, isRebuild: true, isDeploy: true });
-
         await dispatch('fetchStatus');
+
+        // Get deployment stage from backend
+        const service = getters.getServiceByName(workshopId);
+        const deploymentStage = service?.deploymentStage;
+
+        console.log(`[deploy:${workshopId}] Backend stage:`, deploymentStage, 'Service:', service);
+
+        // Update progress with backend's actual stage
+        if (deploymentStage) {
+          commit('setRestartProgress', { workshopId, stage: deploymentStage, isRebuild: true, isDeploy: true });
+        }
+
+        // Check if deployment is complete
         const status = getters.workshopStatus(workshopId);
-        if (status === 'running') {
-          commit('setRestartProgress', { workshopId, stage: 'ready', isRebuild: true, isDeploy: true });
+        if (deploymentStage === 'ready' && status === 'running') {
           break;
         }
       }
     }
   }
 })
-

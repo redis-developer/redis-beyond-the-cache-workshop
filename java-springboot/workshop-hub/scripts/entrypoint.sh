@@ -4,6 +4,9 @@
 
 set -e
 
+export DOCKER_BUILDKIT=1
+export COMPOSE_DOCKER_CLI_BUILD=1
+
 echo "Starting Docker daemon..."
 # Start dockerd directly in the background
 dockerd --host=unix:///var/run/docker.sock --storage-driver=overlay2 &
@@ -27,4 +30,3 @@ docker info | head -5
 
 echo "Starting Workshop Hub application..."
 exec java -jar /app/app.jar
-

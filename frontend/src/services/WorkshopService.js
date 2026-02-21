@@ -14,6 +14,14 @@ export default {
   },
 
   /**
+   * Get workshop metadata list
+   * Returns: Array of Workshop objects
+   */
+  async getWorkshops() {
+    return ApiService.get(`${apiUrl}/manager/api/workshops`);
+  },
+
+  /**
    * Start infrastructure (Redis + Redis Insight)
    * Returns: CommandResponse
    */
@@ -66,4 +74,3 @@ export default {
     return ApiService.post(`${apiUrl}/manager/api/workshop/${workshopId}/restart-no-build`);
   }
 }
-

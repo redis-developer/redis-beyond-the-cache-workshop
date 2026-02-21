@@ -99,6 +99,8 @@
 </template>
 
 <script>
+import { getBasePath } from "../utils/basePath";
+
 export default {
   name: 'SessionLogin',
   data() {
@@ -110,9 +112,7 @@ export default {
   computed: {
     loginUrl() {
       // Use BASE_URL which is set from VUE_APP_BASE_PATH during build
-      const basePath = process.env.BASE_URL || '/';
-      // Remove trailing slash if present, then add /login
-      return basePath.replace(/\/$/, '') + '/login';
+      return `${getBasePath()}/login`;
     }
   },
   mounted() {
@@ -355,4 +355,3 @@ export default {
   }
 }
 </style>
-

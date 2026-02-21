@@ -2,6 +2,7 @@ package com.redis.workshop.hub.service;
 
 import com.redis.workshop.hub.dto.CommandResponse;
 import com.redis.workshop.hub.dto.ServiceStatus;
+import com.redis.workshop.hub.model.Workshop;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,12 +13,19 @@ import java.io.File;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 
 @Service
 public class WorkshopManagerService {
 
     private static final Logger logger = LoggerFactory.getLogger(WorkshopManagerService.class);
+
+    private final WorkshopRegistryService registryService;
+
+    // Track deployment stages for each workshop
+    private final Map<String, String> deploymentStages = new ConcurrentHashMap<>();
 
     @Value("${workshop.root.path:/workshops}")
     private String workshopRootPath;
@@ -32,6 +40,10 @@ public class WorkshopManagerService {
     @Value("${workshop.compose.dir:java-springboot/workshop-hub}")
     private String composeDir;
 
+    public WorkshopManagerService(WorkshopRegistryService registryService) {
+        this.registryService = registryService;
+    }
+
     private String getComposeFile() {
         String fileName = localMode ? "docker-compose.local.yml" : "docker-compose.internal.yml";
         return composeDir + "/" + fileName;
@@ -45,7 +57,9 @@ public class WorkshopManagerService {
         statuses.add(checkDockerService("redis-insight", "5540"));
 
         // Check workshop applications - URL points to proxy path
-        statuses.add(checkWorkshopService("1_session_management", "8080"));
+        for (Workshop workshop : registryService.getWorkshops()) {
+            statuses.add(checkWorkshopService(workshop));
+        }
 
         return statuses;
     }
@@ -85,16 +99,26 @@ public class WorkshopManagerService {
         return status;
     }
 
-    private ServiceStatus checkWorkshopService(String workshopId, String port) {
+    private ServiceStatus checkWorkshopService(Workshop workshop) {
+        String workshopId = workshop.getId();
+        String port = String.valueOf(getPortForWorkshop(workshop));
         ServiceStatus status = new ServiceStatus();
         status.setName(workshopId);
         status.setType("workshop");
         status.setPort(port);
+
+        String serviceName = getServiceNameForWorkshop(workshop);
         // Local mode: direct URL, Container mode: proxy URL
-        status.setUrl(localMode ? "http://localhost:" + port + "/" : "/workshop/session-management/");
+        if (localMode) {
+            status.setUrl("http://localhost:" + port + "/");
+        } else if (workshop.getUrl() != null && !workshop.getUrl().isBlank()) {
+            status.setUrl(workshop.getUrl());
+        } else {
+            status.setUrl("/workshop/" + serviceName + "/");
+        }
 
         try {
-            ProcessBuilder pb = new ProcessBuilder("sh", "-c", "docker ps --format '{{.Names}} {{.Status}}' | grep session-management");
+            ProcessBuilder pb = new ProcessBuilder("sh", "-c", "docker ps --format '{{.Names}} {{.Status}}' | grep " + serviceName);
             Process process = pb.start();
             BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
             String line = reader.readLine();
@@ -107,6 +131,12 @@ public class WorkshopManagerService {
         } catch (Exception e) {
             logger.error("Error checking workshop service: " + workshopId, e);
             status.setStatus("stopped");
+        }
+
+        // Add deployment stage if workshop is being deployed
+        String deploymentStage = deploymentStages.get(workshopId);
+        if (deploymentStage != null) {
+            status.setDeploymentStage(deploymentStage);
         }
 
         return status;
@@ -188,19 +218,28 @@ public class WorkshopManagerService {
     }
 
     public CommandResponse startWorkshop(String workshopId) {
+        long startTime = System.currentTimeMillis();
         try {
             logger.info("Starting workshop (localMode={}): {}", localMode, workshopId);
 
             // If something is already running, stop it first
-            ServiceStatus status = checkWorkshopService(workshopId, getPortForWorkshop(workshopId));
+            Workshop workshop = getWorkshopById(workshopId);
+            if (workshop == null) {
+                return new CommandResponse(false, "Workshop not found: " + workshopId);
+            }
+
+            ServiceStatus status = checkWorkshopService(workshop);
             if ("running".equals(status.getStatus())) {
                 logger.info("Workshop appears to be running already, stopping existing container before start");
+                deploymentStages.put(workshopId, "stopping");
                 stopWorkshop(workshopId);
                 Thread.sleep(2000);
             }
 
-            // Build the image and start the session-management service
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "up", "-d", "--build", "session-management");
+            // Build the image and start the workshop service
+            deploymentStages.put(workshopId, "building");
+            String serviceName = getServiceNameForWorkshop(workshop);
+            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "up", "-d", "--build", serviceName);
             pb.redirectErrorStream(true);
             configureDockerComposeEnvironment(pb);
 
@@ -211,20 +250,46 @@ public class WorkshopManagerService {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
-                    logger.info("[docker-compose up session-management] {}", line);
+                    logger.info("[docker-compose up {}] {}", serviceName, line);
+
+                    // Update stage based on docker-compose output
+                    if (line.contains("Building")) {
+                        deploymentStages.put(workshopId, "building");
+                    } else if (line.contains("Creating") || line.contains("Starting")) {
+                        deploymentStages.put(workshopId, "starting");
+                    }
                 }
             }
 
+            deploymentStages.put(workshopId, "initializing");
             boolean finished = process.waitFor(300, TimeUnit.SECONDS);
+            long duration = System.currentTimeMillis() - startTime;
+
             if (finished && process.exitValue() == 0) {
-                return new CommandResponse(true, "Workshop container is starting...", output.toString());
+                deploymentStages.put(workshopId, "ready");
+                logger.info("Workshop {} started successfully in {} seconds", workshopId, duration / 1000.0);
+
+                // Clear stage after a short delay
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(3000);
+                        deploymentStages.remove(workshopId);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }).start();
+
+                return new CommandResponse(true, String.format("Workshop container started in %.1f seconds", duration / 1000.0), output.toString());
             } else {
+                deploymentStages.remove(workshopId);
                 String errorMsg = "Failed to start workshop container. Exit code: " + process.exitValue();
                 logger.error(errorMsg + "\nOutput:\n{}", output);
                 return new CommandResponse(false, errorMsg + "\nOutput:\n" + output);
             }
         } catch (Exception e) {
-            logger.error("Error starting workshop inside DinD: " + workshopId, e);
+            deploymentStages.remove(workshopId);
+            long duration = System.currentTimeMillis() - startTime;
+            logger.error("Error starting workshop inside DinD: {} (failed after {} seconds)", workshopId, duration / 1000.0, e);
             return new CommandResponse(false, "Error: " + e.getMessage());
         }
     }
@@ -233,7 +298,13 @@ public class WorkshopManagerService {
         try {
             logger.info("Stopping workshop: {}", workshopId);
 
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "stop", "session-management");
+            Workshop workshop = getWorkshopById(workshopId);
+            if (workshop == null) {
+                return new CommandResponse(false, "Workshop not found: " + workshopId);
+            }
+
+            String serviceName = getServiceNameForWorkshop(workshop);
+            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "stop", serviceName);
             pb.redirectErrorStream(true);
             configureDockerComposeEnvironment(pb);
 
@@ -244,7 +315,7 @@ public class WorkshopManagerService {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
-                    logger.info("[docker-compose stop session-management] {}", line);
+                    logger.info("[docker-compose stop {}] {}", serviceName, line);
                 }
             }
 
@@ -264,9 +335,11 @@ public class WorkshopManagerService {
 
     public CommandResponse restartWorkshop(String workshopId) {
         logger.info("Restarting workshop: " + workshopId);
+        deploymentStages.put(workshopId, "stopping");
         CommandResponse stopResponse = stopWorkshop(workshopId);
 
         if (!stopResponse.isSuccess()) {
+            deploymentStages.remove(workshopId);
             return stopResponse;
         }
 
@@ -285,8 +358,10 @@ public class WorkshopManagerService {
     public CommandResponse restartWorkshopWithoutBuild(String workshopId) {
         logger.info("Restarting workshop without image rebuild: {}", workshopId);
 
+        deploymentStages.put(workshopId, "stopping");
         CommandResponse stopResponse = stopWorkshop(workshopId);
         if (!stopResponse.isSuccess()) {
+            deploymentStages.remove(workshopId);
             return stopResponse;
         }
 
@@ -297,7 +372,15 @@ public class WorkshopManagerService {
         }
 
         try {
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "up", "-d", "--force-recreate", "session-management");
+            deploymentStages.put(workshopId, "starting");
+            Workshop workshop = getWorkshopById(workshopId);
+            if (workshop == null) {
+                deploymentStages.remove(workshopId);
+                return new CommandResponse(false, "Workshop not found: " + workshopId);
+            }
+
+            String serviceName = getServiceNameForWorkshop(workshop);
+            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "up", "-d", "--force-recreate", serviceName);
             pb.redirectErrorStream(true);
             configureDockerComposeEnvironment(pb);
 
@@ -308,29 +391,63 @@ public class WorkshopManagerService {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
-                    logger.info("[docker-compose up --force-recreate session-management] {}", line);
+                    logger.info("[docker-compose up --force-recreate {}] {}", serviceName, line);
+
+                    // Update stage based on docker-compose output
+                    if (line.contains("Creating") || line.contains("Starting")) {
+                        deploymentStages.put(workshopId, "starting");
+                    }
                 }
             }
 
+            deploymentStages.put(workshopId, "initializing");
             boolean finished = process.waitFor(300, TimeUnit.SECONDS);
             if (finished && process.exitValue() == 0) {
+                deploymentStages.put(workshopId, "ready");
+
+                // Clear stage after a short delay
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(3000);
+                        deploymentStages.remove(workshopId);
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    }
+                }).start();
+
                 return new CommandResponse(true, "Workshop container restarted without image rebuild...", output.toString());
             } else {
+                deploymentStages.remove(workshopId);
                 String errorMsg = "Failed to restart workshop container. Exit code: " + process.exitValue();
                 logger.error(errorMsg + "\nOutput:\n{}", output);
                 return new CommandResponse(false, errorMsg + "\nOutput:\n" + output);
             }
         } catch (Exception e) {
+            deploymentStages.remove(workshopId);
             logger.error("Error restarting workshop inside DinD: " + workshopId, e);
             return new CommandResponse(false, "Error: " + e.getMessage());
         }
     }
 
-    private String getPortForWorkshop(String workshopId) {
-        return switch (workshopId) {
-            case "1_session_management" -> "8080";
-            default -> "8080";
-        };
+    private String getServiceNameForWorkshop(Workshop workshop) {
+        if (workshop.getServiceName() != null && !workshop.getServiceName().isBlank()) {
+            return workshop.getServiceName();
+        }
+        return workshop.getId();
+    }
+
+    private int getPortForWorkshop(Workshop workshop) {
+        if (workshop.getPort() > 0) {
+            return workshop.getPort();
+        }
+        return 8080;
+    }
+
+    private Workshop getWorkshopById(String workshopId) {
+        return registryService.getWorkshops().stream()
+            .filter(workshop -> workshopId.equals(workshop.getId()))
+            .findFirst()
+            .orElse(null);
     }
 
     /**
@@ -356,4 +473,3 @@ public class WorkshopManagerService {
         }
     }
 }
-

@@ -27,7 +27,7 @@ val isWindows = System.getProperty("os.name").lowercase().contains("windows")
  * Runs 'npm install' in the frontend directory
  */
 tasks.register<Exec>("npmInstall") {
-    group = "workshop"
+    group = "build"
     description = "Install npm dependencies for the workshop frontend"
     
     workingDir = frontendDir
@@ -49,7 +49,7 @@ tasks.register<Exec>("npmInstall") {
  * Runs 'npm run build' to compile the Vue.js application
  */
 tasks.register<Exec>("npmBuild") {
-    group = "workshop"
+    group = "build"
     description = "Build the Vue.js frontend for the workshop"
     
     dependsOn("npmInstall")
@@ -85,7 +85,7 @@ tasks.named("processResources") {
  * Removes node_modules and build output
  */
 tasks.register<Delete>("cleanFrontend") {
-    group = "workshop"
+    group = "build"
     description = "Clean frontend build artifacts"
     
     delete(file("$frontendDir/node_modules"))

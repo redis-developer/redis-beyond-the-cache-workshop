@@ -30,6 +30,7 @@ public class WorkshopProxyController {
 
     static {
         WORKSHOP_PORTS.put("session-management", 8080);
+        WORKSHOP_PORTS.put("full-text-search", 8081);
         // Add more workshops here as needed
     }
 

@@ -8,4 +8,5 @@ include("workshop-infrastructure")
 
 // Individual workshop modules
 include("1_session_management")
+include("2_full_text_search")
 

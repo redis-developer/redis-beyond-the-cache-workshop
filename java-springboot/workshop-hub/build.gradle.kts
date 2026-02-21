@@ -20,6 +20,7 @@ repositories {
 dependencies {
     // Spring Boot starters
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
     
     // Development tools
     developmentOnly("org.springframework.boot:spring-boot-devtools")
@@ -32,4 +33,3 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
-

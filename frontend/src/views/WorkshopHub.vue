@@ -53,6 +53,7 @@ export default {
     }
   },
   async mounted() {
+    await this.fetchWorkshops();
     // Initial status fetch
     await this.fetchStatus();
     
@@ -68,7 +69,7 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['fetchStatus'])
+    ...mapActions(['fetchStatus', 'fetchWorkshops'])
   }
 };
 </script>
@@ -145,4 +146,3 @@ export default {
   }
 }
 </style>
-

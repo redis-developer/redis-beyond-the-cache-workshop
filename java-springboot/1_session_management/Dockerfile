@@ -1,20 +1,25 @@
+# syntax=docker/dockerfile:1.4
 # Multi-stage Dockerfile for the 1_session_management workshop
 
 # 1) Build stage: build Spring Boot jar (includes Vue frontend)
 FROM eclipse-temurin:21-jdk AS builder
 
+ARG SKIP_FRONTEND_BUILD=false
+
 # Install Node.js and npm for building the Vue frontend
-RUN apt-get update \
-    && apt-get install -y nodejs npm \
-    && rm -rf /var/lib/apt/lists/*
+RUN if [ "$SKIP_FRONTEND_BUILD" != "true" ]; then \
+        apt-get update \
+        && apt-get install -y nodejs npm \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
 
 WORKDIR /workspace/java-springboot
 
 # Copy Gradle wrapper and configuration files first (for caching)
 COPY java-springboot/gradlew .
 COPY java-springboot/gradle gradle
-COPY java-springboot/settings.gradle.kts .
 COPY java-springboot/build.gradle.kts .
+COPY java-springboot/1_session_management/settings.gradle.kts .
 
 # Copy buildSrc for convention plugins
 COPY java-springboot/buildSrc buildSrc
@@ -25,7 +30,8 @@ COPY java-springboot/workshop-infrastructure/build.gradle.kts workshop-infrastru
 COPY java-springboot/workshop-hub/build.gradle.kts workshop-hub/
 
 # Download Gradle dependencies (this layer will be cached)
-RUN ./gradlew :1_session_management:dependencies --no-daemon || true
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew :1_session_management:dependencies --no-daemon || true
 
 # Copy shared frontend package (required dependency)
 # Two different paths are needed:
@@ -41,7 +47,10 @@ COPY java-springboot/1_session_management/frontend/package*.json 1_session_manag
 COPY java-springboot/1_session_management/frontend/babel.config.js 1_session_management/frontend/
 
 # Download npm dependencies (this layer will be cached)
-RUN cd 1_session_management/frontend && npm install
+RUN --mount=type=cache,target=/root/.npm \
+    if [ "$SKIP_FRONTEND_BUILD" != "true" ]; then \
+        cd 1_session_management/frontend && npm install; \
+    fi
 
 # Now copy the rest of the source code
 COPY java-springboot/1_session_management/src 1_session_management/src
@@ -51,15 +60,23 @@ COPY java-springboot/1_session_management/frontend/vue.config.js 1_session_manag
 COPY java-springboot/workshop-infrastructure/src workshop-infrastructure/src
 COPY java-springboot/workshop-hub/src workshop-hub/src
 
+# If skipping, ensure prebuilt assets are present in the repo.
+RUN if [ "$SKIP_FRONTEND_BUILD" = "true" ]; then \
+        test -f 1_session_management/src/main/resources/static/index.html; \
+    fi
+
 # Build Vue frontend with configurable base path
-# Default: /workshop/session-management/ (for Hub proxy)
-# Override with --build-arg VUE_APP_BASE_PATH=/ for standalone deployment
-ARG VUE_APP_BASE_PATH=/workshop/session-management/
+# Default: / (root path) - works both standalone and via Hub proxy (which rewrites paths)
+ARG VUE_APP_BASE_PATH=/
 ENV VUE_APP_BASE_PATH=${VUE_APP_BASE_PATH}
-RUN cd 1_session_management/frontend && npm run build
+RUN --mount=type=cache,target=/root/.npm \
+    if [ "$SKIP_FRONTEND_BUILD" != "true" ]; then \
+        cd 1_session_management/frontend && npm run build; \
+    fi
 
 # Build only the 1_session_management module jar (skip tests for speed)
-RUN ./gradlew :1_session_management:bootJar -x test --no-daemon
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew :1_session_management:bootJar -x test --no-daemon
 
 # 2) Runtime stage: thin image just to run the built jar
 FROM eclipse-temurin:21-jre
@@ -82,4 +99,3 @@ ENV WORKSHOP_BASE_PATH=/workshop-sources
 EXPOSE 8080
 
 ENTRYPOINT ["java", "-jar", "app.jar"]
-

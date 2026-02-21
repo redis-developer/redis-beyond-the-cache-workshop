@@ -28,6 +28,8 @@ services:
     build:
       context: ${WORKSHOP_ROOT_PATH:-.}
       dockerfile: java-springboot/1_session_management/Dockerfile
+      args:
+        - SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}
     ports:
       - "8080:8080"
     environment:
@@ -39,3 +41,19 @@ services:
     depends_on:
       - redis
 
+  full-text-search:
+    build:
+      context: ${WORKSHOP_ROOT_PATH:-.}
+      dockerfile: java-springboot/2_full_text_search/Dockerfile
+      args:
+        - SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}
+    ports:
+      - "8081:8080"
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - WORKSHOP_BASE_PATH=/workshop-sources
+    volumes:
+      - ${WORKSHOP_ROOT_PATH:-.}/java-springboot/2_full_text_search:/workshop-sources
+    depends_on:
+      - redis

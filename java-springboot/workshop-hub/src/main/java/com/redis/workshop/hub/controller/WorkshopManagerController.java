@@ -2,7 +2,9 @@ package com.redis.workshop.hub.controller;
 
 import com.redis.workshop.hub.dto.CommandResponse;
 import com.redis.workshop.hub.dto.ServiceStatus;
+import com.redis.workshop.hub.model.Workshop;
 import com.redis.workshop.hub.service.WorkshopManagerService;
+import com.redis.workshop.hub.service.WorkshopRegistryService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
@@ -16,11 +18,21 @@ public class WorkshopManagerController {
 
     @Autowired
     private WorkshopManagerService workshopManagerService;
+
+    @Autowired
+    private WorkshopRegistryService workshopRegistryService;
+
     @GetMapping("/api/status")
     @ResponseBody
     public ResponseEntity<List<ServiceStatus>> getStatus() {
         List<ServiceStatus> statuses = workshopManagerService.getAllServiceStatus();
         return ResponseEntity.ok(statuses);
+    }
+
+    @GetMapping("/api/workshops")
+    @ResponseBody
+    public ResponseEntity<List<Workshop>> getWorkshops() {
+        return ResponseEntity.ok(workshopRegistryService.getWorkshops());
     }
 
     @PostMapping("/api/infrastructure/start")
@@ -65,4 +77,3 @@ public class WorkshopManagerController {
         return ResponseEntity.ok(response);
     }
 }
-

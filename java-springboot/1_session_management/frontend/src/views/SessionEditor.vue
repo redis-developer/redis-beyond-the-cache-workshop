@@ -180,6 +180,7 @@
 </template>
 
 <script>
+import { getBasePath } from "../utils/basePath";
 import hljs from 'highlight.js/lib/core';
 import java from 'highlight.js/lib/languages/java';
 import kotlin from 'highlight.js/lib/languages/kotlin';
@@ -208,9 +209,7 @@ export default {
   },
   computed: {
     basePath() {
-      // Get base path from Vue config (set via VUE_APP_BASE_PATH at build time)
-      const base = process.env.BASE_URL || '/';
-      return base.replace(/\/$/, ''); // Remove trailing slash
+      return getBasePath();
     },
     workshopHubUrl() {
       const protocol = window.location.protocol;
@@ -884,4 +883,3 @@ export default {
 .code-highlight :deep(.hljs-decorator) { color: #c586c0; }
 .code-highlight :deep(.hljs-annotation) { color: #c586c0; }
 </style>
-

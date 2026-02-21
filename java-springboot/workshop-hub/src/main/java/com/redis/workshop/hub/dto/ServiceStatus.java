@@ -7,6 +7,7 @@ public class ServiceStatus {
     private String port;
     private String url;
     private String message;
+    private String deploymentStage; // "stopping", "building", "starting", "initializing", "ready"
 
     public ServiceStatus() {
     }
@@ -66,6 +67,14 @@ public class ServiceStatus {
 
     public void setMessage(String message) {
         this.message = message;
+    }
+
+    public String getDeploymentStage() {
+        return deploymentStage;
+    }
+
+    public void setDeploymentStage(String deploymentStage) {
+        this.deploymentStage = deploymentStage;
     }
 }
 

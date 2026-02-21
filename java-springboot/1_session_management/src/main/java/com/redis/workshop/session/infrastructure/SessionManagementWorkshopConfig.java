@@ -45,7 +45,6 @@ public class SessionManagementWorkshopConfig implements WorkshopConfig {
             }
             
             dependencies {
-                // Workshop infrastructure - DO NOT REMOVE
                 implementation(project(":workshop-infrastructure"))
 
                 implementation("org.springframework.boot:spring-boot-starter-web")

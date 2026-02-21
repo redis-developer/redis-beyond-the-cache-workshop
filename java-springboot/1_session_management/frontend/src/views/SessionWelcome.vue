@@ -281,6 +281,7 @@
 
 
 <script>
+import { getBasePath } from "../utils/basePath";
 export default {
   name: 'SessionWelcome',
   data() {
@@ -319,9 +320,7 @@ export default {
   },
   computed: {
     basePath() {
-      // Get base path from Vue config (set via VUE_APP_BASE_PATH at build time)
-      const base = process.env.BASE_URL || '/';
-      return base.replace(/\/$/, ''); // Remove trailing slash
+      return getBasePath();
     },
     workshopHubUrl() {
       const protocol = window.location.protocol;

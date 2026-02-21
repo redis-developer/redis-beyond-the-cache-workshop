@@ -7,7 +7,13 @@ public class Workshop {
     private String difficulty;
     private int estimatedMinutes;
     private String url;
+    private String serviceName;
+    private int port;
+    private String dockerfile;
     private String[] topics;
+
+    public Workshop() {
+    }
 
     public Workshop(String id, String title, String description, String difficulty, 
                     int estimatedMinutes, String url, String[] topics) {
@@ -69,6 +75,30 @@ public class Workshop {
         this.url = url;
     }
 
+    public String getServiceName() {
+        return serviceName;
+    }
+
+    public void setServiceName(String serviceName) {
+        this.serviceName = serviceName;
+    }
+
+    public int getPort() {
+        return port;
+    }
+
+    public void setPort(int port) {
+        this.port = port;
+    }
+
+    public String getDockerfile() {
+        return dockerfile;
+    }
+
+    public void setDockerfile(String dockerfile) {
+        this.dockerfile = dockerfile;
+    }
+
     public String[] getTopics() {
         return topics;
     }
@@ -77,4 +107,3 @@ public class Workshop {
         this.topics = topics;
     }
 }
-
