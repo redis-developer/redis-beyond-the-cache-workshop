@@ -21,6 +21,23 @@ This will start:
 - **Redis** on port `6379`
 - **Redis Insight** on port `5540`
 
+## Workshop Hub Compose Files
+
+The Workshop Hub compose files are generated from `workshops.yaml`:
+
+```bash
+./java-springboot/gradlew :workshop-hub:generateCompose
+```
+
+Generated files:
+- `java-springboot/workshop-hub/docker-compose.local.yml`
+- `java-springboot/workshop-hub/docker-compose.internal.yml`
+
+Profiles are enabled for selective runs:
+- Infrastructure only: `docker-compose -f java-springboot/workshop-hub/docker-compose.local.yml --profile infrastructure up -d`
+- All workshops: `docker-compose -f java-springboot/workshop-hub/docker-compose.local.yml --profile workshops up -d`
+- Single workshop: `docker-compose -f java-springboot/workshop-hub/docker-compose.local.yml --profile workshop-1_session_management up -d`
+
 ### Verify Services are Running
 
 ```bash
@@ -143,4 +160,3 @@ docker-compose up -d
 ## Workshop Integration
 
 The Java Spring Boot workshop (`java-springboot/1_session_management`) is configured to connect to Redis at `localhost:6379`. Make sure the Docker services are running before starting the workshop application.
-

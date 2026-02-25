@@ -1,0 +1,72 @@
+services:
+  distributed-locks:
+    build:
+      context: ../..
+      dockerfile: java-springboot/3_distributed_locks/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/workshop
+      - SPRING_DATASOURCE_USERNAME=workshop
+      - SPRING_DATASOURCE_PASSWORD=workshop
+      - WORKSHOP_BASE_PATH=/workspace/3_distributed_locks
+    volumes:
+      - ../:/workspace/3_distributed_locks
+    depends_on:
+      redis:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_DB=workshop
+      - POSTGRES_USER=workshop
+      - POSTGRES_PASSWORD=workshop
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U workshop -d workshop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_REDIS_HOST=redis
+      - RI_REDIS_PORT=6379
+      - RI_REDIS_ALIAS=Workshop Redis
+      - RI_REDIS_USERNAME=default
+      - RI_REDIS_PASSWORD=
+      - RI_REDIS_TLS=FALSE
+    volumes:
+      - redis-insight-data:/db
+    depends_on:
+      - redis
+
+volumes:
+  redis-data:
+  redis-insight-data:
+  postgres-data:

@@ -33,3 +33,19 @@ workshops:
       - Full-Text Search
       - Redis OM
       - Secondary Index
+  - id: 3_distributed_locks
+    title: Distributed Locks
+    description: >-
+      Implement a Redis-backed distributed lock to protect Postgres inventory updates
+      and prevent overselling under concurrent load.
+    difficulty: Intermediate
+    estimatedMinutes: 35
+    serviceName: distributed-locks
+    port: 8082
+    url: /workshop/distributed-locks/
+    dockerfile: java-springboot/3_distributed_locks/Dockerfile
+    topics:
+      - Distributed Locks
+      - Concurrency
+      - Redis
+      - Postgres

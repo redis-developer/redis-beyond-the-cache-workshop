@@ -33,3 +33,11 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
 }
+
+tasks.register<JavaExec>("generateCompose") {
+    group = "workshop"
+    description = "Generate docker-compose files from workshops.yaml"
+    classpath = sourceSets["main"].runtimeClasspath
+    mainClass.set("com.redis.workshop.hub.tools.ComposeGenerator")
+    args(rootProject.projectDir.parentFile.absolutePath, "workshops.yaml")
+}

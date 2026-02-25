@@ -10,3 +10,4 @@ include("workshop-infrastructure")
 include("1_session_management")
 include("2_full_text_search")
 
+include("3_distributed_locks")
