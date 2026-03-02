@@ -1,5 +1,7 @@
 package com.redis.workshop.hub.controller;
 
+import com.redis.workshop.hub.model.Workshop;
+import com.redis.workshop.hub.service.WorkshopRegistryService;
 import jakarta.servlet.http.HttpServletRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -10,8 +12,6 @@ import org.springframework.web.client.RestTemplate;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.Enumeration;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Reverse proxy controller that forwards requests to workshop containers running inside DinD.
@@ -24,14 +24,12 @@ public class WorkshopProxyController {
     private static final Logger logger = LoggerFactory.getLogger(WorkshopProxyController.class);
 
     private final RestTemplate restTemplate = new RestTemplate();
+    private final WorkshopRegistryService registryService;
 
-    // Workshop/service ID to internal port mapping
-    private static final Map<String, Integer> WORKSHOP_PORTS = new ConcurrentHashMap<>();
+    private static final int REDIS_INSIGHT_PORT = 5540;
 
-    static {
-        WORKSHOP_PORTS.put("session-management", 8080);
-        WORKSHOP_PORTS.put("full-text-search", 8081);
-        // Add more workshops here as needed
+    public WorkshopProxyController(WorkshopRegistryService registryService) {
+        this.registryService = registryService;
     }
 
     @RequestMapping(value = "/{workshopId}/**", method = {RequestMethod.GET, RequestMethod.POST,
@@ -41,7 +39,7 @@ public class WorkshopProxyController {
             HttpServletRequest request,
             @RequestBody(required = false) byte[] body) {
 
-        Integer port = WORKSHOP_PORTS.get(workshopId);
+        Integer port = resolvePort(workshopId);
         if (port == null) {
             return ResponseEntity.notFound().build();
         }
@@ -168,5 +166,41 @@ public class WorkshopProxyController {
                     .body(("Workshop not available: " + e.getMessage()).getBytes());
         }
     }
-}
 
+    private Integer resolvePort(String workshopId) {
+        if ("redis-insight".equals(workshopId)) {
+            return REDIS_INSIGHT_PORT;
+        }
+
+        for (Workshop workshop : registryService.getWorkshops()) {
+            if (workshopId.equals(workshop.getServiceName())) {
+                return workshop.getPort();
+            }
+            String slug = extractSlugFromUrl(workshop.getUrl());
+            if (slug != null && workshopId.equals(slug)) {
+                return workshop.getPort();
+            }
+        }
+        return null;
+    }
+
+    private String extractSlugFromUrl(String url) {
+        if (url == null || url.isBlank()) {
+            return null;
+        }
+        String marker = "/workshop/";
+        int markerIndex = url.indexOf(marker);
+        if (markerIndex == -1) {
+            return null;
+        }
+        int start = markerIndex + marker.length();
+        int end = url.indexOf('/', start);
+        if (end == -1) {
+            end = url.length();
+        }
+        if (start >= end) {
+            return null;
+        }
+        return url.substring(start, end);
+    }
+}

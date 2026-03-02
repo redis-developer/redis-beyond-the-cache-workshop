@@ -1,9 +1,5 @@
-export function getBasePath() {
-  const defaultBase = process.env.BASE_URL || '/';
-  const pathname = window.location.pathname || '';
-  const match = pathname.match(/^\/workshop\/full-text-search/);
-  if (match) {
-    return match[0].replace(/\/$/, '');
-  }
-  return defaultBase.replace(/\/$/, '');
-}
+/**
+ * Re-export from shared package for backward compatibility.
+ * Uses relative path to avoid webpack module resolution issues with file: links.
+ */
+export { getBasePath, getApiUrl } from '../../../../../workshop-frontend-shared/src/utils/basePath.js';
