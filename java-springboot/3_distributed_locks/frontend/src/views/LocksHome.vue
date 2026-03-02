@@ -1,5 +1,14 @@
 <template>
   <div class="locks-home">
+    <!-- Workshop Header with Hub Link and Progress -->
+    <WorkshopHeader
+      :hub-url="workshopHubUrl"
+      :steps="['Problem', 'Solution']"
+      :current-step="currentStage"
+      clickable
+      @step-click="goToStage"
+    />
+
     <div class="hub-container">
       <!-- STAGE 1: See the Problem -->
       <div v-if="currentStage === 1" class="problem-stage">
@@ -72,7 +81,7 @@
             </ul>
           </div>
 
-          <button @click="nextStage" class="btn btn-primary">I understand. Show me the lock types →</button>
+          <WorkshopStageNav :show-prev="false" @next="nextStage" next-text="I understand. Show me the lock types" />
         </div>
       </div>
 
@@ -155,21 +164,38 @@
 
         <!-- Back button and restart -->
         <div class="hub-footer">
-          <button @click="prevStage" class="btn btn-secondary">← See Problem Demo</button>
-          <button @click="restartLab" class="btn btn-warning" :disabled="restartingLab">
-            {{ restartingLab ? 'Restoring...' : 'Restart Workshop' }}
-          </button>
+          <WorkshopStageNav @prev="prevStage" :show-next="false" prev-text="See Problem Demo">
+            <button @click="confirmRestartLab" class="btn btn-warning" :disabled="restartingLab">
+              {{ restartingLab ? 'Restoring...' : 'Restart Workshop' }}
+            </button>
+          </WorkshopStageNav>
         </div>
       </div>
     </div>
+
+    <!-- Modal using shared component -->
+    <WorkshopModal
+      v-model="modal.show"
+      :title="modal.title"
+      :message="modal.message"
+      :type="modal.type"
+      @confirm="handleModalConfirm"
+      @cancel="handleModalCancel"
+    />
   </div>
 </template>
 
 <script>
 import { LOCK_TYPES, loadProgress, saveProgress, clearProgress, getLockTypeProgress, getCompletedLockTypesCount } from '../utils/locksWorkshop';
+import { WorkshopModal, WorkshopStageNav, WorkshopHeader } from "../utils/components";
 
 export default {
   name: 'LocksHome',
+  components: {
+    WorkshopModal,
+    WorkshopStageNav,
+    WorkshopHeader
+  },
   data() {
     return {
       lockTypes: LOCK_TYPES,
@@ -178,7 +204,14 @@ export default {
       runningJob: false,
       jobResult: null,
       showRedissonIntro: false,
-      lockProgress: {}
+      lockProgress: {},
+      modal: {
+        show: false,
+        type: 'alert',
+        title: '',
+        message: '',
+        onConfirm: null
+      }
     };
   },
   computed: {
@@ -217,6 +250,12 @@ export default {
         this.saveState();
       }
     },
+    goToStage(step) {
+      if (step >= 1 && step <= 2) {
+        this.currentStage = step;
+        this.saveState();
+      }
+    },
     getLockStatus(lockTypeId) {
       return getLockTypeProgress(lockTypeId);
     },
@@ -238,6 +277,31 @@ export default {
         this.runningJob = false;
       }
     },
+    showModal(type, title, message, onConfirm = null) {
+      this.modal = {
+        show: true,
+        type,
+        title,
+        message,
+        onConfirm
+      };
+    },
+    handleModalConfirm() {
+      if (this.modal.onConfirm) {
+        this.modal.onConfirm();
+      }
+      this.modal.show = false;
+      this.modal.onConfirm = null;
+    },
+    handleModalCancel() {
+      this.modal.show = false;
+      this.modal.onConfirm = null;
+    },
+    confirmRestartLab() {
+      this.showModal('confirm', 'Restart Workshop', 'Are you sure you want to restart the workshop? This will restore all files to their original state and reset your progress. You will need to restart the application after this.', () => {
+        this.restartLab();
+      });
+    },
     async restartLab() {
       this.restartingLab = true;
       try {
@@ -248,7 +312,13 @@ export default {
           this.currentStage = 1;
           this.jobResult = null;
           this.refreshLockProgress();
+          this.showModal('alert', 'Workshop Reset', 'Workshop reset! Please restart the application from the Workshop Hub.\n\nThen refresh this page to start from Stage 1.');
+        } else {
+          this.showModal('alert', 'Error', 'Error: ' + (data.error || 'Failed to restore files'));
         }
+      } catch (error) {
+        console.error('Error restarting workshop:', error);
+        this.showModal('alert', 'Error', 'Failed to restore files. Please try again.');
       } finally {
         this.restartingLab = false;
       }
@@ -400,28 +470,7 @@ export default {
   line-height: 1.6;
 }
 
-.step-item {
-  background: var(--color-dark-800);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-4);
-  margin-bottom: var(--spacing-4);
-  border-left: 3px solid #DC382C;
-}
-
-.step-item h4 {
-  color: var(--color-text);
-  font-size: var(--font-size-base);
-  margin-bottom: var(--spacing-2);
-  font-weight: var(--font-weight-semibold);
-}
-
-.step-description {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: 1.6;
-  margin: 0;
-}
-
+/* View-specific step-list styles */
 .step-list {
   margin: var(--spacing-2) 0 0 var(--spacing-4);
   color: var(--color-text-secondary);
@@ -440,47 +489,21 @@ export default {
   font-size: var(--font-size-xs);
 }
 
+/* Override button-group margin */
 .button-group {
-  display: flex;
-  gap: var(--spacing-3);
   margin-top: var(--spacing-4);
-  flex-wrap: wrap;
 }
 
-.btn {
-  padding: var(--spacing-3) var(--spacing-5);
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: all var(--transition-base);
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
+/* View-specific btn-outline variant (red themed) */
+.btn-outline {
+  color: #DC382C;
+  border-color: #DC382C;
 }
-
-.btn:disabled { opacity: 0.6; cursor: not-allowed; }
-.btn-primary { background: #DC382C; color: white; }
-.btn-primary:hover:not(:disabled) { background: #c42f24; }
-.btn-secondary { background: var(--color-dark-800); color: var(--color-text); border: 1px solid var(--color-border); }
-.btn-secondary:hover:not(:disabled) { background: var(--color-border); }
-.btn-outline { background: transparent; color: #DC382C; border: 1px solid #DC382C; }
-.btn-outline:hover:not(:disabled) { background: rgba(220, 56, 44, 0.1); }
-.btn-warning { background: #b45309; color: white; }
-.btn-warning:hover:not(:disabled) { background: #92400e; }
+.btn-outline:hover:not(:disabled) {
+  background: rgba(220, 56, 44, 0.1);
+}
 
 .skip-link { text-align: right; margin-bottom: 0.5rem; }
-.btn-link {
-  background: none;
-  border: none;
-  color: var(--color-text-muted);
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 0;
-  text-decoration: underline;
-}
-.btn-link:hover { color: var(--color-text); }
 
 /* Lock Type Cards Grid */
 .lock-types-grid {
@@ -593,16 +616,7 @@ export default {
   color: var(--color-text-secondary);
 }
 
-.btn-sm {
-  padding: var(--spacing-2) var(--spacing-3);
-  font-size: var(--font-size-xs);
-}
-
-.btn-disabled {
-  background: var(--color-dark-700);
-  color: var(--color-text-secondary);
-  cursor: not-allowed;
-}
+/* .btn-sm and .btn-disabled use shared styles */
 
 /* Hub Footer */
 .hub-footer {
@@ -667,23 +681,10 @@ export default {
   font-size: var(--font-size-base);
 }
 
-.alert {
-  padding: var(--spacing-4);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--spacing-4);
-  font-size: var(--font-size-sm);
-}
-
-.alert-info { background: #094771; }
+/* View-specific alert/editor-link overrides */
 .alert-success { background: #065f46; }
-.alert-warning { background: #92400e; border-left: 3px solid #f59e0b; }
-
-.editor-link {
-  color: #60a5fa;
-  font-weight: 500;
-  text-decoration: none;
-}
-.editor-link:hover { text-decoration: underline; }
+.alert-warning { border-left: 3px solid #f59e0b; }
+.editor-link { color: #60a5fa; }
 
 .intro { margin-bottom: 0.75rem; }
 
@@ -756,14 +757,9 @@ export default {
   color: #ce9178;
 }
 
+/* btn-disabled uses shared styles with view-specific opacity */
 .btn-disabled {
-  background: var(--color-dark-800);
-  color: var(--color-text-secondary);
-  cursor: not-allowed;
   opacity: 0.5;
-  padding: var(--spacing-3) var(--spacing-5);
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-sm);
 }
 
 code {
@@ -805,34 +801,7 @@ code {
   font-size: var(--font-size-base);
 }
 
-.scenario-results {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--spacing-3);
-  margin: var(--spacing-4) 0;
-}
-
-.result-item {
-  background: var(--color-dark-800);
-  padding: var(--spacing-3);
-  border-radius: var(--radius-md);
-  text-align: center;
-}
-
-.result-label {
-  display: block;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-1);
-}
-
-.result-value {
-  display: block;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text);
-}
-
+/* result styles already defined above - using same patterns */
 .result-hint {
   margin-top: var(--spacing-3);
   font-size: var(--font-size-sm);

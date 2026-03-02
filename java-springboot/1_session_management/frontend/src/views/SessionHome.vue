@@ -1,5 +1,8 @@
 <template>
-  <div class="session-welcome">
+  <div class="session-home">
+    <!-- Workshop Header with Hub Link -->
+    <WorkshopHeader :hub-url="workshopHubUrl" />
+
     <div class="welcome-container">
       <!-- Left Column: Instructions -->
       <div class="instructions-column">
@@ -259,21 +262,15 @@
       </div>
     </div>
 
-    <!-- Custom Modal -->
-    <div v-if="modal.show" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-container">
-        <div class="modal-header">
-          <h3>{{ modal.title }}</h3>
-        </div>
-        <div class="modal-body">
-          <p v-for="(line, index) in modal.message.split('\n')" :key="index">{{ line }}</p>
-        </div>
-        <div class="modal-footer">
-          <button v-if="modal.type === 'confirm'" @click="closeModal" class="btn btn-outline">Cancel</button>
-          <button @click="confirmModal" class="btn btn-primary">{{ modal.type === 'confirm' ? 'Confirm' : 'OK' }}</button>
-        </div>
-      </div>
-    </div>
+    <!-- Modal using shared component -->
+    <WorkshopModal
+      v-model="modal.show"
+      :title="modal.title"
+      :message="modal.message"
+      :type="modal.type"
+      @confirm="handleModalConfirm"
+      @cancel="handleModalCancel"
+    />
   </div>
 </template>
 
@@ -282,8 +279,14 @@
 
 <script>
 import { getBasePath } from "../utils/basePath";
+import { WorkshopModal, WorkshopHeader } from "../utils/components";
+
 export default {
-  name: 'SessionWelcome',
+  name: 'SessionHome',
+  components: {
+    WorkshopModal,
+    WorkshopHeader
+  },
   data() {
     return {
       sessionInfo: {
@@ -419,15 +422,16 @@ export default {
         onConfirm
       };
     },
-    closeModal() {
-      this.modal.show = false;
-      this.modal.onConfirm = null;
-    },
-    confirmModal() {
+    handleModalConfirm() {
       if (this.modal.onConfirm) {
         this.modal.onConfirm();
       }
-      this.closeModal();
+      this.modal.show = false;
+      this.modal.onConfirm = null;
+    },
+    handleModalCancel() {
+      this.modal.show = false;
+      this.modal.onConfirm = null;
     },
     resetProgress() {
       this.showModal('confirm', 'Reset Progress', 'Reset all test progress? You will start from the first test again.', () => {
@@ -492,7 +496,7 @@ export default {
 </script>
 
 <style scoped>
-.session-welcome {
+.session-home {
   min-height: 100vh;
   background: linear-gradient(135deg, var(--color-dark-900) 0%, var(--color-dark-800) 100%);
   display: flex;
@@ -543,86 +547,22 @@ export default {
   line-height: 1.6;
 }
 
-.test-item,
-.step-item {
-  background: var(--color-dark-800);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-4);
-  margin-bottom: var(--spacing-4);
-  border-left: 3px solid #DC382C;
-  transition: all 0.2s ease;
-}
-
+/* Overrides for view-specific styling */
 .test-item.completed {
-  border-left-color: #10b981;
   opacity: 0.7;
-}
-
-.test-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--spacing-2);
-}
-
-.test-header h4 {
-  margin: 0;
-  color: var(--color-text);
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-semibold);
 }
 
 .test-check {
   background: #10b981;
   color: white;
-  font-size: var(--font-size-xs);
   padding: 0.2rem 0.5rem;
   border-radius: var(--radius-sm);
-  font-weight: var(--font-weight-semibold);
-}
-
-.test-item h4,
-.step-item h4 {
-  color: var(--color-text);
-  font-size: var(--font-size-base);
-  margin-bottom: var(--spacing-2);
-  font-weight: var(--font-weight-semibold);
-}
-
-.test-description,
-.step-description {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  line-height: 1.6;
-  margin: 0;
-  margin-bottom: var(--spacing-3);
-}
-
-.btn-outline {
-  background: transparent;
-  border: 1px solid var(--color-border);
-  color: var(--color-text);
-}
-
-.btn-outline:hover {
-  background: var(--color-border);
 }
 
 .btn-link {
-  background: transparent;
-  border: none;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  padding: var(--spacing-2) 0;
-  cursor: pointer;
-  text-decoration: underline;
   width: 100%;
   text-align: center;
   margin-bottom: var(--spacing-3);
-}
-
-.btn-link:hover {
-  color: var(--color-text);
 }
 
 /* Session Comparison Box */
@@ -815,41 +755,9 @@ export default {
   color: #DC382C;
 }
 
-/* Alerts */
-.alert {
-  padding: var(--spacing-3) var(--spacing-4);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--spacing-5);
-  font-size: var(--font-size-sm);
-}
-
-.alert-warning {
-  background: rgba(245, 158, 11, 0.1);
-  border: 1px solid #f59e0b;
-  color: #f59e0b;
-}
-
-.alert-success {
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid #10b981;
-  color: #10b981;
-}
-
+/* Override alert-info for this view */
 .alert-info {
   background: #094771;
-  padding: var(--spacing-4);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--spacing-4);
-}
-
-.editor-link {
-  color: #4fc3f7;
-  text-decoration: none;
-  font-weight: var(--font-weight-medium);
-}
-
-.editor-link:hover {
-  text-decoration: underline;
 }
 
 /* Redis Insight Box */
@@ -878,66 +786,9 @@ export default {
   color: #4fc3f7;
 }
 
-/* Buttons */
-.btn {
-  padding: var(--spacing-3) var(--spacing-5);
-  border: none;
-  border-radius: var(--radius-md);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-semibold);
-  cursor: pointer;
-  transition: all var(--transition-base);
-  text-align: center;
-  text-decoration: none;
-  display: inline-block;
-}
-
-.btn-sm {
-  padding: var(--spacing-2) var(--spacing-4);
-  font-size: var(--font-size-xs);
-}
-
-.btn-primary {
-  background: #DC382C;
-  color: white;
-}
-
-.btn-primary:hover:not(:disabled) {
-  background: #c42f24;
-}
-
-.btn-danger {
-  background: #ef4444;
-  color: white;
-}
-
-.btn-danger:hover {
-  background: #dc2626;
-}
-
-.btn-secondary {
-  background: var(--color-dark-800);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-}
-
-.btn-secondary:hover {
-  background: var(--color-border);
-}
-
+/* View-specific button overrides */
 .btn-warning {
-  background: #f59e0b;
-  color: white;
   margin-top: var(--spacing-3);
-}
-
-.btn-warning:hover:not(:disabled) {
-  background: #d97706;
-}
-
-.btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
 }
 
 /* Responsive */
@@ -958,62 +809,5 @@ export default {
   .actions .btn {
     flex: 1;
   }
-}
-
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-.modal-container {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  max-width: 450px;
-  width: 90%;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  padding: var(--spacing-4) var(--spacing-5);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  color: var(--color-text);
-}
-
-.modal-body {
-  padding: var(--spacing-5);
-}
-
-.modal-body p {
-  margin: 0 0 var(--spacing-2) 0;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-}
-
-.modal-body p:last-child {
-  margin-bottom: 0;
-}
-
-.modal-footer {
-  padding: var(--spacing-4) var(--spacing-5);
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-3);
 }
 </style>

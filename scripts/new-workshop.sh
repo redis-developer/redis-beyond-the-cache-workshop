@@ -344,9 +344,10 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 
-// Import styles from shared package
+// Import styles from shared package using relative path
 import '../../../../workshop-frontend-shared/src/styles/tokens.css'
 import '../../../../workshop-frontend-shared/src/styles/dark-theme.css'
+import '../../../../workshop-frontend-shared/src/styles/components.css'
 
 createApp(App).use(router).mount('#app')
 DOC
@@ -393,6 +394,77 @@ cat <<'DOC' > "$FRONTEND_DIR/src/utils/basePath.js"
 export { getBasePath, getApiUrl } from '../../../../../workshop-frontend-shared/src/utils/basePath.js';
 DOC
 
+# src/utils/components.js
+cat <<'DOC' > "$FRONTEND_DIR/src/utils/components.js"
+/**
+ * Re-export shared components for simplified imports.
+ * Uses relative path to avoid webpack module resolution issues with file: links.
+ *
+ * Usage:
+ *   import { WorkshopModal, WorkshopHeader } from '../utils/components';
+ */
+export { default as WorkshopModal } from '../../../../../workshop-frontend-shared/src/components/WorkshopModal.vue';
+export { default as WorkshopStageNav } from '../../../../../workshop-frontend-shared/src/components/WorkshopStageNav.vue';
+export { default as WorkshopProgressIndicator } from '../../../../../workshop-frontend-shared/src/components/WorkshopProgressIndicator.vue';
+export { default as WorkshopHubLink } from '../../../../../workshop-frontend-shared/src/components/WorkshopHubLink.vue';
+export { default as WorkshopHeader } from '../../../../../workshop-frontend-shared/src/components/WorkshopHeader.vue';
+DOC
+
+# src/utils/progress.js
+cat <<'DOC' > "$FRONTEND_DIR/src/utils/progress.js"
+/**
+ * Workshop progress tracking utility.
+ * Stores progress in localStorage to persist across page reloads.
+ */
+
+const STORAGE_KEY_PREFIX = 'workshop_progress_';
+
+export function getProgress(workshopId) {
+  const key = STORAGE_KEY_PREFIX + workshopId;
+  const stored = localStorage.getItem(key);
+  return stored ? JSON.parse(stored) : { currentStage: 0, completedStages: [], testsCompleted: {} };
+}
+
+export function saveProgress(workshopId, progress) {
+  const key = STORAGE_KEY_PREFIX + workshopId;
+  localStorage.setItem(key, JSON.stringify(progress));
+}
+
+export function resetProgress(workshopId) {
+  const key = STORAGE_KEY_PREFIX + workshopId;
+  localStorage.removeItem(key);
+}
+
+export function completeStage(workshopId, stageIndex) {
+  const progress = getProgress(workshopId);
+  if (!progress.completedStages.includes(stageIndex)) {
+    progress.completedStages.push(stageIndex);
+  }
+  if (stageIndex >= progress.currentStage) {
+    progress.currentStage = stageIndex + 1;
+  }
+  saveProgress(workshopId, progress);
+  return progress;
+}
+
+export function completeTest(workshopId, stageIndex, testId) {
+  const progress = getProgress(workshopId);
+  if (!progress.testsCompleted[stageIndex]) {
+    progress.testsCompleted[stageIndex] = [];
+  }
+  if (!progress.testsCompleted[stageIndex].includes(testId)) {
+    progress.testsCompleted[stageIndex].push(testId);
+  }
+  saveProgress(workshopId, progress);
+  return progress;
+}
+
+export function isTestCompleted(workshopId, stageIndex, testId) {
+  const progress = getProgress(workshopId);
+  return progress.testsCompleted[stageIndex]?.includes(testId) || false;
+}
+DOC
+
 # src/router/index.js
 cat <<DOC > "$FRONTEND_DIR/src/router/index.js"
 import { createRouter, createWebHistory } from 'vue-router'
@@ -422,79 +494,293 @@ const router = createRouter({
 export default router
 DOC
 
-# src/views/Home.vue
+# src/views/Home.vue (standardized structure with stages and progress tracking)
 cat <<DOC > "$FRONTEND_DIR/src/views/${PASCAL_CASE}Home.vue"
 <template>
-  <div class="home">
-    <div class="container">
-      <div class="logo">
-        <img src="@/assets/logo/small.png" alt="Redis Logo" width="64" height="64" />
+  <div class="workshop-home">
+    <!-- Workshop Header with Hub Link and Progress -->
+    <WorkshopHeader
+      :hub-url="workshopHubUrl"
+      :steps="stageNames"
+      :current-step="currentStage"
+      clickable
+      @step-click="goToStage"
+    />
+
+    <div class="main-container">
+      <!-- STAGE 1: Introduction -->
+      <div v-if="currentStage === 0" class="stage-content">
+        <div class="instructions">
+          <h2>STAGE 1: Introduction</h2>
+          <p class="intro">
+            TODO: Add workshop introduction and goals here.
+          </p>
+
+          <div class="step-item">
+            <h4>What You'll Learn</h4>
+            <p class="step-description">
+              TODO: Describe what the user will learn in this workshop.
+            </p>
+            <ul class="step-list">
+              <li>TODO: Learning objective 1</li>
+              <li>TODO: Learning objective 2</li>
+              <li>TODO: Learning objective 3</li>
+            </ul>
+          </div>
+
+          <div class="button-group">
+            <button @click="goToStage(1)" class="btn btn-primary">
+              Start Learning →
+            </button>
+          </div>
+        </div>
       </div>
-      <h1>$TITLE Workshop</h1>
-      <p class="description">
-        TODO: Add workshop description and goals here.
-      </p>
-      <div class="actions">
-        <router-link to="/editor" class="btn btn-primary">
-          Start Workshop
-        </router-link>
+
+      <!-- STAGE 2: Learn -->
+      <div v-if="currentStage === 1" class="stage-content">
+        <div class="instructions">
+          <h2>STAGE 2: Learn the Concepts</h2>
+          <p class="intro">
+            TODO: Add learning content here.
+          </p>
+
+          <div class="step-item">
+            <h4>Step 1: TODO</h4>
+            <p class="step-description">
+              TODO: Explain the first concept.
+            </p>
+          </div>
+
+          <div class="step-item">
+            <h4>Step 2: TODO</h4>
+            <p class="step-description">
+              TODO: Explain the second concept.
+            </p>
+          </div>
+
+          <div class="button-group">
+            <button @click="goToStage(0)" class="btn btn-secondary">
+              ← Back
+            </button>
+            <button @click="goToStage(2)" class="btn btn-primary">
+              Start Building →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 3: Build -->
+      <div v-if="currentStage === 2" class="stage-content">
+        <div class="instructions">
+          <h2>STAGE 3: Build It Yourself</h2>
+
+          <div class="alert alert-info">
+            <strong>Option 1: Use the In-Browser Code Editor</strong>
+            <p style="margin: 0.5rem 0 0 0;">
+              <router-link to="/editor" class="editor-link">Open Code Editor →</router-link>
+            </p>
+          </div>
+
+          <div class="step-item">
+            <h4>Option 2: Manual Implementation</h4>
+            <p class="step-description">
+              TODO: Add manual implementation steps here.
+            </p>
+          </div>
+
+          <div class="button-group">
+            <button @click="goToStage(1)" class="btn btn-secondary">
+              ← Back
+            </button>
+            <button @click="goToStage(3)" class="btn btn-primary">
+              Test Your Work →
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- STAGE 4: Test -->
+      <div v-if="currentStage === 3" class="stage-content">
+        <div class="instructions">
+          <h2>STAGE 4: Test & Verify</h2>
+
+          <div class="step-item" :class="{ 'completed': testsCompleted.test1 }">
+            <div class="test-header">
+              <h4>Test 1: TODO</h4>
+              <span v-if="testsCompleted.test1" class="test-check">✓ Done</span>
+            </div>
+            <p class="test-description">
+              TODO: Add test description here.
+            </p>
+            <button v-if="!testsCompleted.test1" @click="completeTest('test1')" class="btn btn-outline btn-sm">
+              Mark Complete
+            </button>
+          </div>
+
+          <div class="step-item" :class="{ 'completed': testsCompleted.test2 }">
+            <div class="test-header">
+              <h4>Test 2: TODO</h4>
+              <span v-if="testsCompleted.test2" class="test-check">✓ Done</span>
+            </div>
+            <p class="test-description">
+              TODO: Add test description here.
+            </p>
+            <button v-if="!testsCompleted.test2" @click="completeTest('test2')" class="btn btn-outline btn-sm">
+              Mark Complete
+            </button>
+          </div>
+
+          <div v-if="allTestsCompleted" class="alert alert-success">
+            <strong>🎉 Congratulations!</strong> You've completed the $TITLE workshop!
+          </div>
+
+          <div class="button-group">
+            <button @click="goToStage(2)" class="btn btn-secondary">
+              ← Back
+            </button>
+            <button @click="resetWorkshop" class="btn btn-warning">
+              Restart Workshop
+            </button>
+          </div>
+        </div>
       </div>
     </div>
+
+    <!-- Confirmation Modal -->
+    <WorkshopModal
+      v-model="showRestartModal"
+      title="Restart Workshop?"
+      message="This will reset all your progress. Are you sure?"
+      type="confirm"
+      confirm-text="Yes, Restart"
+      @confirm="confirmRestart"
+    />
   </div>
 </template>
 
 <script>
+import { WorkshopHeader, WorkshopModal } from '../utils/components';
+import { getProgress, saveProgress, resetProgress } from '../utils/progress';
+
+const WORKSHOP_ID = '$ID';
+
 export default {
-  name: '${PASCAL_CASE}Home'
-}
+  name: '${PASCAL_CASE}Home',
+  components: { WorkshopHeader, WorkshopModal },
+  data() {
+    return {
+      currentStage: 0,
+      stageNames: ['Intro', 'Learn', 'Build', 'Test'],
+      testsCompleted: {},
+      showRestartModal: false
+    };
+  },
+  computed: {
+    workshopHubUrl() {
+      return window.location.protocol + '//' + window.location.hostname + ':9000';
+    },
+    allTestsCompleted() {
+      return this.testsCompleted.test1 && this.testsCompleted.test2;
+    }
+  },
+  mounted() {
+    this.loadProgress();
+  },
+  methods: {
+    loadProgress() {
+      const progress = getProgress(WORKSHOP_ID);
+      this.currentStage = progress.currentStage || 0;
+      this.testsCompleted = progress.testsCompleted?.[3]
+        ? { test1: progress.testsCompleted[3].includes('test1'), test2: progress.testsCompleted[3].includes('test2') }
+        : {};
+    },
+    saveCurrentProgress() {
+      const progress = getProgress(WORKSHOP_ID);
+      progress.currentStage = this.currentStage;
+      if (!progress.testsCompleted) progress.testsCompleted = {};
+      progress.testsCompleted[3] = Object.keys(this.testsCompleted).filter(k => this.testsCompleted[k]);
+      saveProgress(WORKSHOP_ID, progress);
+    },
+    goToStage(stage) {
+      this.currentStage = stage;
+      this.saveCurrentProgress();
+    },
+    completeTest(testId) {
+      this.testsCompleted[testId] = true;
+      this.saveCurrentProgress();
+    },
+    resetWorkshop() {
+      this.showRestartModal = true;
+    },
+    confirmRestart() {
+      resetProgress(WORKSHOP_ID);
+      this.currentStage = 0;
+      this.testsCompleted = {};
+      this.showRestartModal = false;
+    }
+  }
+};
 </script>
 
 <style scoped>
-.home {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+.workshop-home {
   min-height: 100vh;
-  padding: var(--spacing-8);
+  background: linear-gradient(135deg, var(--color-dark-900) 0%, var(--color-dark-800) 100%);
+  padding: var(--spacing-6);
 }
 
-.container {
-  text-align: center;
-  max-width: 600px;
+.main-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding-top: var(--spacing-4);
 }
 
-.logo {
-  margin-bottom: var(--spacing-6);
+.stage-content {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  padding: var(--spacing-6);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--color-border);
 }
 
-h1 {
-  color: #DC382C;
+.instructions h2 {
+  color: var(--color-text);
   margin-bottom: var(--spacing-4);
+  font-size: var(--font-size-xl);
 }
 
-.description {
-  color: var(--color-text-muted);
-  margin-bottom: var(--spacing-8);
+.intro {
+  color: var(--color-text-secondary);
+  margin-bottom: var(--spacing-5);
   line-height: 1.6;
 }
 
-.btn {
-  display: inline-block;
-  padding: var(--spacing-3) var(--spacing-6);
-  border-radius: var(--radius-md);
-  text-decoration: none;
+.step-list {
+  margin: var(--spacing-3) 0 0 var(--spacing-5);
+  color: var(--color-text-secondary);
+  line-height: 1.8;
+}
+
+.step-list li {
+  margin-bottom: var(--spacing-2);
+}
+
+.step-item.completed {
+  opacity: 0.7;
+  border-left-color: #10b981;
+}
+
+.test-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: var(--spacing-2);
+}
+
+.test-check {
+  color: #10b981;
   font-weight: var(--font-weight-semibold);
-  transition: all var(--transition-base);
-}
-
-.btn-primary {
-  background: #DC382C;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #b82e24;
-  transform: translateY(-2px);
+  font-size: var(--font-size-sm);
 }
 </style>
 DOC
@@ -564,7 +850,7 @@ export default {
   },
   computed: {
     workshopHubUrl() {
-      return this.\$refs.layout?.workshopHubUrl || \`\${window.location.protocol}//\${window.location.hostname}:9000\`;
+      return this.\$refs.layout?.workshopHubUrl || (window.location.protocol + '//' + window.location.hostname + ':9000');
     }
   },
   methods: {
@@ -636,17 +922,28 @@ echo "      ├── package.json"
 echo "      ├── vue.config.js"
 echo "      ├── public/index.html"
 echo "      └── src/"
-echo "          ├── main.js"
+echo "          ├── main.js (with shared CSS imports)"
 echo "          ├── App.vue"
 echo "          ├── router/index.js"
-echo "          ├── utils/basePath.js"
+echo "          ├── utils/"
+echo "          │   ├── basePath.js"
+echo "          │   ├── components.js (shared component re-exports)"
+echo "          │   └── progress.js (progress tracking utility)"
 echo "          └── views/"
-echo "              ├── ${PASCAL_CASE}Home.vue"
+echo "              ├── ${PASCAL_CASE}Home.vue (standardized 4-stage structure)"
 echo "              └── ${PASCAL_CASE}Editor.vue"
+echo ""
+echo "Features included:"
+echo "  • WorkshopHeader with progress indicator and Hub link"
+echo "  • 4-stage workshop flow (Intro → Learn → Build → Test)"
+echo "  • Progress tracking with localStorage persistence"
+echo "  • Shared CSS imports (tokens, dark-theme, components)"
+echo "  • WorkshopModal for confirmations"
 echo ""
 echo "Next steps:"
 echo "  1. cd java-springboot/$ID/frontend && npm install"
-echo "  2. Customize the editor instructions in ${PASCAL_CASE}Editor.vue"
-echo "  3. Add your workshop-specific Java files"
-echo "  4. Run: ./java-springboot/gradlew :workshop-hub:generateCompose"
+echo "  2. Customize stages and content in ${PASCAL_CASE}Home.vue"
+echo "  3. Customize editor instructions in ${PASCAL_CASE}Editor.vue"
+echo "  4. Add your workshop-specific Java files"
+echo "  5. Run: ./java-springboot/gradlew :workshop-hub:generateCompose"
 echo ""

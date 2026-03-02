@@ -1,5 +1,14 @@
 <template>
   <div class="search-home">
+    <!-- Workshop Header with Hub Link and Progress -->
+    <WorkshopHeader
+      :hub-url="workshopHubUrl"
+      :steps="['Intro', 'Learn', 'Build', 'Test']"
+      :current-step="currentStage"
+      clickable
+      @step-click="goToStage"
+    />
+
     <div class="welcome-container" :class="{ 'search-mode': currentStage === 4 }">
       <!-- Left Column: Instructions -->
       <div class="instructions-column">
@@ -46,7 +55,7 @@
             <li><strong>Test</strong> your Movie Search Engine</li>
           </ol>
 
-          <button @click="nextStage" class="btn btn-primary">Continue →</button>
+          <WorkshopStageNav :show-prev="false" @next="nextStage" next-text="Continue" />
         </div>
 
         <!-- STAGE 2: Understanding the Problem -->
@@ -100,10 +109,7 @@ Cast Index (TAG):
             <li><strong>NUMERIC</strong> on <code>year</code> - range queries</li>
           </ul>
 
-          <div class="button-group">
-            <button @click="prevStage" class="btn btn-secondary">← Back</button>
-            <button @click="nextStage" class="btn btn-primary">Continue →</button>
-          </div>
+          <WorkshopStageNav @prev="prevStage" @next="nextStage" />
         </div>
 
         <!-- STAGE 3: Implementation Steps -->
@@ -162,10 +168,9 @@ Cast Index (TAG):
             <p class="step-description">Go to the Workshop Hub and click "Rebuild &amp; Restart" to compile your code and start the application with Redis Query Engine enabled.</p>
           </div>
 
-          <div class="button-group">
-            <button @click="prevStage" class="btn btn-secondary">← Back</button>
+          <WorkshopStageNav @prev="prevStage" :show-next="false">
             <router-link to="/search" class="btn btn-primary">Test Your Implementation →</router-link>
-          </div>
+          </WorkshopStageNav>
         </div>
 
         <!-- STAGE 4: Removed - redirects to /search instead -->
@@ -329,30 +334,30 @@ Cast Index (TAG):
       </div>
     </div>
 
-    <!-- Custom Modal -->
-    <div v-if="modal.show" class="modal-overlay" @click.self="closeModal">
-      <div class="modal-container">
-        <div class="modal-header">
-          <h3>{{ modal.title }}</h3>
-        </div>
-        <div class="modal-body">
-          <p v-for="(line, index) in modal.message.split('\n')" :key="index">{{ line }}</p>
-        </div>
-        <div class="modal-footer">
-          <button v-if="modal.type === 'confirm'" @click="closeModal" class="btn btn-outline">Cancel</button>
-          <button @click="confirmModal" class="btn btn-primary">{{ modal.type === 'confirm' ? 'Confirm' : 'OK' }}</button>
-        </div>
-      </div>
-    </div>
+    <!-- Modal using shared component -->
+    <WorkshopModal
+      v-model="modal.show"
+      :title="modal.title"
+      :message="modal.message"
+      :type="modal.type"
+      @confirm="handleModalConfirm"
+      @cancel="handleModalCancel"
+    />
   </div>
 </template>
 
 <script>
 import axios from "axios";
 import { getBasePath } from "../utils/basePath";
+import { WorkshopModal, WorkshopStageNav, WorkshopHeader } from "../utils/components";
 
 export default {
   name: "SearchHome",
+  components: {
+    WorkshopModal,
+    WorkshopStageNav,
+    WorkshopHeader
+  },
   data() {
     return {
       currentStage: 1,
@@ -383,6 +388,11 @@ export default {
   computed: {
     basePath() {
       return getBasePath();
+    },
+    workshopHubUrl() {
+      const protocol = window.location.protocol;
+      const hostname = window.location.hostname;
+      return `${protocol}//${hostname}:9000`;
     }
   },
   methods: {
@@ -394,6 +404,11 @@ export default {
     prevStage() {
       if (this.currentStage > 1) {
         this.currentStage--;
+      }
+    },
+    goToStage(step) {
+      if (step >= 1 && step <= 4) {
+        this.currentStage = step;
       }
     },
     async loadGenres() {
@@ -439,15 +454,14 @@ export default {
         onConfirm
       };
     },
-    closeModal() {
-      this.modal.show = false;
-      this.modal.onConfirm = null;
-    },
-    confirmModal() {
+    handleModalConfirm() {
       if (this.modal.onConfirm) {
         this.modal.onConfirm();
       }
-      this.closeModal();
+      this.modal.onConfirm = null;
+    },
+    handleModalCancel() {
+      this.modal.onConfirm = null;
     },
     async restartLab() {
       this.showModal('confirm', 'Restart Lab', 'Are you sure you want to restart the lab? This will restore all files to their original state and reset your progress. You will need to restart the application after this.', async () => {
@@ -578,62 +592,7 @@ export default {
   color: #DC382C;
 }
 
-.code-block {
-  background: var(--color-dark-800);
-  border-left: 4px solid #DC382C;
-  padding: var(--spacing-4);
-  margin: var(--spacing-4) 0;
-  border-radius: var(--radius-md);
-  overflow-x: auto;
-}
-
-.code-block pre {
-  margin: 0;
-  font-family: "Courier New", monospace;
-  font-size: 0.9em;
-  line-height: 1.5;
-  color: var(--color-text);
-}
-
-.alert {
-  padding: var(--spacing-4);
-  border-radius: var(--radius-md);
-  margin-bottom: var(--spacing-5);
-  border: 1px solid;
-}
-
-.alert-info {
-  background: #094771;
-  border-color: #17a2b8;
-  color: var(--color-text);
-}
-
-.alert-success {
-  background: rgba(16, 185, 129, 0.1);
-  border-color: #10b981;
-  color: var(--color-text);
-}
-
-.alert-warning {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: #f59e0b;
-  color: var(--color-text);
-}
-
-.alert strong {
-  color: var(--color-text);
-}
-
-.editor-link {
-  color: #4fc3f7;
-  text-decoration: none;
-  font-weight: var(--font-weight-medium);
-}
-
-.editor-link:hover {
-  text-decoration: underline;
-}
-
+/* info-box is specific to this view */
 .info-box {
   background: rgba(23, 162, 184, 0.1);
   border: 1px solid #17a2b8;
@@ -647,66 +606,15 @@ export default {
   color: var(--color-text);
 }
 
+/* Override step-item margin for this view */
 .step-item {
   margin: var(--spacing-6) 0;
   padding: var(--spacing-5);
-  background: var(--color-dark-800);
-  border-radius: var(--radius-md);
-  border-left: 4px solid #DC382C;
 }
 
-.step-item h4 {
-  margin-top: 0;
-  color: var(--color-text);
-  font-weight: var(--font-weight-semibold);
-}
-
+/* Override button-group margin for this view */
 .button-group {
-  display: flex;
-  gap: var(--spacing-3);
   margin-top: var(--spacing-6);
-}
-
-.btn {
-  padding: var(--spacing-3) var(--spacing-5);
-  border: none;
-  border-radius: var(--radius-md);
-  cursor: pointer;
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
-  transition: all 0.2s;
-}
-
-.btn-primary {
-  background: #DC382C;
-  color: white;
-}
-
-.btn-primary:hover {
-  background: #c42f24;
-}
-
-.btn-secondary {
-  background: var(--color-dark-800);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-}
-
-.btn-secondary:hover {
-  background: var(--color-border);
-}
-
-.btn-warning {
-  background: #f59e0b;
-  color: white;
-}
-
-.btn-warning:hover {
-  background: #d97706;
-}
-
-.btn-block {
-  width: 100%;
 }
 
 /* Search Interface */
@@ -843,60 +751,5 @@ select.form-control {
   }
 }
 
-/* Modal Styles */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.7);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 1000;
-  backdrop-filter: blur(4px);
-}
-
-.modal-container {
-  background: var(--color-surface);
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--color-border);
-  max-width: 450px;
-  width: 90%;
-  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.3);
-}
-
-.modal-header {
-  padding: var(--spacing-4) var(--spacing-5);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.modal-header h3 {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  color: var(--color-text);
-}
-
-.modal-body {
-  padding: var(--spacing-5);
-}
-
-.modal-body p {
-  margin: 0 0 var(--spacing-2) 0;
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-}
-
-.modal-body p:last-child {
-  margin-bottom: 0;
-}
-
-.modal-footer {
-  padding: var(--spacing-4) var(--spacing-5);
-  border-top: 1px solid var(--color-border);
-  display: flex;
-  justify-content: flex-end;
-  gap: var(--spacing-3);
-}
+/* Modal styles moved to shared WorkshopModal component */
 </style>

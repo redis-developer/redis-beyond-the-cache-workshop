@@ -8,9 +8,16 @@
 // Utilities
 export { getBasePath, getApiUrl } from './utils/basePath.js';
 
-// Components
+// Components - Editor
 export { default as CodeEditor } from './components/CodeEditor.vue';
 export { default as WorkshopEditorLayout } from './components/WorkshopEditorLayout.vue';
+
+// Components - UI (shared across workshop home/views)
+export { default as WorkshopModal } from './components/WorkshopModal.vue';
+export { default as WorkshopStageNav } from './components/WorkshopStageNav.vue';
+export { default as WorkshopProgressIndicator } from './components/WorkshopProgressIndicator.vue';
+export { default as WorkshopHubLink } from './components/WorkshopHubLink.vue';
+export { default as WorkshopHeader } from './components/WorkshopHeader.vue';
 
 export default {};
 

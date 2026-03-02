@@ -2,7 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { getBasePath } from '../utils/basePath'
 
 const SessionLogin = () => import('../views/SessionLogin.vue')
-const SessionWelcome = () => import('../views/SessionWelcome.vue')
+const SessionHome = () => import('../views/SessionHome.vue')
 const SessionEditor = () => import('../views/SessionEditor.vue')
 
 const routes = [
@@ -17,8 +17,8 @@ const routes = [
   },
   {
     path: '/welcome',
-    name: 'SessionWelcome',
-    component: SessionWelcome
+    name: 'SessionHome',
+    component: SessionHome
   },
   {
     path: '/editor',
