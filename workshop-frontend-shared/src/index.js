@@ -8,5 +8,9 @@
 // Utilities
 export { getBasePath, getApiUrl } from './utils/basePath.js';
 
+// Components
+export { default as CodeEditor } from './components/CodeEditor.vue';
+export { default as WorkshopEditorLayout } from './components/WorkshopEditorLayout.vue';
+
 export default {};
 
