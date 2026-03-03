@@ -9,5 +9,5 @@ include("workshop-infrastructure")
 // Individual workshop modules
 include("1_session_management")
 include("2_full_text_search")
-
 include("3_distributed_locks")
+include("4_agent_memory")

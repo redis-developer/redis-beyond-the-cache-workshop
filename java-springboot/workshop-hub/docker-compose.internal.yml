@@ -50,6 +50,8 @@ services:
     environment:
     - "SPRING_DATA_REDIS_HOST=redis"
     - "SPRING_DATA_REDIS_PORT=6379"
+    - "SPRING_REDIS_HOST=redis"
+    - "SPRING_REDIS_PORT=6379"
     - "WORKSHOP_BASE_PATH=/workshop-sources"
     volumes:
     - "${WORKSHOP_ROOT_PATH:-/workshops}/java-springboot/1_session_management:/workshop-sources"
@@ -68,6 +70,8 @@ services:
     environment:
     - "SPRING_DATA_REDIS_HOST=redis"
     - "SPRING_DATA_REDIS_PORT=6379"
+    - "SPRING_REDIS_HOST=redis"
+    - "SPRING_REDIS_PORT=6379"
     - "WORKSHOP_BASE_PATH=/workshop-sources"
     - "SERVER_PORT=8081"
     volumes:
@@ -87,6 +91,8 @@ services:
     environment:
     - "SPRING_DATA_REDIS_HOST=redis"
     - "SPRING_DATA_REDIS_PORT=6379"
+    - "SPRING_REDIS_HOST=redis"
+    - "SPRING_REDIS_PORT=6379"
     - "WORKSHOP_BASE_PATH=/workshop-sources"
     - "SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/workshop"
     - "SPRING_DATASOURCE_USERNAME=workshop"
@@ -100,3 +106,24 @@ services:
     profiles:
     - "workshops"
     - "workshop-3_distributed_locks"
+  agent-memory:
+    build:
+      context: "${WORKSHOP_ROOT_PATH:-/workshops}"
+      dockerfile: "java-springboot/4_agent_memory/Dockerfile"
+      args:
+      - "VUE_APP_BASE_PATH=/"
+      - "SKIP_FRONTEND_BUILD=true"
+    ports:
+    - "8083:8083"
+    environment:
+    - "SPRING_DATA_REDIS_HOST=redis"
+    - "SPRING_DATA_REDIS_PORT=6379"
+    - "SPRING_REDIS_HOST=redis"
+    - "SPRING_REDIS_PORT=6379"
+    - "WORKSHOP_BASE_PATH=/workshop-sources"
+    - "SERVER_PORT=8083"
+    volumes:
+    - "${WORKSHOP_ROOT_PATH:-/workshops}/java-springboot/4_agent_memory:/workshop-sources"
+    profiles:
+    - "workshops"
+    - "workshop-4_agent_memory"
