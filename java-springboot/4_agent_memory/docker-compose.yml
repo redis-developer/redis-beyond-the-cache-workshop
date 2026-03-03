@@ -1,0 +1,80 @@
+services:
+  agent-memory-workshop:
+    build:
+      context: ../..
+      dockerfile: java-springboot/4_agent_memory/Dockerfile
+    ports:
+      - "8083:8083"
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - AGENT_MEMORY_SERVER_URL=http://agent-memory-server:8000
+      - WORKSHOP_BASE_PATH=/workspace/4_agent_memory
+    volumes:
+      - ../:/workspace/4_agent_memory
+    depends_on:
+      agent-memory-server:
+        condition: service_healthy
+
+  agent-memory-server:
+    image: redislabs/agent-memory-server:latest
+    ports:
+      - "8000:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=8000
+      - GENERATION_MODEL=${GENERATION_MODEL:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["agent-memory", "api", "--host", "0.0.0.0", "--port", "8000", "--task-backend=asyncio"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  redis:
+    image: redis/redis-stack-server:latest
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    environment:
+      - REDIS_ARGS=--appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_REDIS_HOST=redis
+      - RI_REDIS_PORT=6379
+      - RI_REDIS_ALIAS=Workshop Redis
+      - RI_REDIS_USERNAME=default
+      - RI_REDIS_PASSWORD=
+      - RI_REDIS_TLS=FALSE
+    volumes:
+      - redis-insight-data:/db
+    depends_on:
+      - redis
+
+volumes:
+  redis-data:
+  redis-insight-data:
+

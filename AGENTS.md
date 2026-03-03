@@ -70,3 +70,4 @@ docker-compose -f java-springboot/workshop-hub/docker-compose.local.yml --profil
 
 - For non-Java workshops, still register in `workshops.yaml` and ensure the Dockerfile path is correct.
 - Avoid hardcoding workshop metadata in the frontend or hub services.
+- Do not use emojis in any code, UI text, or documentation.

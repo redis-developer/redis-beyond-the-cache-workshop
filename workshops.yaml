@@ -49,3 +49,20 @@ workshops:
       - Concurrency
       - Redis
       - Postgres
+  - id: 4_agent_memory
+    title: Agent Memory Server
+    description: >-
+      Give your AI agents persistent memory with Redis-powered Agent Memory Server.
+      Learn to use working memory for session context and long-term memory for
+      persistent facts and preferences with semantic search capabilities.
+    difficulty: Intermediate
+    estimatedMinutes: 40
+    serviceName: agent-memory
+    port: 8083
+    url: /workshop/agent-memory/
+    dockerfile: java-springboot/4_agent_memory/Dockerfile
+    topics:
+      - AI Agents
+      - Memory Management
+      - Semantic Search
+      - Vector Embeddings

@@ -98,5 +98,9 @@ subprojects {
         tasks.matching { it.name == "bootRun" }.configureEach {
             dependsOn(buildFrontend)
         }
+        // Gradle 9 requires explicit task dependency for processResources
+        tasks.matching { it.name == "processResources" }.configureEach {
+            dependsOn(buildFrontend)
+        }
     }
 }
