@@ -85,18 +85,55 @@ response = llm.complete(messages)  // Works, but expensive!</code></pre>
           that gives your AI agents the ability to remember.
         </p>
 
-        <div class="ams-hero">
-          <div class="ams-diagram">
-            <div class="diagram-row">
-              <div class="diagram-box agent">Your AI Agent</div>
+        <div class="architecture-diagram">
+          <div class="arch-layer">
+            <div class="arch-box agent">
+              <div class="arch-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+              </div>
+              <div class="arch-label">Your AI Agent</div>
+              <div class="arch-sublabel">Spring AI / LangChain / Custom</div>
             </div>
-            <div class="diagram-arrow">REST API</div>
-            <div class="diagram-row">
-              <div class="diagram-box ams">Agent Memory Server</div>
+          </div>
+
+          <div class="arch-connector">
+            <div class="connector-line"></div>
+            <div class="connector-label">
+              <span class="connector-badge">REST API</span>
+              <span class="connector-detail">store / retrieve / search</span>
             </div>
-            <div class="diagram-arrow">Vector Search + JSON</div>
-            <div class="diagram-row">
-              <div class="diagram-box redis">Redis</div>
+            <div class="connector-line"></div>
+          </div>
+
+          <div class="arch-layer">
+            <div class="arch-box ams">
+              <div class="arch-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
+                </svg>
+              </div>
+              <div class="arch-label">Agent Memory Server</div>
+              <div class="arch-sublabel">Extraction / Deduplication / Search</div>
+            </div>
+          </div>
+
+          <div class="arch-connector">
+            <div class="connector-line"></div>
+            <div class="connector-label">
+              <span class="connector-badge redis-badge">Vector Search + JSON</span>
+            </div>
+            <div class="connector-line"></div>
+          </div>
+
+          <div class="arch-layer">
+            <div class="arch-box redis">
+              <div class="arch-icon">
+                <img src="@/assets/logo/small.png" alt="Redis" width="24" height="24" />
+              </div>
+              <div class="arch-label">Redis</div>
+              <div class="arch-sublabel">Sub-millisecond latency</div>
             </div>
           </div>
         </div>
@@ -160,13 +197,42 @@ response = llm.complete(messages)  // Works, but expensive!</code></pre>
         </div>
 
         <div class="concept-box">
-          <h4>Why Working Memory Is Necessary</h4>
+          <h4>Key Features</h4>
           <ul>
             <li><strong>Efficient storage:</strong> Conversations are stored outside the LLM, retrieved when needed</li>
-            <li><strong>Auto-summarization:</strong> Long conversations are automatically compressed</li>
-            <li><strong>TTL support:</strong> Inactive sessions can expire automatically</li>
+            <li><strong>Auto-summarization:</strong> When context usage exceeds ~70% of the model's token limit, AMS automatically summarizes older messages to make room for new ones</li>
+            <li><strong>TTL support:</strong> Sessions can auto-expire after inactivity (e.g., 30 minutes)</li>
             <li><strong>User isolation:</strong> Each user/session has separate memory</li>
           </ul>
+        </div>
+
+        <div class="concept-box">
+          <h4>Automatic Summarization</h4>
+          <p>
+            As conversations grow, they consume more of the LLM's context window. AMS monitors token usage
+            and automatically summarizes when needed:
+          </p>
+          <div class="summarization-flow">
+            <div class="flow-step">
+              <span class="flow-icon">1</span>
+              <span class="flow-text">Context fills up (messages accumulate)</span>
+            </div>
+            <div class="flow-arrow">-></div>
+            <div class="flow-step">
+              <span class="flow-icon">2</span>
+              <span class="flow-text">Threshold reached (~70%)</span>
+            </div>
+            <div class="flow-arrow">-></div>
+            <div class="flow-step">
+              <span class="flow-icon">3</span>
+              <span class="flow-text">Older messages summarized</span>
+            </div>
+            <div class="flow-arrow">-></div>
+            <div class="flow-step">
+              <span class="flow-icon">4</span>
+              <span class="flow-text">Context freed for new messages</span>
+            </div>
+          </div>
         </div>
 
         <div class="code-example">
@@ -208,23 +274,49 @@ GET /v1/working-memory/chat_alice_123
         </p>
 
         <div class="concept-box highlight">
-          <h4>What Long-Term Memory Stores</h4>
-          <div class="memory-types-grid">
-            <div class="memory-type">
-              <h5>Semantic</h5>
-              <p>Facts and preferences</p>
-              <code>"Alice prefers morning meetings"</code>
+          <h4>Memory Types</h4>
+          <p>AMS supports three types of long-term memory, each optimized for different use cases:</p>
+          <div class="memory-types-detailed">
+            <div class="memory-type-card">
+              <div class="type-header semantic">
+                <h5>Semantic</h5>
+                <span class="type-badge">Most Common</span>
+              </div>
+              <p class="type-desc">Facts, preferences, and general knowledge about the user.</p>
+              <div class="type-example">
+                <code>"Alice prefers morning meetings"</code>
+              </div>
+              <div class="type-when">
+                <strong>Use when:</strong> Storing user attributes, preferences, learned facts that don't have a specific time context.
+              </div>
             </div>
-            <div class="memory-type">
-              <h5>Episodic</h5>
-              <p>Events with timestamps</p>
-              <code>"Alice joined TechCorp on Jan 15"</code>
+            <div class="memory-type-card">
+              <div class="type-header episodic">
+                <h5>Episodic</h5>
+              </div>
+              <p class="type-desc">Events with temporal context - things that happened at a specific time.</p>
+              <div class="type-example">
+                <code>"Alice joined TechCorp on Jan 15, 2024"</code>
+              </div>
+              <div class="type-when">
+                <strong>Use when:</strong> Recording appointments, meetings, deadlines, or any time-sensitive information.
+              </div>
             </div>
-            <div class="memory-type">
-              <h5>Message</h5>
-              <p>Important messages to preserve</p>
-              <code>"User explicitly asked to remember this"</code>
+            <div class="memory-type-card">
+              <div class="type-header message">
+                <h5>Message</h5>
+              </div>
+              <p class="type-desc">Verbatim messages to preserve exactly as stated.</p>
+              <div class="type-example">
+                <code>"Remember: My anniversary is July 20"</code>
+              </div>
+              <div class="type-when">
+                <strong>Use when:</strong> User explicitly asks to remember something, or you need exact wording preserved.
+              </div>
             </div>
+          </div>
+          <div class="workshop-note">
+            <strong>In this workshop:</strong> We use <code>SEMANTIC</code> type for simplicity. The concepts apply to all types.
           </div>
         </div>
 
@@ -418,6 +510,56 @@ h2 { color: var(--color-text); margin-bottom: var(--spacing-4); }
 .memory-type p { color: var(--color-text-secondary); font-size: var(--font-size-xs); margin: 0 0 var(--spacing-2); }
 .memory-type code { display: block; font-size: 0.7rem; color: #a5d6ff; word-break: break-word; }
 
+.memory-types-detailed { display: flex; flex-direction: column; gap: var(--spacing-3); margin-top: var(--spacing-3); }
+.memory-type-card {
+  background: var(--color-dark-900);
+  border-radius: var(--radius-md);
+  padding: var(--spacing-3);
+}
+.type-header {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-2);
+  padding-bottom: var(--spacing-2);
+  border-bottom: 2px solid;
+}
+.type-header.semantic { border-color: #10b981; }
+.type-header.episodic { border-color: #f59e0b; }
+.type-header.message { border-color: #3b82f6; }
+.type-header h5 { color: var(--color-text); margin: 0; font-size: var(--font-size-sm); }
+.type-badge {
+  background: #10b981;
+  color: white;
+  font-size: 0.65rem;
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+  font-weight: bold;
+}
+.type-desc { color: var(--color-text-secondary); font-size: var(--font-size-sm); margin: 0 0 var(--spacing-2); }
+.type-example {
+  background: var(--color-dark-800);
+  padding: var(--spacing-2);
+  border-radius: var(--radius-sm);
+  margin-bottom: var(--spacing-2);
+}
+.type-example code { font-size: var(--font-size-xs); color: #a5d6ff; }
+.type-when {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+}
+.type-when strong { color: var(--color-text); }
+.workshop-note {
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-2) var(--spacing-3);
+  background: rgba(220, 56, 44, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+}
+.workshop-note code { background: var(--color-dark-800); padding: 1px 4px; border-radius: 2px; }
+
 .two-tier-summary { margin-top: var(--spacing-5); }
 .two-tier-summary h4 { color: var(--color-text); margin-bottom: var(--spacing-3); text-align: center; }
 .tier-comparison { display: flex; align-items: center; justify-content: center; gap: var(--spacing-3); flex-wrap: wrap; }
@@ -437,14 +579,86 @@ h2 { color: var(--color-text); margin-bottom: var(--spacing-4); }
 
 .btn-large { padding: var(--spacing-3) var(--spacing-6); font-size: var(--font-size-base); }
 
-.ams-hero { margin-bottom: var(--spacing-4); }
-.ams-diagram { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-2); }
-.diagram-row { display: flex; justify-content: center; }
-.diagram-box { padding: var(--spacing-3) var(--spacing-5); border-radius: var(--radius-md); font-weight: bold; text-align: center; }
-.diagram-box.agent { background: #3b82f6; color: white; }
-.diagram-box.ams { background: var(--color-primary); color: white; }
-.diagram-box.redis { background: #10b981; color: white; }
-.diagram-arrow { color: var(--color-text-secondary); font-size: var(--font-size-sm); padding: var(--spacing-1) 0; }
+.architecture-diagram {
+  background: var(--color-dark-800);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-5);
+  margin-bottom: var(--spacing-4);
+}
+.arch-layer { display: flex; justify-content: center; }
+.arch-box {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-md);
+  min-width: 280px;
+  border: 2px solid;
+}
+.arch-box.agent {
+  background: rgba(59, 130, 246, 0.15);
+  border-color: #3b82f6;
+}
+.arch-box.ams {
+  background: rgba(220, 56, 44, 0.15);
+  border-color: var(--color-primary);
+}
+.arch-box.redis {
+  background: rgba(16, 185, 129, 0.15);
+  border-color: #10b981;
+}
+.arch-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.arch-box.agent .arch-icon { background: #3b82f6; color: white; }
+.arch-box.ams .arch-icon { background: var(--color-primary); color: white; }
+.arch-box.redis .arch-icon { background: transparent; }
+.arch-label { color: var(--color-text); font-weight: bold; font-size: var(--font-size-base); }
+.arch-sublabel { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+
+.arch-connector {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: var(--spacing-2) 0;
+}
+.connector-line {
+  width: 2px;
+  height: 16px;
+  background: linear-gradient(180deg, var(--color-border) 0%, var(--color-text-secondary) 50%, var(--color-border) 100%);
+}
+.connector-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: var(--spacing-1) 0;
+}
+.connector-badge {
+  background: var(--color-dark-900);
+  color: var(--color-text);
+  padding: 4px 12px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+}
+.connector-badge.redis-badge {
+  border-color: #10b981;
+  color: #10b981;
+}
+.connector-detail {
+  color: var(--color-text-secondary);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
 .two-tier-intro { display: flex; gap: var(--spacing-3); margin-top: var(--spacing-3); }
 .tier-box { flex: 1; background: var(--color-dark-900); padding: var(--spacing-3); border-radius: var(--radius-md); }
 .tier-box h5 { color: var(--color-text); margin: 0 0 var(--spacing-2); }
@@ -455,9 +669,42 @@ h2 { color: var(--color-text); margin-bottom: var(--spacing-4); }
 .alert-warning { background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; color: var(--color-text-secondary); }
 .alert-info { background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; color: var(--color-text-secondary); }
 
+.summarization-flow {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-top: var(--spacing-3);
+}
+.flow-step {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-2);
+  background: var(--color-dark-900);
+  padding: var(--spacing-2) var(--spacing-3);
+  border-radius: var(--radius-sm);
+}
+.flow-icon {
+  width: 24px;
+  height: 24px;
+  background: var(--color-primary);
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: bold;
+  flex-shrink: 0;
+}
+.flow-text { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.flow-arrow { color: var(--color-text-secondary); font-size: var(--font-size-sm); }
+
 @media (max-width: 600px) {
   .memory-types-grid { grid-template-columns: 1fr; }
   .tier-comparison { flex-direction: column; }
   .tier-arrow { transform: rotate(90deg); }
+  .summarization-flow { flex-direction: column; align-items: flex-start; }
+  .flow-arrow { transform: rotate(90deg); align-self: center; }
 }
 </style>

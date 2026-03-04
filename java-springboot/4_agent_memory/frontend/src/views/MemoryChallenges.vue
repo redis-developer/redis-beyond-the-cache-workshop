@@ -146,18 +146,60 @@
           that handles all the hard parts for you.
         </p>
 
-        <div class="ams-hero">
-          <div class="ams-diagram">
-            <div class="diagram-row">
-              <div class="diagram-box agent">Your AI Agent</div>
+        <div class="architecture-diagram">
+          <div class="arch-layer">
+            <div class="arch-box agent">
+              <div class="arch-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/>
+                </svg>
+              </div>
+              <div class="arch-text">
+                <div class="arch-label">Your AI Agent</div>
+                <div class="arch-sublabel">Spring AI / LangChain / Custom</div>
+              </div>
             </div>
-            <div class="diagram-arrow">REST API / MCP</div>
-            <div class="diagram-row">
-              <div class="diagram-box ams">Agent Memory Server</div>
+          </div>
+
+          <div class="arch-connector">
+            <div class="connector-line"></div>
+            <div class="connector-label">
+              <span class="connector-badge">REST API</span>
             </div>
-            <div class="diagram-arrow">Vector Search + JSON</div>
-            <div class="diagram-row">
-              <div class="diagram-box redis">Redis</div>
+            <div class="connector-line"></div>
+          </div>
+
+          <div class="arch-layer">
+            <div class="arch-box ams">
+              <div class="arch-icon">
+                <svg viewBox="0 0 24 24" fill="currentColor" width="24" height="24">
+                  <path d="M19 3H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm-7 14c-3.31 0-6-2.69-6-6s2.69-6 6-6 6 2.69 6 6-2.69 6-6 6z"/>
+                </svg>
+              </div>
+              <div class="arch-text">
+                <div class="arch-label">Agent Memory Server</div>
+                <div class="arch-sublabel">Memory Layer</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="arch-connector">
+            <div class="connector-line"></div>
+            <div class="connector-label">
+              <span class="connector-badge redis-badge">Vector Search + JSON</span>
+            </div>
+            <div class="connector-line"></div>
+          </div>
+
+          <div class="arch-layer">
+            <div class="arch-box redis">
+              <div class="arch-icon">
+                <img src="@/assets/logo/small.png" alt="Redis" width="24" height="24" />
+              </div>
+              <div class="arch-text">
+                <div class="arch-label">Redis</div>
+                <div class="arch-sublabel">Storage</div>
+              </div>
             </div>
           </div>
         </div>
@@ -165,13 +207,16 @@
         <div class="concept-box highlight">
           <h4>What AMS Handles For You</h4>
           <ul>
-            <li><strong>Memory extraction:</strong> LLM-powered extraction of facts from conversations</li>
             <li><strong>Semantic search:</strong> Vector embeddings + similarity search out of the box</li>
-            <li><strong>Deduplication:</strong> Avoids storing redundant memories</li>
-            <li><strong>Context grounding:</strong> Resolves pronouns and references automatically</li>
-            <li><strong>Working memory management:</strong> Sessions, summarization, TTL</li>
+            <li><strong>Working memory management:</strong> Sessions, automatic summarization when context is full, TTL expiration</li>
+            <li><strong>Deduplication:</strong> Avoids storing redundant memories (you will implement this)</li>
             <li><strong>Multi-tenancy:</strong> User isolation, namespaces, authentication</li>
           </ul>
+          <div class="note-box">
+            <strong>Workshop Scope:</strong> We focus on the <em>Code-Driven</em> integration pattern where your application
+            explicitly controls memory operations. AMS also supports <em>Background</em> mode for automatic memory extraction
+            from conversations and <em>LLM-Driven</em> mode where the model decides when to store/retrieve via tool calls.
+          </div>
         </div>
 
         <div class="integration-patterns">
@@ -302,19 +347,50 @@ h2 { color: var(--color-text); margin-bottom: var(--spacing-4); }
 .feature-content p { color: var(--color-text-secondary); margin: 0 0 var(--spacing-2); font-size: var(--font-size-sm); }
 .feature-content code { display: block; background: var(--color-dark-900); padding: var(--spacing-2); border-radius: var(--radius-sm); font-size: var(--font-size-xs); color: #a5d6ff; overflow-x: auto; }
 
-.ams-hero { margin-bottom: var(--spacing-5); }
-.ams-diagram { display: flex; flex-direction: column; align-items: center; gap: var(--spacing-2); }
-.diagram-row { display: flex; justify-content: center; }
-.diagram-box {
-  padding: var(--spacing-3) var(--spacing-5);
-  border-radius: var(--radius-md);
-  font-weight: bold;
-  text-align: center;
+.architecture-diagram {
+  background: var(--color-dark-800);
+  border-radius: var(--radius-lg);
+  padding: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
 }
-.diagram-box.agent { background: #3b82f6; color: white; }
-.diagram-box.ams { background: var(--color-primary); color: white; }
-.diagram-box.redis { background: #10b981; color: white; }
-.diagram-arrow { color: var(--color-text-secondary); font-size: var(--font-size-sm); padding: var(--spacing-1) 0; }
+.arch-layer { display: flex; justify-content: center; }
+.arch-box {
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3);
+  padding: var(--spacing-3) var(--spacing-4);
+  border-radius: var(--radius-md);
+  min-width: 240px;
+  border: 2px solid;
+}
+.arch-box.agent { background: rgba(59, 130, 246, 0.15); border-color: #3b82f6; }
+.arch-box.ams { background: rgba(220, 56, 44, 0.15); border-color: var(--color-primary); }
+.arch-box.redis { background: rgba(16, 185, 129, 0.15); border-color: #10b981; }
+.arch-icon {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.arch-box.agent .arch-icon { background: #3b82f6; color: white; }
+.arch-box.ams .arch-icon { background: var(--color-primary); color: white; }
+.arch-box.redis .arch-icon { background: transparent; }
+.arch-text { display: flex; flex-direction: column; }
+.arch-label { color: var(--color-text); font-weight: bold; font-size: var(--font-size-sm); }
+.arch-sublabel { color: var(--color-text-secondary); font-size: var(--font-size-xs); }
+.arch-connector { display: flex; flex-direction: column; align-items: center; padding: var(--spacing-1) 0; }
+.connector-line { width: 2px; height: 12px; background: var(--color-border); }
+.connector-label { padding: var(--spacing-1) 0; }
+.connector-badge {
+  background: var(--color-dark-900);
+  color: var(--color-text);
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: 600;
+  border: 1px solid var(--color-border);
+}
+.connector-badge.redis-badge { border-color: #10b981; color: #10b981; }
 
 .integration-patterns { margin-bottom: var(--spacing-5); }
 .integration-patterns h4 { color: var(--color-text); margin-bottom: var(--spacing-2); }
@@ -351,6 +427,16 @@ h2 { color: var(--color-text); margin-bottom: var(--spacing-4); }
 .alert { padding: var(--spacing-3); border-radius: var(--radius-md); margin-bottom: var(--spacing-4); color: var(--color-text-secondary); }
 .alert-info { background: rgba(59, 130, 246, 0.1); border-left: 3px solid #3b82f6; }
 .alert-warning { background: rgba(245, 158, 11, 0.1); border-left: 3px solid #f59e0b; }
+
+.note-box {
+  margin-top: var(--spacing-3);
+  padding: var(--spacing-3);
+  background: rgba(59, 130, 246, 0.1);
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
 
 @media (max-width: 768px) {
   .challenge-grid { grid-template-columns: 1fr; }

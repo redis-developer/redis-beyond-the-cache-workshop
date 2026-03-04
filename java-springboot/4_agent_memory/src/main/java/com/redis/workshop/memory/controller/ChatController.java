@@ -1,10 +1,12 @@
 package com.redis.workshop.memory.controller;
 
+import com.redis.agentmemory.models.longtermemory.MemoryRecord;
 import com.redis.workshop.memory.service.ChatService;
 import com.redis.workshop.memory.service.ChatService.ChatRequest;
 import com.redis.workshop.memory.service.ChatService.ChatResponse;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 @RestController
@@ -47,6 +49,11 @@ public class ChatController {
             return Map.of("valid", false, "error", "Invalid API key format");
         }
         return Map.of("valid", true);
+    }
+
+    @GetMapping("/memories/{userId}")
+    public List<MemoryRecord> getLongTermMemories(@PathVariable String userId) {
+        return chatService.getLongTermMemories(userId);
     }
 }
 

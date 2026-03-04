@@ -32,118 +32,69 @@ public class AgentMemoryService {
     public AgentMemoryService(
             @Value("${agent-memory.server.url}") String serverUrl,
             @Value("${agent-memory.server.namespace:workshop}") String namespace) {
-        // TODO: Step 0 - Initialize the MemoryAPIClient using the builder pattern
-        // this.client = MemoryAPIClient.builder(serverUrl)
-        //         .defaultNamespace(namespace)
-        //         .timeout(30.0)
-        //         .build();
-        this.client = null;
+        this.client = MemoryAPIClient.builder(serverUrl)
+                .defaultNamespace(namespace)
+                .timeout(30.0)
+                .build();
     }
 
     // ==================== Working Memory Operations ====================
 
-    /**
-     * Get working memory for a session.
-     *
-     * SDK: client.workingMemory().getWorkingMemory(sessionId)
-     */
     public WorkingMemoryResponse getWorkingMemory(String sessionId) {
-        // TODO: Step 1 - Use the SDK to get working memory
-        // try {
-        //     return client.workingMemory().getWorkingMemory(sessionId);
-        // } catch (Exception e) {
-        //     throw new RuntimeException("Failed to get working memory", e);
-        // }
-        return null;
+        try {
+            return client.workingMemory().getWorkingMemory(sessionId);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to get working memory", e);
+        }
     }
 
-    /**
-     * Save working memory for a session.
-     *
-     * SDK: client.workingMemory().putWorkingMemory(sessionId, memory)
-     */
     public WorkingMemoryResponse putWorkingMemory(String sessionId, WorkingMemory memory) {
-        // TODO: Step 2 - Use the SDK to save working memory
-        // try {
-        //     return client.workingMemory().putWorkingMemory(sessionId, memory);
-        // } catch (Exception e) {
-        //     throw new RuntimeException("Failed to put working memory", e);
-        // }
-        return null;
+        try {
+            return client.workingMemory().putWorkingMemory(sessionId, memory);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to put working memory", e);
+        }
     }
 
-    /**
-     * Delete working memory for a session.
-     *
-     * SDK: client.workingMemory().deleteWorkingMemory(sessionId)
-     */
     public AckResponse deleteWorkingMemory(String sessionId) {
-        // TODO: Step 3 - Use the SDK to delete working memory
-        // try {
-        //     return client.workingMemory().deleteWorkingMemory(sessionId);
-        // } catch (Exception e) {
-        //     throw new RuntimeException("Failed to delete working memory", e);
-        // }
-        return null;
+        try {
+            return client.workingMemory().deleteWorkingMemory(sessionId);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to delete working memory", e);
+        }
     }
 
     // ==================== Long-Term Memory Operations ====================
 
-    /**
-     * Create long-term memories (facts about the user).
-     *
-     * SDK: client.longTermMemory().createLongTermMemories(memories)
-     */
     public AckResponse createLongTermMemory(List<MemoryRecord> memories) {
-        // TODO: Step 4 - Use the SDK to create long-term memories
-        // try {
-        //     return client.longTermMemory().createLongTermMemories(memories);
-        // } catch (Exception e) {
-        //     throw new RuntimeException("Failed to create long-term memory", e);
-        // }
-        return null;
+        try {
+            return client.longTermMemory().createLongTermMemories(memories);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to create long-term memory", e);
+        }
     }
 
-    /**
-     * Search long-term memory using semantic search.
-     *
-     * SDK: client.longTermMemory().searchLongTermMemories(searchRequest)
-     *
-     * This uses vector similarity to find relevant memories!
-     */
     public MemoryRecordResults searchLongTermMemory(String text, String userId, int limit) {
-        // TODO: Step 5 - Use the SDK to search long-term memories
-        // try {
-        //     SearchRequest request = SearchRequest.builder()
-        //             .text(text)
-        //             .userId(userId)
-        //             .limit(limit)
-        //             .build();
-        //     return client.longTermMemory().searchLongTermMemories(request);
-        // } catch (Exception e) {
-        //     throw new RuntimeException("Failed to search long-term memory", e);
-        // }
-        return null;
+        try {
+            SearchRequest request = SearchRequest.builder()
+                    .text(text)
+                    .userId(userId)
+                    .limit(limit)
+                    .build();
+            return client.longTermMemory().searchLongTermMemories(request);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to search long-term memory", e);
+        }
     }
 
-    /**
-     * Get a specific memory by ID.
-     *
-     * SDK: client.longTermMemory().getLongTermMemory(memoryId)
-     */
     public MemoryRecord getMemory(String memoryId) {
-        // TODO: Step 6 - Use the SDK to get a specific memory
-        // try {
-        //     return client.longTermMemory().getLongTermMemory(memoryId);
-        // } catch (Exception e) {
-        //     throw new RuntimeException("Failed to get memory", e);
-        // }
-        return null;
+        try {
+            return client.longTermMemory().getLongTermMemory(memoryId);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to get memory", e);
+        }
     }
 
-    /**
-     * Delete long-term memories by IDs.
-     */
     public AckResponse deleteMemories(List<String> memoryIds) {
         try {
             return client.longTermMemory().deleteLongTermMemories(memoryIds);
@@ -154,9 +105,6 @@ public class AgentMemoryService {
 
     // ==================== Health Check ====================
 
-    /**
-     * Check if the Agent Memory Server is healthy.
-     */
     public HealthCheckResponse healthCheck() {
         try {
             return client.health().healthCheck();
@@ -167,9 +115,6 @@ public class AgentMemoryService {
 
     // ==================== Helper Methods ====================
 
-    /**
-     * Convenience method to create a MemoryMessage.
-     */
     public static MemoryMessage createMessage(String role, String content) {
         return MemoryMessage.builder()
                 .role(role)
@@ -177,9 +122,6 @@ public class AgentMemoryService {
                 .build();
     }
 
-    /**
-     * Convenience method to create a MemoryRecord for long-term storage.
-     */
     public static MemoryRecord createMemoryRecord(String text, String sessionId, String userId) {
         return MemoryRecord.builder()
                 .text(text)
@@ -189,4 +131,3 @@ public class AgentMemoryService {
                 .build();
     }
 }
-

@@ -37,8 +37,9 @@ public class ChatConfig {
     }
 
     @Bean
-    public LongTermMemoryAdvisor longTermMemoryAdvisor(MemoryAPIClient client) {
+    public LongTermMemoryAdvisor longTermMemoryAdvisor(MemoryAPIClient client, AmsChatMemoryRepository memoryRepository) {
         return LongTermMemoryAdvisor.builder(client)
+                .memoryRepository(memoryRepository)
                 .maxMemories(5)
                 .build();
     }

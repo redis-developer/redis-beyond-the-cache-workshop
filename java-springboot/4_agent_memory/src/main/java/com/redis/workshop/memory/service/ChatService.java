@@ -25,10 +25,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * Spring AI Advisors intercept and enhance chat requests/responses:
  * - MessageChatMemoryAdvisor: Handles working memory (conversation history)
  * - LongTermMemoryAdvisor: Retrieves relevant long-term memories via semantic search
- *
- * Advisors are executed in order (lower order value = earlier execution).
- * The MessageChatMemoryAdvisor runs first (order 0) to load conversation history,
- * then LongTermMemoryAdvisor (order 100) searches for relevant memories.
  */
 @Service
 public class ChatService {
@@ -38,43 +34,47 @@ public class ChatService {
     private final ChatMemory chatMemory;
     private final LongTermMemoryAdvisor longTermMemoryAdvisor;
     private final MemoryAPIClient memoryClient;
+    private final AmsChatMemoryRepository memoryRepository;
     private final Map<String, ChatClient> chatClients = new ConcurrentHashMap<>();
 
-    public ChatService(ChatMemory chatMemory, LongTermMemoryAdvisor longTermMemoryAdvisor, MemoryAPIClient memoryClient) {
+    public ChatService(ChatMemory chatMemory, LongTermMemoryAdvisor longTermMemoryAdvisor,
+                       MemoryAPIClient memoryClient, AmsChatMemoryRepository memoryRepository) {
         this.chatMemory = chatMemory;
         this.longTermMemoryAdvisor = longTermMemoryAdvisor;
         this.memoryClient = memoryClient;
+        this.memoryRepository = memoryRepository;
     }
 
     public record ChatRequest(String sessionId, String userId, String message, String apiKey, boolean useMemory) {}
-    public record ChatResponse(String response, List<String> relevantMemories, int messageCount) {}
+    public record ChatResponse(String response, List<String> relevantMemories, int messageCount, Double contextPercentage, SessionInfo sessionInfo) {}
+    public record SessionInfo(String conversationId, int messageCount, int ttlSeconds) {}
+
+    // Default TTL: 30 minutes
+    private static final int DEFAULT_TTL_SECONDS = 1800;
 
     public ChatResponse chat(ChatRequest request) {
         ChatClient chatClient = getOrCreateChatClient(request.apiKey(), request.useMemory());
 
-        // TODO: Step 7 - Create conversationId with userId:sessionId format for AMS
-        // String conversationId = AmsChatMemoryRepository.createConversationId(
-        //         request.userId() != null ? request.userId() : "anonymous",
-        //         request.sessionId()
-        // );
-        String conversationId = request.sessionId();
+        String conversationId = AmsChatMemoryRepository.createConversationId(
+                request.userId() != null ? request.userId() : "anonymous",
+                request.sessionId()
+        );
 
-        // TODO: Step 8 - Pass conversationId to advisors at runtime
-        // The advisors use this to load/save memory for the correct user session.
-        // String response = chatClient.prompt()
-        //         .system(SYSTEM_PROMPT)
-        //         .user(request.message())
-        //         .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
-        //         .call()
-        //         .content();
         String response = chatClient.prompt()
                 .system(SYSTEM_PROMPT)
                 .user(request.message())
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
                 .call()
                 .content();
 
-        List<String> relevantMemories = new ArrayList<>();
-        return new ChatResponse(response, relevantMemories, 0);
+        Double contextPercentage = memoryRepository.getContextPercentage(conversationId);
+        List<String> relevantMemories = memoryRepository.getLastRetrievedMemories();
+
+        // Get message count from repository
+        int msgCount = memoryRepository.findByConversationId(conversationId).size();
+        SessionInfo sessionInfo = new SessionInfo(conversationId, msgCount, DEFAULT_TTL_SECONDS);
+
+        return new ChatResponse(response, relevantMemories, msgCount, contextPercentage, sessionInfo);
     }
 
     private ChatClient getOrCreateChatClient(String apiKey, boolean useLongTermMemory) {
@@ -87,19 +87,12 @@ public class ChatService {
                     .defaultOptions(OpenAiChatOptions.builder().model("gpt-4o-mini").temperature(0.7).build())
                     .build();
 
-            // TODO: Step 9 - Add MessageChatMemoryAdvisor for working memory
-            // This advisor automatically loads conversation history before the LLM call
-            // and saves the response after. It uses AmsChatMemoryRepository under the hood.
-            // var builder = ChatClient.builder(chatModel)
-            //         .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build());
-            var builder = ChatClient.builder(chatModel);
+            var builder = ChatClient.builder(chatModel)
+                    .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build());
 
-            // TODO: Step 10 - Add LongTermMemoryAdvisor for semantic memory retrieval
-            // This advisor searches AMS for relevant long-term memories using the user's
-            // message as a semantic query, then injects them into the system prompt.
-            // if (useLongTermMemory) {
-            //     builder.defaultAdvisors(longTermMemoryAdvisor);
-            // }
+            if (useLongTermMemory) {
+                builder.defaultAdvisors(longTermMemoryAdvisor);
+            }
 
             return builder.build();
         });
@@ -128,5 +121,33 @@ public class ChatService {
             chatMemory.clear(conversationId);
         } catch (Exception e) { /* ignore */ }
     }
-}
 
+    /**
+     * Get all long-term memories for a user.
+     * Uses filter-only search (no text) to retrieve all memories for the user.
+     */
+    public List<MemoryRecord> getLongTermMemories(String userId) {
+        try {
+            var results = memoryClient.longTermMemory().searchLongTermMemories(
+                    com.redis.agentmemory.models.longtermemory.SearchRequest.builder()
+                            .userId(userId)
+                            .limit(100)
+                            .build()
+            );
+            if (results != null && results.getMemories() != null) {
+                return results.getMemories().stream()
+                        .map(r -> MemoryRecord.builder()
+                                .id(r.getId())
+                                .text(r.getText())
+                                .userId(r.getUserId())
+                                .memoryType(r.getMemoryType())
+                                .createdAt(r.getCreatedAt())
+                                .build())
+                        .toList();
+            }
+        } catch (Exception e) {
+            System.err.println("[ChatService] Failed to get memories: " + e.getMessage());
+        }
+        return List.of();
+    }
+}

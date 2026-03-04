@@ -29,15 +29,21 @@ public class LongTermMemoryAdvisor implements BaseAdvisor {
     private static final int DEFAULT_ORDER = 100; // Run after MessageChatMemoryAdvisor
 
     private final MemoryAPIClient client;
+    private final AmsChatMemoryRepository memoryRepository;
     private final int maxMemories;
     private final int order;
 
     public LongTermMemoryAdvisor(MemoryAPIClient client) {
-        this(client, 5, DEFAULT_ORDER);
+        this(client, null, 5, DEFAULT_ORDER);
     }
 
-    public LongTermMemoryAdvisor(MemoryAPIClient client, int maxMemories, int order) {
+    public LongTermMemoryAdvisor(MemoryAPIClient client, AmsChatMemoryRepository memoryRepository) {
+        this(client, memoryRepository, 5, DEFAULT_ORDER);
+    }
+
+    public LongTermMemoryAdvisor(MemoryAPIClient client, AmsChatMemoryRepository memoryRepository, int maxMemories, int order) {
         this.client = client;
+        this.memoryRepository = memoryRepository;
         this.maxMemories = maxMemories;
         this.order = order;
     }
@@ -70,6 +76,12 @@ public class LongTermMemoryAdvisor implements BaseAdvisor {
 
         // Search long-term memory
         List<String> memories = searchMemories(userMessage, userId);
+
+        // Store retrieved memories for observability (even if empty)
+        if (memoryRepository != null) {
+            memoryRepository.setLastRetrievedMemories(memories);
+        }
+
         if (memories.isEmpty()) {
             return request;
         }
@@ -83,12 +95,6 @@ public class LongTermMemoryAdvisor implements BaseAdvisor {
             memoryContext.append("- ").append(memory).append("\n");
         }
         memoryContext.append("--- Use these memories to personalize your response ---\n");
-
-        // Augment the system prompt with memories
-        String existingSystemText = request.prompt().getSystemMessage() != null
-            ? request.prompt().getSystemMessage().getText()
-            : "";
-        String augmentedSystemText = existingSystemText + memoryContext;
 
         // Store retrieved memories in context for later use
         return request.mutate()
@@ -112,6 +118,8 @@ public class LongTermMemoryAdvisor implements BaseAdvisor {
     private List<String> searchMemories(String query, String userId) {
         List<String> results = new ArrayList<>();
         try {
+            // Note: Recency boosting (recencyBoost, recencySemanticWeight, recencyRecencyWeight)
+            // is supported by the AMS REST API but not yet available in SDK v0.1.0
             SearchRequest searchRequest = SearchRequest.builder()
                     .text(query)
                     .userId(userId)
@@ -138,11 +146,17 @@ public class LongTermMemoryAdvisor implements BaseAdvisor {
 
     public static class Builder {
         private final MemoryAPIClient client;
+        private AmsChatMemoryRepository memoryRepository;
         private int maxMemories = 5;
         private int order = DEFAULT_ORDER;
 
         public Builder(MemoryAPIClient client) {
             this.client = client;
+        }
+
+        public Builder memoryRepository(AmsChatMemoryRepository memoryRepository) {
+            this.memoryRepository = memoryRepository;
+            return this;
         }
 
         public Builder maxMemories(int maxMemories) {
@@ -156,7 +170,7 @@ public class LongTermMemoryAdvisor implements BaseAdvisor {
         }
 
         public LongTermMemoryAdvisor build() {
-            return new LongTermMemoryAdvisor(client, maxMemories, order);
+            return new LongTermMemoryAdvisor(client, memoryRepository, maxMemories, order);
         }
     }
 }

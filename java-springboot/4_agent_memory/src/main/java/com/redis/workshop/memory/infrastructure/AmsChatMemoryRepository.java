@@ -8,7 +8,6 @@ import com.redis.agentmemory.models.workingmemory.WorkingMemoryResponse;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 
@@ -26,11 +25,31 @@ import java.util.List;
 public class AmsChatMemoryRepository implements ChatMemoryRepository {
 
     public static final String SEPARATOR = ":";
+    private static final String DEFAULT_NAMESPACE = "workshop";
 
     private final MemoryAPIClient client;
+    private final String namespace;
+
+    // Observability: store memories retrieved by LongTermMemoryAdvisor
+    private volatile List<String> lastRetrievedMemories = List.of();
 
     public AmsChatMemoryRepository(MemoryAPIClient client) {
+        this(client, DEFAULT_NAMESPACE);
+    }
+
+    public AmsChatMemoryRepository(MemoryAPIClient client, String namespace) {
         this.client = client;
+        this.namespace = namespace;
+    }
+
+    /** Store memories retrieved by the advisor for UI display */
+    public void setLastRetrievedMemories(List<String> memories) {
+        this.lastRetrievedMemories = memories != null ? memories : List.of();
+    }
+
+    /** Get memories retrieved during the last chat request */
+    public List<String> getLastRetrievedMemories() {
+        return lastRetrievedMemories;
     }
 
     /**
@@ -58,6 +77,26 @@ public class AmsChatMemoryRepository implements ChatMemoryRepository {
         return idx > 0 ? conversationId.substring(0, idx) : null;
     }
 
+    /**
+     * Get context usage percentage for a conversation.
+     * Returns the percentage of context window used (0.0 to 1.0), or null if unavailable.
+     */
+    public Double getContextPercentage(String conversationId) {
+        try {
+            // Use conversationId with model name to get token percentage
+            WorkingMemoryResponse response = client.workingMemory().getWorkingMemory(
+                    parseSessionId(conversationId),
+                    parseUserId(conversationId),
+                    namespace,      // namespace
+                    "gpt-4o-mini",  // modelName - enables token calculation
+                    null            // contextWindowMax
+            );
+            return response != null ? response.getContextPercentageTotalUsed() : null;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
     @Override
     public List<String> findConversationIds() {
         try {
@@ -70,12 +109,16 @@ public class AmsChatMemoryRepository implements ChatMemoryRepository {
 
     @Override
     public List<Message> findByConversationId(String conversationId) {
-        String sessionId = parseSessionId(conversationId);
-        String userId = parseUserId(conversationId);
-        System.out.println("[AMS] findByConversationId - session: " + sessionId + ", user: " + userId);
+        System.out.println("[AMS] findByConversationId - conversationId: " + conversationId);
         try {
-            WorkingMemoryResponse response = client.workingMemory().getWorkingMemory(sessionId);
-            if (response == null) {
+            WorkingMemoryResponse response = client.workingMemory().getWorkingMemory(
+                    parseSessionId(conversationId),
+                    parseUserId(conversationId),      // userId
+                    namespace,           // namespace
+                    null,           // modelName
+                    null            // contextWindowMax
+            );
+            if (response == null || response.getMessages() == null) {
                 System.out.println("[AMS] No messages found");
                 return List.of();
             }
@@ -91,30 +134,50 @@ public class AmsChatMemoryRepository implements ChatMemoryRepository {
             return messages;
         } catch (Exception e) {
             System.out.println("[AMS] findByConversationId error: " + e.getMessage());
+            e.printStackTrace();
             return List.of();
         }
     }
 
+    // Default TTL: 30 minutes (1800 seconds)
+    private static final int DEFAULT_TTL_SECONDS = 1800;
+
     @Override
     public void saveAll(String conversationId, List<Message> messages) {
-        String sessionId = parseSessionId(conversationId);
-        String userId = parseUserId(conversationId);
-        System.out.println("[AMS] saveAll - session: " + sessionId + ", user: " + userId);
+        // Use full conversationId (userId:sessionId) as the AMS session key
+        System.out.println("[AMS] saveAll - conversationId: " + conversationId);
         System.out.println("[AMS] Incoming messages count: " + messages.size());
 
+
+
+        String userId = parseUserId(conversationId);
+        String sessionId = parseSessionId(conversationId);
+
         try {
-            // Load existing messages to deduplicate
+            // Check if session exists and load existing messages for deduplication
             List<MemoryMessage> existingMessages = new ArrayList<>();
+            boolean sessionExists = false;
+
             try {
-                WorkingMemoryResponse existing = client.workingMemory().getWorkingMemory(sessionId);
-                if (existing != null && existing.getMessages() != null) {
-                    existingMessages.addAll(existing.getMessages());
+                WorkingMemoryResponse existing = client.workingMemory().getWorkingMemory(
+                        sessionId,
+                        userId,
+                        namespace,
+                        null,           // modelName
+                        null            // contextWindowMax
+                );
+                if (existing != null) {
+                    sessionExists = true;  // Session exists (even if empty)
+                    if (existing.getMessages() != null) {
+                        existingMessages.addAll(existing.getMessages());
+                    }
                 }
             } catch (Exception e) {
-                // No existing session
+                // Session doesn't exist yet
+                sessionExists = false;
             }
 
-            System.out.println("[AMS] Existing messages: " + existingMessages.size());
+            System.out.println("[AMS] Session exists: " + sessionExists + ", existing messages: " + existingMessages.size());
 
             // Filter out messages that already exist
             List<MemoryMessage> newMessages = new ArrayList<>();
@@ -128,8 +191,53 @@ public class AmsChatMemoryRepository implements ChatMemoryRepository {
             System.out.println("[AMS] New messages to append: " + newMessages.size());
 
             if (!newMessages.isEmpty()) {
-                client.workingMemory().appendMessagesToWorkingMemory(sessionId, newMessages);
-                System.out.println("[AMS] Appended " + newMessages.size() + " messages successfully");
+                boolean isFirstMessage = existingMessages.isEmpty();
+
+                // Always use append - it works reliably
+                client.workingMemory().appendMessagesToWorkingMemory(
+                        sessionId,
+                        newMessages,
+                        namespace,      // namespace
+                        null,  // modelName
+                        3000,           // contextWindowMax
+                        userId            // userId
+                );
+                System.out.println("[AMS] Appended " + newMessages.size() + " messages");
+
+                // Set TTL on first message by updating session metadata
+                if (isFirstMessage) {
+                    try {
+                        // Get the session we just created (with namespace)
+                        WorkingMemoryResponse current = client.workingMemory().getWorkingMemory(
+                                sessionId,
+                                userId,
+                                namespace,           // namespace
+                                null,           // modelName
+                                null            // contextWindowMax
+                        );
+                        if (current != null && current.getMessages() != null) {
+                            // Update with TTL
+                            WorkingMemory withTtl = WorkingMemory.builder()
+                                    .namespace(namespace)
+                                    .sessionId(sessionId)
+                                    .messages(current.getMessages())
+                                    .userId(userId)
+                                    .ttlSeconds(DEFAULT_TTL_SECONDS)
+                                    .build();
+                            client.workingMemory().putWorkingMemory(
+                                    sessionId,
+                                    withTtl,
+                                    userId,
+                                    namespace,           // namespace
+                                    "gpt-4o-mini",  // modelName
+                                    null            // contextWindowMax
+                            );
+                            System.out.println("[AMS] Set TTL: " + DEFAULT_TTL_SECONDS + "s");
+                        }
+                    } catch (Exception e) {
+                        System.out.println("[AMS] Warning: Could not set TTL: " + e.getMessage());
+                    }
+                }
             } else {
                 System.out.println("[AMS] No new messages to append (all duplicates)");
             }
@@ -141,16 +249,15 @@ public class AmsChatMemoryRepository implements ChatMemoryRepository {
 
     private boolean isDuplicate(MemoryMessage newMsg, List<MemoryMessage> existing) {
         return existing.stream().anyMatch(m ->
-            m.getRole().equals(newMsg.getRole()) &&
-            m.getContent().equals(newMsg.getContent())
+                m.getRole().equals(newMsg.getRole()) &&
+                        m.getContent().equals(newMsg.getContent())
         );
     }
 
     @Override
     public void deleteByConversationId(String conversationId) {
-        String sessionId = parseSessionId(conversationId);
         try {
-            client.workingMemory().deleteWorkingMemory(sessionId);
+            client.workingMemory().deleteWorkingMemory(parseSessionId(conversationId), parseUserId(conversationId), namespace);
         } catch (Exception e) {
             // Ignore if session doesn't exist
         }
@@ -158,10 +265,10 @@ public class AmsChatMemoryRepository implements ChatMemoryRepository {
 
     private Message convertToSpringMessage(MemoryMessage msg) {
         if (msg == null || msg.getRole() == null) return null;
-        
+
         String role = msg.getRole();
         String content = msg.getContent() != null ? msg.getContent() : "";
-        
+
         return switch (role) {
             case "user" -> new UserMessage(content);
             case "assistant" -> new AssistantMessage(content);
@@ -172,20 +279,19 @@ public class AmsChatMemoryRepository implements ChatMemoryRepository {
 
     private MemoryMessage convertToAmsMessage(Message msg) {
         if (msg == null) return null;
-        
+
         String role = switch (msg.getMessageType()) {
             case USER -> "user";
             case ASSISTANT -> "assistant";
             case SYSTEM -> "system";
             default -> null;
         };
-        
+
         if (role == null) return null;
-        
+
         return MemoryMessage.builder()
                 .role(role)
                 .content(msg.getText())
                 .build();
     }
 }
-
