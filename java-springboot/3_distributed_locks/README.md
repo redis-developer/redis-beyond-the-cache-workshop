@@ -1,101 +1,86 @@
-# Workshop 3: Distributed Locks with Redisson + Redis
+# Workshop 3: Distributed Locks
 
-## Learning Objectives
+Learn how to implement Redis-backed distributed locks to prevent race conditions in distributed systems.
 
-By the end of this workshop, you will:
-- Understand common distributed lock scenarios (jobs, cache stampede, event dedupe, imports, inventory)
-- Implement distributed locking with Redisson in Spring Boot
-- Coordinate lock mode and lease timings via configuration
-- Verify lock behavior using a live demo panel
+## What You'll Learn
 
-## Prerequisites
+- Common distributed lock scenarios
+- Implementing locks with Redisson
+- Preventing inventory oversell and duplicate processing
 
-- Java 21 or higher
-- Redis running on localhost:6379
-- Postgres running on localhost:5432 (database: `workshop`, user: `workshop`)
-- Redis Insight (optional)
+## Run with Docker
+
+```bash
+# From repository root
+cd java-springboot/workshop-hub
+
+# Start Redis + Postgres + Workshop
+docker compose -f docker-compose.local.yml --profile infrastructure up -d
+docker compose -f docker-compose.local.yml --profile workshop-3_distributed_locks up -d
+```
+
+Open **http://localhost:8082**
 
 ## Workshop Flow
 
-This is a **hands-on, interactive workshop** with 3 stages:
+| Stage | What You Do |
+|-------|-------------|
+| 1. See the Problem | Run scenarios, observe duplicates and overselling |
+| 2. Fix It | Implement Redisson lock in LockManager |
+| 3. Verify | Re-run scenarios, only one worker succeeds |
 
-### **STAGE 1: See the Problems**
-- Run the scenarios without locks
-- Observe duplicated jobs, cache rebuilds, event processing, imports, and inventory oversell
+## Scenarios
 
-### **STAGE 2: Implement Redisson Locks**
-- Implement `tryLock` + `unlock` in a shared LockManager
-- Enable lock mode in configuration
+1. **Single-Runner Job** - Only one worker runs a scheduled job
+2. **Cache Stampede** - Only one worker rebuilds cache
+3. **Event Deduplication** - Only one worker processes an event
+4. **Single Import** - Only one worker runs batch import
+5. **Inventory Oversell** - Prevent concurrent stock updates
 
-### **STAGE 3: Verify the Fix**
-- Re-run each scenario
-- Confirm only one worker does the critical work
+## Your Tasks
 
-## Step-by-Step Instructions
-
-### 1. Start Redis + Postgres
-
-```bash
-docker-compose -f java-springboot/3_distributed_locks/docker-compose.yml up -d redis postgres
-```
-
-### 2. Run the Application
-
-```bash
-cd java-springboot
-./gradlew :3_distributed_locks:bootRun
-```
-
-### 3. Open the Application
-
-Navigate to: **http://localhost:8082**
-
-## Key Configuration Files
-
-### `application.properties`
-Controls lock mode and timings:
+### 1. `application.properties` - Enable lock mode
 ```properties
-workshop.lock.mode=none
-workshop.lock.wait=200ms
-workshop.lock.lease=5s
-workshop.cache.ttl=5s
+workshop.lock.mode=redisson
 ```
 
-**Your Task (Stage 2):**
-1. Change `workshop.lock.mode=none` to `workshop.lock.mode=redisson`
-
-### `LockManager.java`
-Contains TODOs for the Redisson lock:
+### 2. `LockManager.java` - Implement Redisson lock
 ```java
 public <T> T withLock(String lockKey, Supplier<T> onAcquired, Supplier<T> onBusy) {
     if (!isEnabled()) {
         return onAcquired.get();
     }
-    // TODO: Replace with Redisson lock implementation.
-    return onAcquired.get();
+
+    RLock lock = redissonClient.getLock(lockKey);
+    try {
+        boolean acquired = lock.tryLock(waitTime, leaseTime, TimeUnit.MILLISECONDS);
+        if (acquired) {
+            return onAcquired.get();
+        } else {
+            return onBusy.get();
+        }
+    } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        return onBusy.get();
+    } finally {
+        if (lock.isHeldByCurrentThread()) {
+            lock.unlock();
+        }
+    }
 }
 ```
 
-**Your Task (Stage 2):**
-1. Use `redissonClient.getLock(lockKey)`
-2. Call `tryLock(waitTime, leaseTime, TimeUnit.MILLISECONDS)`
-3. Run the work on success, otherwise return `onBusy`
-4. Always `unlock()` in a `finally` block
+## View Locks in Redis Insight
 
-## Scenarios You Will Test
+Open **http://localhost:5540** and search for lock keys.
 
-1. **Single-Runner Job** — only one worker should run a scheduled job
-2. **Cache Stampede** — only one worker should rebuild a hot cache
-3. **Event Deduplication** — only one worker should process a webhook/event
-4. **Single Import** — only one worker should run a batch import
-5. **Inventory Oversell (Postgres)** — only one purchase should update stock at a time
+## Stopping
 
-## Additional Resources
+```bash
+docker compose -f docker-compose.local.yml --profile workshop-3_distributed_locks down
+```
 
-- [Redisson Documentation](https://github.com/redisson/redisson)
-- [Redisson Distributed Locks](https://github.com/redisson/redisson/wiki/8.-distributed-locks-and-synchronizers)
-- [Spring Boot + Redisson Starter](https://github.com/redisson/redisson/tree/master/redisson-spring-boot-starter)
+## Resources
 
-## Congratulations!
-
-You've implemented Redisson-based distributed locks and validated them across real-world scenarios.
+- [Redisson Docs](https://github.com/redisson/redisson)
+- [Distributed Locks Wiki](https://github.com/redisson/redisson/wiki/8.-distributed-locks-and-synchronizers)
