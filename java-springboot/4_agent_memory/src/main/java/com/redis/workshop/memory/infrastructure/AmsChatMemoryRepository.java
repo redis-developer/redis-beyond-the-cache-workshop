@@ -198,8 +198,8 @@ public class AmsChatMemoryRepository implements ChatMemoryRepository {
                         sessionId,
                         newMessages,
                         namespace,      // namespace
-                        null,  // modelName
-                        3000,           // contextWindowMax
+                        "gpt-4o-mini",  // modelName
+                        null,           // contextWindowMax
                         userId            // userId
                 );
                 System.out.println("[AMS] Appended " + newMessages.size() + " messages");
