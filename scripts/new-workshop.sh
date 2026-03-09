@@ -69,24 +69,90 @@ TODO: Describe the workshop goals, prerequisites, and steps.
 DOC
 
 cat <<DOC > "$MODULE_DIR/Dockerfile"
-FROM node:20-alpine AS frontend-build
-WORKDIR /frontend
-COPY frontend/package*.json ./
-RUN npm ci
-COPY frontend/ ./
-RUN npm run build
+# syntax=docker/dockerfile:1.4
+# Multi-stage Dockerfile for the $ID workshop
 
-FROM gradle:8.5-jdk21 AS backend-build
-WORKDIR /app
-COPY build.gradle.kts settings.gradle.kts ./
-COPY src ./src
-COPY --from=frontend-build /frontend/../src/main/resources/static ./src/main/resources/static
-RUN gradle bootJar --no-daemon
+FROM eclipse-temurin:21-jdk AS builder
+
+ARG SKIP_FRONTEND_BUILD=false
+
+# Install Node.js and npm for building the Vue frontend
+RUN if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
+        apt-get update \\
+        && apt-get install -y nodejs npm \\
+        && rm -rf /var/lib/apt/lists/*; \\
+    fi
+
+WORKDIR /workspace/java-springboot
+
+# Copy Gradle wrapper and configuration files first (for caching)
+COPY java-springboot/gradlew .
+COPY java-springboot/gradle gradle
+COPY java-springboot/build.gradle.kts .
+COPY java-springboot/$ID/settings.gradle.kts .
+
+# Copy buildSrc for convention plugins
+COPY java-springboot/buildSrc buildSrc
+
+# Copy only the build.gradle.kts files for dependency resolution
+COPY java-springboot/$ID/build.gradle.kts $ID/
+COPY java-springboot/workshop-infrastructure/build.gradle.kts workshop-infrastructure/
+COPY java-springboot/workshop-hub/build.gradle.kts workshop-hub/
+
+# Download Gradle dependencies (this layer will be cached)
+RUN --mount=type=cache,target=/root/.gradle \\
+    ./gradlew :$ID:dependencies --no-daemon || true
+
+# Copy shared frontend package (required dependency)
+COPY workshop-frontend-shared /workshop-frontend-shared
+RUN ln -s /workshop-frontend-shared /workspace/workshop-frontend-shared
+
+# Copy frontend package files for npm dependency caching
+COPY java-springboot/$ID/frontend/package*.json $ID/frontend/
+COPY java-springboot/$ID/frontend/babel.config.js $ID/frontend/
+
+# Download npm dependencies (this layer will be cached)
+RUN --mount=type=cache,target=/root/.npm \\
+    if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
+        cd $ID/frontend && npm install; \\
+    fi
+
+# Copy the source code
+COPY java-springboot/$ID/src $ID/src
+COPY java-springboot/$ID/frontend/src $ID/frontend/src
+COPY java-springboot/$ID/frontend/public $ID/frontend/public
+COPY java-springboot/$ID/frontend/vue.config.js $ID/frontend/
+COPY java-springboot/workshop-infrastructure/src workshop-infrastructure/src
+COPY java-springboot/workshop-hub/src workshop-hub/src
+
+# Build Vue frontend with configurable base path
+ARG VUE_APP_BASE_PATH=/
+ENV VUE_APP_BASE_PATH=\${VUE_APP_BASE_PATH}
+RUN --mount=type=cache,target=/root/.npm \\
+    if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
+        cd $ID/frontend && npm run build; \\
+    fi
+
+# Build only the $ID module jar (skip tests for speed)
+RUN --mount=type=cache,target=/root/.gradle \\
+    ./gradlew :$ID:bootJar -x test --no-daemon
 
 FROM eclipse-temurin:21-jre
+
 WORKDIR /app
-COPY --from=backend-build /app/build/libs/*.jar app.jar
+
+# Copy the Spring Boot fat jar from the build stage
+COPY --from=builder /workspace/java-springboot/$ID/build/libs/${ID}-0.0.1-SNAPSHOT.jar app.jar
+
+# Copy editable source files for in-browser editing (used in containerized mode)
+COPY --from=builder /workspace/java-springboot/$ID/build.gradle.kts /workshop-sources/build.gradle.kts
+COPY --from=builder /workspace/java-springboot/$ID/src/main/resources/application.properties /workshop-sources/src/main/resources/application.properties
+
+# Set environment variable to point to the editable source files
+ENV WORKSHOP_BASE_PATH=/workshop-sources
+
 EXPOSE $PORT
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
 DOC
 
@@ -134,9 +200,12 @@ tasks.withType<Test> {
 }
 DOC
 
-# Create settings.gradle.kts for this module
+# Create settings.gradle.kts for this module (matches working workshops)
 cat <<DOC > "$MODULE_DIR/settings.gradle.kts"
-rootProject.name = "$ID"
+rootProject.name = "redis-springboot-workshop"
+
+include("workshop-infrastructure")
+include("$ID")
 DOC
 
 # Create application.properties

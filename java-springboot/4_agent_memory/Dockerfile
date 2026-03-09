@@ -26,6 +26,7 @@ COPY java-springboot/buildSrc buildSrc
 # Copy only the build.gradle.kts files for dependency resolution
 COPY java-springboot/4_agent_memory/build.gradle.kts 4_agent_memory/
 COPY java-springboot/workshop-infrastructure/build.gradle.kts workshop-infrastructure/
+COPY java-springboot/workshop-hub/build.gradle.kts workshop-hub/
 
 # Download Gradle dependencies (this layer will be cached)
 RUN --mount=type=cache,target=/root/.gradle \
@@ -51,6 +52,7 @@ COPY java-springboot/4_agent_memory/frontend/src 4_agent_memory/frontend/src
 COPY java-springboot/4_agent_memory/frontend/public 4_agent_memory/frontend/public
 COPY java-springboot/4_agent_memory/frontend/vue.config.js 4_agent_memory/frontend/
 COPY java-springboot/workshop-infrastructure/src workshop-infrastructure/src
+COPY java-springboot/workshop-hub/src workshop-hub/src
 
 # Build Vue frontend with configurable base path
 ARG VUE_APP_BASE_PATH=/
