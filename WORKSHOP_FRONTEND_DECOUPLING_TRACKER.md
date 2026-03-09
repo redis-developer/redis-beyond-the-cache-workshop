@@ -18,7 +18,7 @@ Split each workshop into two Spring Boot services without changing the visual de
 | Phase | Name | Status | Owner | Notes |
 |---|---|---|---|---|
 | 0 | Tracker + Baseline | DONE | Codex | Tracker created |
-| 1 | Schema + Hub Contracts | TODO | Codex |  |
+| 1 | Schema + Hub Contracts | DONE | Codex | Completed on 2026-03-09 |
 | 2 | Compose + Lifecycle Dual Services | TODO | Codex |  |
 | 3 | Shared Frontend Runtime Module | TODO | Codex |  |
 | 4 | Pilot Migration (2_full_text_search) | TODO | Codex |  |
@@ -62,11 +62,11 @@ Status values: `TODO`, `IN_PROGRESS`, `BLOCKED`, `DONE`.
 Extend workshop metadata and hub contracts to model separate frontend/backend workshop services.
 
 ### Checklist
-- [ ] Extend `workshops.yaml` schema for frontend/backend service metadata.
-- [ ] Update `Workshop` model and parsing logic for new fields.
-- [ ] Keep backward compatibility where possible.
-- [ ] Define canonical workshop URL behavior (frontend URL only).
-- [ ] Add/update validation tests for registry parsing.
+- [x] Extend `workshops.yaml` schema for frontend/backend service metadata.
+- [x] Update `Workshop` model and parsing logic for new fields.
+- [x] Keep backward compatibility where possible.
+- [x] Define canonical workshop URL behavior (frontend URL only).
+- [x] Add/update validation tests for registry parsing.
 
 ### Definition Of Done
 - Hub can load workshop entries with dual-service metadata.
@@ -74,12 +74,23 @@ Extend workshop metadata and hub contracts to model separate frontend/backend wo
 - No regression in current workshop listing behavior.
 
 ### Evidence
-- [ ] Link commit(s):
-- [ ] Test command(s):
-- [ ] Results:
+- Working tree changes:
+  - `workshops.yaml`
+  - `java-springboot/workshop-hub/src/main/java/com/redis/workshop/hub/model/Workshop.java`
+  - `java-springboot/workshop-hub/src/test/java/com/redis/workshop/hub/model/WorkshopRegistryParsingTest.java`
+- Test command:
+  - `./gradlew -p java-springboot -PskipFrontendBuild=true :workshop-hub:test --tests com.redis.workshop.hub.model.WorkshopRegistryParsingTest`
+- Results:
+  - `BUILD SUCCESSFUL`
+  - `WorkshopRegistryParsingTest`: 2 tests, 0 failures, 0 errors.
 
 ### Risks
 - Contract mismatch between existing frontend expectations and new fields.
+
+### Completion Notes
+- Legacy `serviceName`/`port`/`dockerfile` fields remain intact.
+- Dual-service metadata is now present in the registry and model.
+- `url` remains the canonical frontend URL.
 
 ---
 
@@ -274,3 +285,4 @@ Values: `OPEN`, `MITIGATED`, `ACCEPTED`, `CLOSED`.
 | Date | Phase Approved | Approved By | Notes |
 |---|---|---|---|
 | 2026-03-09 | Tracker Setup | User | Initial tracker requested |
+| 2026-03-09 | Phase 1 (Schema + Hub Contracts) | User | Approved to proceed |
