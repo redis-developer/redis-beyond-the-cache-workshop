@@ -1,0 +1,23 @@
+{
+  "name": "workshop-hub-frontend",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "serve": "vue-cli-service serve",
+    "build": "vue-cli-service build && cp -r dist/* ../java-springboot/workshop-hub/src/main/resources/static/vue/",
+    "lint": "vue-cli-service lint"
+  },
+  "dependencies": {
+    "@redis-workshop/shared": "file:../workshop-frontend-shared",
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.4",
+    "vuex": "^4.1.0",
+    "bootstrap": "^5.3.1",
+    "bootstrap-icons": "^1.10.5"
+  },
+  "devDependencies": {
+    "@vue/cli-service": "^5.0.8",
+    "vue-template-compiler": "^2.7.14"
+  }
+}
+

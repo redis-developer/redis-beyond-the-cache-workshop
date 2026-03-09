@@ -1,0 +1,69 @@
+import { createRouter, createWebHistory } from 'vue-router'
+import { getBasePath } from '../utils/basePath'
+
+const SessionLogin = () => import('../views/SessionLogin.vue')
+const SessionHome = () => import('../views/SessionHome.vue')
+const SessionEditor = () => import('../views/SessionEditor.vue')
+
+const routes = [
+  {
+    path: '/',
+    redirect: '/login'
+  },
+  {
+    path: '/login',
+    name: 'SessionLogin',
+    component: SessionLogin
+  },
+  {
+    path: '/welcome',
+    name: 'SessionHome',
+    component: SessionHome
+  },
+  {
+    path: '/editor',
+    name: 'SessionEditor',
+    component: SessionEditor
+  }
+]
+
+const router = createRouter({
+  history: createWebHistory(getBasePath() || '/'),
+  routes
+})
+
+// Navigation guard to check authentication before accessing protected routes
+router.beforeEach(async (to, from, next) => {
+  // Public routes that don't require authentication
+  const publicRoutes = ['/login']
+
+  if (publicRoutes.includes(to.path)) {
+    next()
+    return
+  }
+
+  // For protected routes, check if user is authenticated
+  try {
+    const basePath = `${getBasePath()}/`.replace(/\/+$/, '/')
+    const response = await fetch(`${basePath}api/session-info`, {
+      credentials: 'include'
+    })
+
+    if (response.status === 401 || response.status === 403) {
+      // Not authenticated, redirect to login
+      next('/login')
+    } else if (response.ok) {
+      // Authenticated, allow navigation
+      next()
+    } else {
+      // Other error, redirect to login to be safe
+      next('/login')
+    }
+  } catch (error) {
+    console.error('Auth check failed:', error)
+    // On error, redirect to login
+    next('/login')
+  }
+})
+
+export default router

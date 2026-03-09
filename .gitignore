@@ -1,0 +1,26 @@
+# Build output
+**/dist/
+**/src/main/resources/static/vue/
+**/src/main/resources/static/js/
+**/src/main/resources/static/css/
+**/src/main/resources/static/fonts/
+**/src/main/resources/static/index.html
+
+# Backup/old files
+**/*.old/
+**/*.bak
+
+# Dependencies
+**/node_modules/
+
+# Gradle
+**/.gradle/
+**/build/
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store

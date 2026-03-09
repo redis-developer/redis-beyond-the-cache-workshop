@@ -1,0 +1,19 @@
+services:
+  # Workshop Hub with Docker-in-Docker
+  # Contains the Hub app, Docker daemon, and all workshop source files
+  workshop-hub:
+    build:
+      context: .
+      dockerfile: java-springboot/workshop-hub/Dockerfile
+    ports:
+      - "9000:9000"    # Hub UI
+      - "5540:5540"    # Redis Insight (from internal container)
+    privileged: true   # Required for Docker-in-Docker
+    environment:
+      - WORKSHOP_ROOT_PATH=/workshops
+    volumes:
+      # Persist Docker data (images, containers) between restarts
+      - dind-data:/var/lib/docker
+
+volumes:
+  dind-data:

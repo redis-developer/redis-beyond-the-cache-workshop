@@ -1,0 +1,134 @@
+---
+services:
+  redis:
+    image: "redis:latest"
+    ports:
+    - "6379:6379"
+    healthcheck:
+      test:
+      - "CMD"
+      - "redis-cli"
+      - "-p"
+      - "6379"
+      - "ping"
+      interval: "5s"
+      timeout: "5s"
+      retries: 5
+    profiles:
+    - "infrastructure"
+    - "workshops"
+  redis-insight:
+    image: "redis/redisinsight:latest"
+    ports:
+    - "5540:5540"
+    environment:
+    - "RI_REDIS_HOST=redis"
+    - "RI_REDIS_PORT=6379"
+    profiles:
+    - "infrastructure"
+  postgres:
+    image: "postgres:16"
+    ports:
+    - "5432:5432"
+    environment:
+    - "POSTGRES_DB=workshop"
+    - "POSTGRES_USER=workshop"
+    - "POSTGRES_PASSWORD=workshop"
+    healthcheck:
+      test:
+      - "CMD-SHELL"
+      - "pg_isready -U workshop -d workshop"
+      interval: "5s"
+      timeout: "5s"
+      retries: 5
+    profiles:
+    - "workshops"
+    - "workshop-3_distributed_locks"
+  session-management:
+    build:
+      context: "${WORKSHOP_ROOT_PATH:-.}"
+      dockerfile: "java-springboot/1_session_management/Dockerfile"
+      args:
+      - "SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}"
+    ports:
+    - "8080:8080"
+    environment:
+    - "SPRING_DATA_REDIS_HOST=redis"
+    - "SPRING_DATA_REDIS_PORT=6379"
+    - "SPRING_REDIS_HOST=redis"
+    - "SPRING_REDIS_PORT=6379"
+    - "WORKSHOP_BASE_PATH=/workshop-sources"
+    volumes:
+    - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/1_session_management:/workshop-sources"
+    depends_on:
+    - "redis"
+    profiles:
+    - "workshops"
+    - "workshop-1_session_management"
+  full-text-search:
+    build:
+      context: "${WORKSHOP_ROOT_PATH:-.}"
+      dockerfile: "java-springboot/2_full_text_search/Dockerfile"
+      args:
+      - "SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}"
+    ports:
+    - "8081:8080"
+    environment:
+    - "SPRING_DATA_REDIS_HOST=redis"
+    - "SPRING_DATA_REDIS_PORT=6379"
+    - "SPRING_REDIS_HOST=redis"
+    - "SPRING_REDIS_PORT=6379"
+    - "WORKSHOP_BASE_PATH=/workshop-sources"
+    volumes:
+    - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/2_full_text_search:/workshop-sources"
+    depends_on:
+    - "redis"
+    profiles:
+    - "workshops"
+    - "workshop-2_full_text_search"
+  distributed-locks:
+    build:
+      context: "${WORKSHOP_ROOT_PATH:-.}"
+      dockerfile: "java-springboot/3_distributed_locks/Dockerfile"
+      args:
+      - "SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}"
+    ports:
+    - "8082:8080"
+    environment:
+    - "SPRING_DATA_REDIS_HOST=redis"
+    - "SPRING_DATA_REDIS_PORT=6379"
+    - "SPRING_REDIS_HOST=redis"
+    - "SPRING_REDIS_PORT=6379"
+    - "WORKSHOP_BASE_PATH=/workshop-sources"
+    - "SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/workshop"
+    - "SPRING_DATASOURCE_USERNAME=workshop"
+    - "SPRING_DATASOURCE_PASSWORD=workshop"
+    volumes:
+    - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/3_distributed_locks:/workshop-sources"
+    depends_on:
+    - "redis"
+    - "postgres"
+    profiles:
+    - "workshops"
+    - "workshop-3_distributed_locks"
+  agent-memory:
+    build:
+      context: "${WORKSHOP_ROOT_PATH:-.}"
+      dockerfile: "java-springboot/4_agent_memory/Dockerfile"
+      args:
+      - "SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}"
+    ports:
+    - "8083:8080"
+    environment:
+    - "SPRING_DATA_REDIS_HOST=redis"
+    - "SPRING_DATA_REDIS_PORT=6379"
+    - "SPRING_REDIS_HOST=redis"
+    - "SPRING_REDIS_PORT=6379"
+    - "WORKSHOP_BASE_PATH=/workshop-sources"
+    volumes:
+    - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/4_agent_memory:/workshop-sources"
+    depends_on:
+    - "redis"
+    profiles:
+    - "workshops"
+    - "workshop-4_agent_memory"

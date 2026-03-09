@@ -1,0 +1,68 @@
+version: 1
+workshops:
+  - id: 1_session_management
+    title: Distributed Session Management
+    description: >-
+      Learn how to implement distributed session management using Redis and Spring Session.
+      Experience the problem of in-memory sessions, then solve it with Redis-backed sessions
+      that persist across application restarts and enable horizontal scaling.
+    difficulty: Beginner
+    estimatedMinutes: 30
+    serviceName: session-management
+    port: 8080
+    url: /workshop/session-management/
+    dockerfile: java-springboot/1_session_management/Dockerfile
+    topics:
+      - Sessions
+      - Spring Session
+      - Distributed Systems
+      - Scalability
+  - id: 2_full_text_search
+    title: Full-Text Search with Redis
+    description: >-
+      Learn how to implement full-text search using Redis Query Engine and Redis OM Spring.
+      Build a movie search application with text search, filtering, and sorting capabilities.
+    difficulty: Beginner
+    estimatedMinutes: 30
+    serviceName: full-text-search
+    port: 8081
+    url: /workshop/full-text-search/
+    dockerfile: java-springboot/2_full_text_search/Dockerfile
+    topics:
+      - Query Engine
+      - Full-Text Search
+      - Redis OM
+      - Secondary Index
+  - id: 3_distributed_locks
+    title: Distributed Locks
+    description: >-
+      Implement a Redis-backed distributed lock to protect Postgres inventory updates
+      and prevent overselling under concurrent load.
+    difficulty: Intermediate
+    estimatedMinutes: 35
+    serviceName: distributed-locks
+    port: 8082
+    url: /workshop/distributed-locks/
+    dockerfile: java-springboot/3_distributed_locks/Dockerfile
+    topics:
+      - Distributed Locks
+      - Concurrency
+      - Redis
+      - Postgres
+  - id: 4_agent_memory
+    title: Agent Memory Server
+    description: >-
+      Give your AI agents persistent memory with Redis-powered Agent Memory Server.
+      Learn to use working memory for session context and long-term memory for
+      persistent facts and preferences with semantic search capabilities.
+    difficulty: Intermediate
+    estimatedMinutes: 40
+    serviceName: agent-memory
+    port: 8083
+    url: /workshop/agent-memory/
+    dockerfile: java-springboot/4_agent_memory/Dockerfile
+    topics:
+      - AI Agents
+      - Memory Management
+      - Semantic Search
+      - Vector Embeddings
