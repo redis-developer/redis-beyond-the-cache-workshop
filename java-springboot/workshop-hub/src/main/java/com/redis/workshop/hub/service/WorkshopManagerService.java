@@ -80,57 +80,37 @@ public class WorkshopManagerService {
             status.setUrl("http://localhost:" + port);
         }
 
-        try {
-            ProcessBuilder pb = new ProcessBuilder("sh", "-c", "docker ps --format '{{.Names}} {{.Status}}' | grep " + serviceName);
-            Process process = pb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line = reader.readLine();
-
-            if (line != null && line.contains("Up")) {
-                status.setStatus("running");
-            } else {
-                status.setStatus("stopped");
-            }
-        } catch (Exception e) {
-            logger.error("Error checking Docker service: " + serviceName, e);
-            status.setStatus("stopped");
-        }
+        status.setStatus(isDockerServiceRunning(serviceName) ? "running" : "stopped");
 
         return status;
     }
 
     private ServiceStatus checkWorkshopService(Workshop workshop) {
         String workshopId = workshop.getId();
-        String port = String.valueOf(getPortForWorkshop(workshop));
+        int frontendPort = getFrontendPortForWorkshop(workshop);
+        String port = String.valueOf(frontendPort);
         ServiceStatus status = new ServiceStatus();
         status.setName(workshopId);
         status.setType("workshop");
         status.setPort(port);
 
-        String serviceName = getServiceNameForWorkshop(workshop);
+        String frontendServiceName = getFrontendServiceNameForWorkshop(workshop);
+        String backendServiceName = getBackendServiceNameForWorkshop(workshop);
         // Local mode: direct URL, Container mode: proxy URL
         if (localMode) {
             status.setUrl("http://localhost:" + port + "/");
         } else if (workshop.getUrl() != null && !workshop.getUrl().isBlank()) {
             status.setUrl(workshop.getUrl());
         } else {
-            status.setUrl("/workshop/" + serviceName + "/");
+            status.setUrl("/workshop/" + frontendServiceName + "/");
         }
 
-        try {
-            ProcessBuilder pb = new ProcessBuilder("sh", "-c", "docker ps --format '{{.Names}} {{.Status}}' | grep " + serviceName);
-            Process process = pb.start();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
-            String line = reader.readLine();
-
-            if (line != null && line.contains("Up")) {
-                status.setStatus("running");
-            } else {
-                status.setStatus("stopped");
-            }
-        } catch (Exception e) {
-            logger.error("Error checking workshop service: " + workshopId, e);
-            status.setStatus("stopped");
+        boolean frontendRunning = isDockerServiceRunning(frontendServiceName);
+        boolean backendRunning = frontendServiceName.equals(backendServiceName)
+            || isDockerServiceRunning(backendServiceName);
+        status.setStatus(frontendRunning && backendRunning ? "running" : "stopped");
+        if (frontendRunning != backendRunning) {
+            status.setMessage("Partial state: frontend=" + frontendRunning + ", backend=" + backendRunning);
         }
 
         // Add deployment stage if workshop is being deployed
@@ -238,8 +218,10 @@ public class WorkshopManagerService {
 
             // Build the image and start the workshop service
             deploymentStages.put(workshopId, "building");
-            String serviceName = getServiceNameForWorkshop(workshop);
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "up", "-d", "--build", serviceName);
+            List<String> serviceNames = getServiceNamesForWorkshop(workshop);
+            List<String> command = new ArrayList<>(List.of("docker-compose", "-f", getComposeFile(), "up", "-d", "--build"));
+            command.addAll(serviceNames);
+            ProcessBuilder pb = new ProcessBuilder(command);
             pb.redirectErrorStream(true);
             configureDockerComposeEnvironment(pb);
 
@@ -250,7 +232,7 @@ public class WorkshopManagerService {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
-                    logger.info("[docker-compose up {}] {}", serviceName, line);
+                    logger.info("[docker-compose up {}] {}", String.join(",", serviceNames), line);
 
                     // Update stage based on docker-compose output
                     if (line.contains("Building")) {
@@ -303,8 +285,10 @@ public class WorkshopManagerService {
                 return new CommandResponse(false, "Workshop not found: " + workshopId);
             }
 
-            String serviceName = getServiceNameForWorkshop(workshop);
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "stop", serviceName);
+            List<String> serviceNames = getServiceNamesForWorkshop(workshop);
+            List<String> command = new ArrayList<>(List.of("docker-compose", "-f", getComposeFile(), "stop"));
+            command.addAll(serviceNames);
+            ProcessBuilder pb = new ProcessBuilder(command);
             pb.redirectErrorStream(true);
             configureDockerComposeEnvironment(pb);
 
@@ -315,7 +299,7 @@ public class WorkshopManagerService {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
-                    logger.info("[docker-compose stop {}] {}", serviceName, line);
+                    logger.info("[docker-compose stop {}] {}", String.join(",", serviceNames), line);
                 }
             }
 
@@ -379,8 +363,10 @@ public class WorkshopManagerService {
                 return new CommandResponse(false, "Workshop not found: " + workshopId);
             }
 
-            String serviceName = getServiceNameForWorkshop(workshop);
-            ProcessBuilder pb = new ProcessBuilder("docker-compose", "-f", getComposeFile(), "up", "-d", "--force-recreate", serviceName);
+            List<String> serviceNames = getServiceNamesForWorkshop(workshop);
+            List<String> command = new ArrayList<>(List.of("docker-compose", "-f", getComposeFile(), "up", "-d", "--force-recreate"));
+            command.addAll(serviceNames);
+            ProcessBuilder pb = new ProcessBuilder(command);
             pb.redirectErrorStream(true);
             configureDockerComposeEnvironment(pb);
 
@@ -391,7 +377,7 @@ public class WorkshopManagerService {
                 String line;
                 while ((line = reader.readLine()) != null) {
                     output.append(line).append("\n");
-                    logger.info("[docker-compose up --force-recreate {}] {}", serviceName, line);
+                    logger.info("[docker-compose up --force-recreate {}] {}", String.join(",", serviceNames), line);
 
                     // Update stage based on docker-compose output
                     if (line.contains("Creating") || line.contains("Starting")) {
@@ -429,18 +415,60 @@ public class WorkshopManagerService {
         }
     }
 
-    private String getServiceNameForWorkshop(Workshop workshop) {
+    private String getFrontendServiceNameForWorkshop(Workshop workshop) {
+        String serviceName = workshop.getEffectiveFrontendServiceName();
+        if (serviceName != null && !serviceName.isBlank()) {
+            return serviceName;
+        }
         if (workshop.getServiceName() != null && !workshop.getServiceName().isBlank()) {
             return workshop.getServiceName();
         }
         return workshop.getId();
     }
 
-    private int getPortForWorkshop(Workshop workshop) {
+    private String getBackendServiceNameForWorkshop(Workshop workshop) {
+        String serviceName = workshop.getEffectiveBackendServiceName();
+        if (serviceName != null && !serviceName.isBlank()) {
+            return serviceName;
+        }
+        return getFrontendServiceNameForWorkshop(workshop);
+    }
+
+    private List<String> getServiceNamesForWorkshop(Workshop workshop) {
+        String frontendService = getFrontendServiceNameForWorkshop(workshop);
+        String backendService = getBackendServiceNameForWorkshop(workshop);
+        if (frontendService.equals(backendService)) {
+            return List.of(frontendService);
+        }
+        return List.of(frontendService, backendService);
+    }
+
+    private int getFrontendPortForWorkshop(Workshop workshop) {
+        int port = workshop.getEffectiveFrontendPort();
+        if (port > 0) {
+            return port;
+        }
         if (workshop.getPort() > 0) {
             return workshop.getPort();
         }
         return 8080;
+    }
+
+    private boolean isDockerServiceRunning(String serviceName) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(
+                "sh",
+                "-c",
+                "docker ps --format '{{.Names}} {{.Status}}' | grep " + serviceName
+            );
+            Process process = pb.start();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
+            String line = reader.readLine();
+            return line != null && line.contains("Up");
+        } catch (Exception e) {
+            logger.error("Error checking Docker service: {}", serviceName, e);
+            return false;
+        }
     }
 
     private Workshop getWorkshopById(String workshopId) {
