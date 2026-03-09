@@ -12,6 +12,12 @@ workshops:
     port: 8080
     url: /workshop/session-management/
     dockerfile: java-springboot/1_session_management/Dockerfile
+    frontendServiceName: session-management
+    frontendPort: 8080
+    frontendDockerfile: java-springboot/1_session_management/Dockerfile
+    backendServiceName: session-management-api
+    backendPort: 18080
+    backendDockerfile: java-springboot/1_session_management/Dockerfile
     topics:
       - Sessions
       - Spring Session
@@ -28,6 +34,12 @@ workshops:
     port: 8081
     url: /workshop/full-text-search/
     dockerfile: java-springboot/2_full_text_search/Dockerfile
+    frontendServiceName: full-text-search
+    frontendPort: 8081
+    frontendDockerfile: java-springboot/2_full_text_search/Dockerfile
+    backendServiceName: full-text-search-api
+    backendPort: 18081
+    backendDockerfile: java-springboot/2_full_text_search/Dockerfile
     topics:
       - Query Engine
       - Full-Text Search
@@ -44,6 +56,12 @@ workshops:
     port: 8082
     url: /workshop/distributed-locks/
     dockerfile: java-springboot/3_distributed_locks/Dockerfile
+    frontendServiceName: distributed-locks
+    frontendPort: 8082
+    frontendDockerfile: java-springboot/3_distributed_locks/Dockerfile
+    backendServiceName: distributed-locks-api
+    backendPort: 18082
+    backendDockerfile: java-springboot/3_distributed_locks/Dockerfile
     topics:
       - Distributed Locks
       - Concurrency
@@ -61,6 +79,12 @@ workshops:
     port: 8083
     url: /workshop/agent-memory/
     dockerfile: java-springboot/4_agent_memory/Dockerfile
+    frontendServiceName: agent-memory
+    frontendPort: 8083
+    frontendDockerfile: java-springboot/4_agent_memory/Dockerfile
+    backendServiceName: agent-memory-api
+    backendPort: 18083
+    backendDockerfile: java-springboot/4_agent_memory/Dockerfile
     topics:
       - AI Agents
       - Memory Management
