@@ -58,8 +58,25 @@ public class ComposeGenerator {
         }
 
         for (Workshop workshop : workshops) {
-            String serviceName = getServiceName(workshop);
-            services.put(serviceName, buildWorkshopService(rootDir, workshop, localMode));
+            String frontendServiceName = getFrontendServiceName(workshop);
+            String backendServiceName = getBackendServiceName(workshop);
+
+            if (frontendServiceName.equals(backendServiceName)) {
+                services.put(
+                    frontendServiceName,
+                    buildWorkshopFrontendService(workshop, localMode, null)
+                );
+                continue;
+            }
+
+            services.put(
+                backendServiceName,
+                buildWorkshopBackendService(workshop, localMode)
+            );
+            services.put(
+                frontendServiceName,
+                buildWorkshopFrontendService(workshop, localMode, backendServiceName)
+            );
         }
 
         root.put("services", services);
@@ -104,65 +121,181 @@ public class ComposeGenerator {
         return service;
     }
 
-    private static Map<String, Object> buildWorkshopService(Path rootDir, Workshop workshop, boolean localMode) {
-        Map<String, Object> service = new LinkedHashMap<>();
-
-        String dockerfile = workshop.getDockerfile();
+    private static Map<String, Object> buildWorkshopFrontendService(
+        Workshop workshop,
+        boolean localMode,
+        String backendServiceName
+    ) {
+        String dockerfile = workshop.getEffectiveFrontendDockerfile();
         String modulePath = getModulePath(dockerfile);
-        int port = getPort(workshop);
+        int frontendPort = getFrontendPort(workshop);
+        int backendPort = getBackendPort(workshop);
 
+        Map<String, Object> service = new LinkedHashMap<>();
+        service.put("build", buildBuildConfig(dockerfile, localMode, buildFrontendBuildArgs(localMode)));
+        service.put("ports", List.of(frontendPort + ":" + frontendPort));
+        service.put(
+            "environment",
+            buildWorkshopEnvironment(workshop, localMode, frontendPort, backendServiceName, backendPort)
+        );
+
+        String volumeRoot = localMode ? "${WORKSHOP_ROOT_PATH:-.}" : "${WORKSHOP_ROOT_PATH:-/workshops}";
+        service.put("volumes", List.of(volumeRoot + "/" + modulePath + ":/workshop-sources"));
+
+        List<String> dependsOn = buildFrontendDependencies(workshop, localMode, backendServiceName);
+        if (!dependsOn.isEmpty()) {
+            service.put("depends_on", dependsOn);
+        }
+
+        service.put("profiles", buildWorkshopProfiles(workshop));
+        return service;
+    }
+
+    private static Map<String, Object> buildWorkshopBackendService(Workshop workshop, boolean localMode) {
+        String dockerfile = workshop.getEffectiveBackendDockerfile();
+        String modulePath = getModulePath(dockerfile);
+        int backendPort = getBackendPort(workshop);
+
+        Map<String, Object> service = new LinkedHashMap<>();
+        service.put("build", buildBuildConfig(dockerfile, localMode, List.of("SKIP_FRONTEND_BUILD=true")));
+        service.put("ports", List.of(backendPort + ":" + backendPort));
+        service.put("environment", buildWorkshopEnvironment(workshop, localMode, backendPort, null, null));
+
+        String volumeRoot = localMode ? "${WORKSHOP_ROOT_PATH:-.}" : "${WORKSHOP_ROOT_PATH:-/workshops}";
+        service.put("volumes", List.of(volumeRoot + "/" + modulePath + ":/workshop-sources"));
+
+        List<String> dependsOn = buildBackendDependencies(workshop, localMode);
+        if (!dependsOn.isEmpty()) {
+            service.put("depends_on", dependsOn);
+        }
+
+        service.put("profiles", buildWorkshopProfiles(workshop));
+        return service;
+    }
+
+    private static Map<String, Object> buildBuildConfig(String dockerfile, boolean localMode, List<String> args) {
         Map<String, Object> build = new LinkedHashMap<>();
         String context = localMode ? "${WORKSHOP_ROOT_PATH:-.}" : "${WORKSHOP_ROOT_PATH:-/workshops}";
         build.put("context", context);
         build.put("dockerfile", dockerfile);
-
-        List<String> args = new ArrayList<>();
-        if (localMode) {
-            args.add("SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}");
-        } else {
-            args.add("VUE_APP_BASE_PATH=/");
-            args.add("SKIP_FRONTEND_BUILD=true");
-        }
         build.put("args", args);
+        return build;
+    }
 
-        service.put("build", build);
-        service.put("ports", List.of(port + ":" + (localMode ? 8080 : port)));
+    private static List<String> buildFrontendBuildArgs(boolean localMode) {
+        if (localMode) {
+            return List.of("SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}");
+        }
+        return List.of(
+            "VUE_APP_BASE_PATH=/",
+            "SKIP_FRONTEND_BUILD=true"
+        );
+    }
 
+    private static List<String> buildWorkshopEnvironment(
+        Workshop workshop,
+        boolean localMode,
+        int runtimePort,
+        String backendServiceName,
+        Integer backendPort
+    ) {
         List<String> env = new ArrayList<>();
         env.add("SPRING_DATA_REDIS_HOST=redis");
         env.add("SPRING_DATA_REDIS_PORT=6379");
         env.add("SPRING_REDIS_HOST=redis");
         env.add("SPRING_REDIS_PORT=6379");
         env.add("WORKSHOP_BASE_PATH=/workshop-sources");
+
         if (isDistributedLocks(workshop)) {
             env.add("SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/workshop");
             env.add("SPRING_DATASOURCE_USERNAME=workshop");
             env.add("SPRING_DATASOURCE_PASSWORD=workshop");
         }
-        if (!localMode && port != 8080) {
-            env.add("SERVER_PORT=" + port);
-        }
-        service.put("environment", env);
 
-        String volumeRoot = localMode ? "${WORKSHOP_ROOT_PATH:-.}" : "${WORKSHOP_ROOT_PATH:-/workshops}";
-        service.put("volumes", List.of(volumeRoot + "/" + modulePath + ":/workshop-sources"));
-
-        if (localMode) {
-            service.put("depends_on", buildDependencies(workshop));
-        } else if (isDistributedLocks(workshop)) {
-            service.put("depends_on", buildDependencies(workshop));
+        if (runtimePort != 8080) {
+            env.add("SERVER_PORT=" + runtimePort);
         }
 
-        service.put("profiles", List.of("workshops", "workshop-" + workshop.getId()));
+        if (backendServiceName != null && !backendServiceName.isBlank() && backendPort != null && backendPort > 0) {
+            env.add("WORKSHOP_BACKEND_URL=http://" + backendServiceName + ":" + backendPort);
+        }
 
-        return service;
+        // Keep local and internal mode behavior consistent for runtime port binding.
+        if (localMode && runtimePort == 8080) {
+            return env;
+        }
+        return env;
     }
 
-    private static String getServiceName(Workshop workshop) {
-        if (workshop.getServiceName() != null && !workshop.getServiceName().isBlank()) {
-            return workshop.getServiceName();
+    private static List<String> buildFrontendDependencies(Workshop workshop, boolean localMode, String backendServiceName) {
+        List<String> deps = new ArrayList<>();
+
+        if (backendServiceName != null && !backendServiceName.isBlank()) {
+            deps.add(backendServiceName);
+        }
+
+        if (localMode) {
+            deps.addAll(buildInfrastructureDependencies(workshop));
+        } else if (isDistributedLocks(workshop)) {
+            deps.addAll(buildInfrastructureDependencies(workshop));
+        }
+
+        return deps;
+    }
+
+    private static List<String> buildBackendDependencies(Workshop workshop, boolean localMode) {
+        if (localMode) {
+            return buildInfrastructureDependencies(workshop);
+        }
+        if (isDistributedLocks(workshop)) {
+            return buildInfrastructureDependencies(workshop);
+        }
+        return List.of();
+    }
+
+    private static List<String> buildInfrastructureDependencies(Workshop workshop) {
+        List<String> deps = new ArrayList<>();
+        deps.add("redis");
+        if (isDistributedLocks(workshop)) {
+            deps.add("postgres");
+        }
+        return deps;
+    }
+
+    private static List<String> buildWorkshopProfiles(Workshop workshop) {
+        return List.of("workshops", "workshop-" + workshop.getId());
+    }
+
+    private static String getFrontendServiceName(Workshop workshop) {
+        String name = workshop.getEffectiveFrontendServiceName();
+        if (name != null && !name.isBlank()) {
+            return name;
         }
         return workshop.getId();
+    }
+
+    private static String getBackendServiceName(Workshop workshop) {
+        String name = workshop.getEffectiveBackendServiceName();
+        if (name != null && !name.isBlank()) {
+            return name;
+        }
+        return getFrontendServiceName(workshop);
+    }
+
+    private static int getFrontendPort(Workshop workshop) {
+        int port = workshop.getEffectiveFrontendPort();
+        if (port > 0) {
+            return port;
+        }
+        return 8080;
+    }
+
+    private static int getBackendPort(Workshop workshop) {
+        int port = workshop.getEffectiveBackendPort();
+        if (port > 0) {
+            return port;
+        }
+        return 8080;
     }
 
     private static boolean needsPostgres(List<Workshop> workshops) {
@@ -172,16 +305,12 @@ public class ComposeGenerator {
     private static boolean isDistributedLocks(Workshop workshop) {
         String id = workshop.getId();
         String serviceName = workshop.getServiceName();
-        return "3_distributed_locks".equals(id) || "distributed-locks".equals(serviceName);
-    }
-
-    private static List<String> buildDependencies(Workshop workshop) {
-        List<String> deps = new ArrayList<>();
-        deps.add("redis");
-        if (isDistributedLocks(workshop)) {
-            deps.add("postgres");
-        }
-        return deps;
+        String frontendService = workshop.getEffectiveFrontendServiceName();
+        String backendService = workshop.getEffectiveBackendServiceName();
+        return "3_distributed_locks".equals(id)
+            || "distributed-locks".equals(serviceName)
+            || "distributed-locks".equals(frontendService)
+            || "distributed-locks-api".equals(backendService);
     }
 
     private static Map<String, Object> buildPostgresService(boolean localMode) {
@@ -207,13 +336,6 @@ public class ComposeGenerator {
         }
 
         return service;
-    }
-
-    private static int getPort(Workshop workshop) {
-        if (workshop.getPort() > 0) {
-            return workshop.getPort();
-        }
-        return 8080;
     }
 
     private static String getModulePath(String dockerfile) {

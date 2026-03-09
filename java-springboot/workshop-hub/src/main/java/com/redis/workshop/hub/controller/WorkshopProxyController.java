@@ -173,15 +173,38 @@ public class WorkshopProxyController {
         }
 
         for (Workshop workshop : registryService.getWorkshops()) {
-            if (workshopId.equals(workshop.getServiceName())) {
-                return workshop.getPort();
+            String frontendServiceName = getFrontendServiceName(workshop);
+            if (workshopId.equals(frontendServiceName)) {
+                return getFrontendPort(workshop);
             }
             String slug = extractSlugFromUrl(workshop.getUrl());
             if (slug != null && workshopId.equals(slug)) {
-                return workshop.getPort();
+                return getFrontendPort(workshop);
             }
         }
         return null;
+    }
+
+    private String getFrontendServiceName(Workshop workshop) {
+        String serviceName = workshop.getEffectiveFrontendServiceName();
+        if (serviceName != null && !serviceName.isBlank()) {
+            return serviceName;
+        }
+        if (workshop.getServiceName() != null && !workshop.getServiceName().isBlank()) {
+            return workshop.getServiceName();
+        }
+        return workshop.getId();
+    }
+
+    private int getFrontendPort(Workshop workshop) {
+        int port = workshop.getEffectiveFrontendPort();
+        if (port > 0) {
+            return port;
+        }
+        if (workshop.getPort() > 0) {
+            return workshop.getPort();
+        }
+        return 8080;
     }
 
     private String extractSlugFromUrl(String url) {

@@ -19,7 +19,7 @@ Split each workshop into two Spring Boot services without changing the visual de
 |---|---|---|---|---|
 | 0 | Tracker + Baseline | DONE | Codex | Tracker created |
 | 1 | Schema + Hub Contracts | DONE | Codex | Completed on 2026-03-09 |
-| 2 | Compose + Lifecycle Dual Services | TODO | Codex |  |
+| 2 | Compose + Lifecycle Dual Services | DONE | Codex | Completed on 2026-03-09 |
 | 3 | Shared Frontend Runtime Module | TODO | Codex |  |
 | 4 | Pilot Migration (2_full_text_search) | TODO | Codex |  |
 | 5 | API Path Normalization (All Workshops) | TODO | Codex |  |
@@ -100,11 +100,11 @@ Extend workshop metadata and hub contracts to model separate frontend/backend wo
 Generate and operate two services per workshop in compose and manager lifecycle.
 
 ### Checklist
-- [ ] Update compose generator to emit frontend + backend workshop services.
-- [ ] Ensure profiles include both services under each `workshop-<id>`.
-- [ ] Update manager start/stop/restart flows for dual services.
-- [ ] Update status aggregation logic (workshop is healthy only when required services are healthy).
-- [ ] Validate local and internal compose outputs.
+- [x] Update compose generator to emit frontend + backend workshop services.
+- [x] Ensure profiles include both services under each `workshop-<id>`.
+- [x] Update manager start/stop/restart flows for dual services.
+- [x] Update status aggregation logic (workshop is healthy only when required services are healthy).
+- [x] Validate local and internal compose outputs.
 
 ### Definition Of Done
 - `generateCompose` produces correct dual-service configs.
@@ -112,12 +112,26 @@ Generate and operate two services per workshop in compose and manager lifecycle.
 - Status endpoint correctly reflects aggregated workshop health.
 
 ### Evidence
-- [ ] Link commit(s):
-- [ ] Test command(s):
-- [ ] Results:
+- Working tree changes:
+  - `java-springboot/workshop-hub/src/main/java/com/redis/workshop/hub/tools/ComposeGenerator.java`
+  - `java-springboot/workshop-hub/src/main/java/com/redis/workshop/hub/service/WorkshopManagerService.java`
+  - `java-springboot/workshop-hub/src/main/java/com/redis/workshop/hub/controller/WorkshopProxyController.java`
+  - `java-springboot/workshop-hub/docker-compose.local.yml`
+  - `java-springboot/workshop-hub/docker-compose.internal.yml`
+- Test/validation commands:
+  - `./gradlew -PskipFrontendBuild=true :workshop-hub:test --tests com.redis.workshop.hub.model.WorkshopRegistryParsingTest`
+  - `./gradlew -PskipFrontendBuild=true :workshop-hub:generateCompose`
+- Results:
+  - `BUILD SUCCESSFUL` for test and compose generation tasks.
+  - Generated compose files include frontend and backend services per workshop, both under `workshop-<id>` profiles.
 
 ### Risks
 - Partial-up states can mislead UI if aggregation is wrong.
+
+### Completion Notes
+- Workshop lifecycle commands now target both frontend and backend service names.
+- Workshop status is aggregated from both service states while preserving the existing UI status contract.
+- Proxy routing resolves frontend port/service using the new dual-service model fields with legacy fallback.
 
 ---
 
@@ -286,3 +300,4 @@ Values: `OPEN`, `MITIGATED`, `ACCEPTED`, `CLOSED`.
 |---|---|---|---|
 | 2026-03-09 | Tracker Setup | User | Initial tracker requested |
 | 2026-03-09 | Phase 1 (Schema + Hub Contracts) | User | Approved to proceed |
+| 2026-03-09 | Phase 2 (Compose + Lifecycle Dual Services) | User | Approved to proceed |
