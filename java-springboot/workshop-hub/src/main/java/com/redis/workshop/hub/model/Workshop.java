@@ -10,6 +10,12 @@ public class Workshop {
     private String serviceName;
     private int port;
     private String dockerfile;
+    private String frontendServiceName;
+    private Integer frontendPort;
+    private String frontendDockerfile;
+    private String backendServiceName;
+    private Integer backendPort;
+    private String backendDockerfile;
     private String[] topics;
 
     public Workshop() {
@@ -99,11 +105,123 @@ public class Workshop {
         this.dockerfile = dockerfile;
     }
 
+    public String getFrontendServiceName() {
+        return frontendServiceName;
+    }
+
+    public void setFrontendServiceName(String frontendServiceName) {
+        this.frontendServiceName = frontendServiceName;
+    }
+
+    public Integer getFrontendPort() {
+        return frontendPort;
+    }
+
+    public void setFrontendPort(Integer frontendPort) {
+        this.frontendPort = frontendPort;
+    }
+
+    public String getFrontendDockerfile() {
+        return frontendDockerfile;
+    }
+
+    public void setFrontendDockerfile(String frontendDockerfile) {
+        this.frontendDockerfile = frontendDockerfile;
+    }
+
+    public String getBackendServiceName() {
+        return backendServiceName;
+    }
+
+    public void setBackendServiceName(String backendServiceName) {
+        this.backendServiceName = backendServiceName;
+    }
+
+    public Integer getBackendPort() {
+        return backendPort;
+    }
+
+    public void setBackendPort(Integer backendPort) {
+        this.backendPort = backendPort;
+    }
+
+    public String getBackendDockerfile() {
+        return backendDockerfile;
+    }
+
+    public void setBackendDockerfile(String backendDockerfile) {
+        this.backendDockerfile = backendDockerfile;
+    }
+
     public String[] getTopics() {
         return topics;
     }
 
     public void setTopics(String[] topics) {
         this.topics = topics;
+    }
+
+    /**
+     * Transitional resolver for dual-service migration.
+     * Falls back to the legacy single-service fields to preserve behavior.
+     */
+    public String getEffectiveFrontendServiceName() {
+        return hasText(frontendServiceName) ? frontendServiceName : serviceName;
+    }
+
+    /**
+     * Transitional resolver for dual-service migration.
+     * Falls back to the legacy single-service fields to preserve behavior.
+     */
+    public int getEffectiveFrontendPort() {
+        if (frontendPort != null && frontendPort > 0) {
+            return frontendPort;
+        }
+        return port;
+    }
+
+    /**
+     * Transitional resolver for dual-service migration.
+     * Falls back to the legacy single-service fields to preserve behavior.
+     */
+    public String getEffectiveFrontendDockerfile() {
+        return hasText(frontendDockerfile) ? frontendDockerfile : dockerfile;
+    }
+
+    /**
+     * Transitional resolver for dual-service migration.
+     * Falls back to the legacy single-service fields to preserve behavior.
+     */
+    public String getEffectiveBackendServiceName() {
+        if (hasText(backendServiceName)) {
+            return backendServiceName;
+        }
+        if (hasText(serviceName)) {
+            return serviceName;
+        }
+        return id;
+    }
+
+    /**
+     * Transitional resolver for dual-service migration.
+     * Falls back to the legacy single-service fields to preserve behavior.
+     */
+    public int getEffectiveBackendPort() {
+        if (backendPort != null && backendPort > 0) {
+            return backendPort;
+        }
+        return port;
+    }
+
+    /**
+     * Transitional resolver for dual-service migration.
+     * Falls back to the legacy single-service fields to preserve behavior.
+     */
+    public String getEffectiveBackendDockerfile() {
+        return hasText(backendDockerfile) ? backendDockerfile : dockerfile;
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }
