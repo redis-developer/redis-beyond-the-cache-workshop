@@ -68,7 +68,7 @@ docker compose down
 
 1. Run the scaffold script:
 ```bash
-./scripts/new-workshop.sh <id> "<title>" <serviceName> <port>
+./scripts/new-workshop.sh <id> "<title>" <serviceName> <frontendPort> [backendPort]
 ```
 
 2. Regenerate compose files:
@@ -76,15 +76,15 @@ docker compose down
 ./java-springboot/gradlew :workshop-hub:generateCompose
 ```
 
-3. Create workshop content in `java-springboot/<id>/`
+3. Fill in the generated TODOs in both modules and update the frontend prebuild list in `java-springboot/workshop-hub/Dockerfile` if the hub DinD image should ship the workshop with prebuilt assets.
 
 ### Workshop Structure
 
-Each workshop should include:
-- `Dockerfile` - Container build
-- `README.md` - Learner instructions
-- `frontend/` - Vue.js UI
-- `src/` - Spring Boot backend
+Each workshop now consists of two modules:
+- `java-springboot/<id>/` - Backend APIs, demo logic, learner-editable source, backend Dockerfile, README
+- `java-springboot/<id>_frontend/` - SPA hosting, editor/file operations, backend proxying, frontend Dockerfile, Vue app
+
+The scaffold creates both modules and registers both services in `workshops.yaml`.
 
 ### Registry
 
@@ -92,8 +92,11 @@ All workshops are registered in `workshops.yaml`. Required fields:
 - `id`, `title`, `description`
 - `serviceName`, `port`, `url`
 - `dockerfile`, `topics`
+- `frontendServiceName`, `frontendPort`, `frontendDockerfile`
+- `backendServiceName`, `backendPort`, `backendDockerfile`
+
+For compatibility with existing hub logic, keep `serviceName`, `port`, and `dockerfile` aligned with the frontend service values.
 
 ## License
 
 MIT
-

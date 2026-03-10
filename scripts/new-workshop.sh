@@ -1,36 +1,45 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ $# -lt 4 ]; then
-  echo "Usage: $0 <id> <title> <serviceName> <port>" >&2
-  echo "Example: $0 4_rate_limiting \"Rate Limiting\" rate-limiting 8083" >&2
+if [ $# -lt 4 ] || [ $# -gt 5 ]; then
+  echo "Usage: $0 <id> <title> <serviceName> <frontendPort> [backendPort]" >&2
+  echo "Example: $0 5_rate_limiting \"Rate Limiting\" rate-limiting 8084 18084" >&2
   exit 1
 fi
 
 ID="$1"
 TITLE="$2"
 SERVICE_NAME="$3"
-PORT="$4"
+FRONTEND_PORT="$4"
+BACKEND_PORT="${5:-$((FRONTEND_PORT + 10000))}"
 
-# Convert service-name to PascalCase for component names (e.g., rate-limiting -> RateLimiting)
-# Using awk for portability across macOS and Linux
 PASCAL_CASE=$(echo "$SERVICE_NAME" | awk -F'-' '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1' OFS='')
-
-# Convert to package-friendly name (lowercase, no dashes)
 PACKAGE_NAME=$(echo "$SERVICE_NAME" | tr -d '-')
+FRONTEND_MODULE="${ID}_frontend"
+BACKEND_SERVICE_NAME="${SERVICE_NAME}-api"
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+JAVA_DIR="$ROOT_DIR/java-springboot"
+BACKEND_MODULE_DIR="$JAVA_DIR/$ID"
+FRONTEND_MODULE_DIR="$JAVA_DIR/$FRONTEND_MODULE"
 REGISTRY_PATH="$ROOT_DIR/workshops.yaml"
-MODULE_DIR="$ROOT_DIR/java-springboot/$ID"
-FRONTEND_DIR="$MODULE_DIR/frontend"
+SETTINGS_PATH="$JAVA_DIR/settings.gradle.kts"
+LOGO_SOURCE="$JAVA_DIR/1_session_management_frontend/frontend/src/assets/logo/small.png"
 
-if [ -e "$MODULE_DIR" ]; then
-  echo "Module directory already exists: $MODULE_DIR" >&2
-  exit 1
-fi
+for path in "$BACKEND_MODULE_DIR" "$FRONTEND_MODULE_DIR"; do
+  if [ -e "$path" ]; then
+    echo "Path already exists: $path" >&2
+    exit 1
+  fi
+done
 
 if [ ! -f "$REGISTRY_PATH" ]; then
   echo "Registry not found: $REGISTRY_PATH" >&2
+  exit 1
+fi
+
+if ! [[ "$FRONTEND_PORT" =~ ^[0-9]+$ && "$BACKEND_PORT" =~ ^[0-9]+$ ]]; then
+  echo "Ports must be numeric." >&2
   exit 1
 fi
 
@@ -39,130 +48,47 @@ if command -v rg >/dev/null 2>&1; then
     echo "Workshop id already exists in registry: $ID" >&2
     exit 1
   fi
+  if rg -n "serviceName: $SERVICE_NAME" "$REGISTRY_PATH" >/dev/null; then
+    echo "Service name already exists in registry: $SERVICE_NAME" >&2
+    exit 1
+  fi
 else
   if grep -q "id: $ID" "$REGISTRY_PATH"; then
     echo "Workshop id already exists in registry: $ID" >&2
     exit 1
   fi
+  if grep -q "serviceName: $SERVICE_NAME" "$REGISTRY_PATH"; then
+    echo "Service name already exists in registry: $SERVICE_NAME" >&2
+    exit 1
+  fi
 fi
 
-# Create backend structure
-mkdir -p "$MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME"
-mkdir -p "$MODULE_DIR/src/main/resources"
+mkdir -p "$BACKEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME"
+mkdir -p "$BACKEND_MODULE_DIR/src/main/resources"
+mkdir -p "$FRONTEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/frontend/infrastructure"
+mkdir -p "$FRONTEND_MODULE_DIR/src/main/resources/static"
+mkdir -p "$FRONTEND_MODULE_DIR/frontend/public"
+mkdir -p "$FRONTEND_MODULE_DIR/frontend/src/assets/logo"
+mkdir -p "$FRONTEND_MODULE_DIR/frontend/src/router"
+mkdir -p "$FRONTEND_MODULE_DIR/frontend/src/utils"
+mkdir -p "$FRONTEND_MODULE_DIR/frontend/src/views"
+mkdir -p "$FRONTEND_MODULE_DIR/src/test/java/com/redis/workshop/$PACKAGE_NAME/frontend"
 
-# Create frontend structure
-mkdir -p "$FRONTEND_DIR/public"
-mkdir -p "$FRONTEND_DIR/src/assets/logo"
-mkdir -p "$FRONTEND_DIR/src/router"
-mkdir -p "$FRONTEND_DIR/src/utils"
-mkdir -p "$FRONTEND_DIR/src/views"
-
-# Copy logo from existing workshop
-if [ -f "$ROOT_DIR/java-springboot/1_session_management/frontend/src/assets/logo/small.png" ]; then
-  cp "$ROOT_DIR/java-springboot/1_session_management/frontend/src/assets/logo/small.png" "$FRONTEND_DIR/src/assets/logo/"
+if [ -f "$LOGO_SOURCE" ]; then
+  cp "$LOGO_SOURCE" "$FRONTEND_MODULE_DIR/frontend/src/assets/logo/"
 fi
 
-cat <<'DOC' > "$MODULE_DIR/README.md"
-# Workshop
+cat <<EOF > "$BACKEND_MODULE_DIR/README.md"
+# $TITLE
 
-TODO: Describe the workshop goals, prerequisites, and steps.
-DOC
+TODO: Describe the workshop goals, prerequisites, and learner steps.
+EOF
 
-cat <<DOC > "$MODULE_DIR/Dockerfile"
-# syntax=docker/dockerfile:1.4
-# Multi-stage Dockerfile for the $ID workshop
-
-FROM eclipse-temurin:21-jdk AS builder
-
-ARG SKIP_FRONTEND_BUILD=false
-
-# Install Node.js and npm for building the Vue frontend
-RUN if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
-        apt-get update \\
-        && apt-get install -y nodejs npm \\
-        && rm -rf /var/lib/apt/lists/*; \\
-    fi
-
-WORKDIR /workspace/java-springboot
-
-# Copy Gradle wrapper and configuration files first (for caching)
-COPY java-springboot/gradlew .
-COPY java-springboot/gradle gradle
-COPY java-springboot/build.gradle.kts .
-COPY java-springboot/$ID/settings.gradle.kts .
-
-# Copy buildSrc for convention plugins
-COPY java-springboot/buildSrc buildSrc
-
-# Copy only the build.gradle.kts files for dependency resolution
-COPY java-springboot/$ID/build.gradle.kts $ID/
-COPY java-springboot/workshop-infrastructure/build.gradle.kts workshop-infrastructure/
-COPY java-springboot/workshop-hub/build.gradle.kts workshop-hub/
-
-# Download Gradle dependencies (this layer will be cached)
-RUN --mount=type=cache,target=/root/.gradle \\
-    ./gradlew :$ID:dependencies --no-daemon || true
-
-# Copy shared frontend package (required dependency)
-COPY workshop-frontend-shared /workshop-frontend-shared
-RUN ln -s /workshop-frontend-shared /workspace/workshop-frontend-shared
-
-# Copy frontend package files for npm dependency caching
-COPY java-springboot/$ID/frontend/package*.json $ID/frontend/
-COPY java-springboot/$ID/frontend/babel.config.js $ID/frontend/
-
-# Download npm dependencies (this layer will be cached)
-RUN --mount=type=cache,target=/root/.npm \\
-    if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
-        cd $ID/frontend && npm install; \\
-    fi
-
-# Copy the source code
-COPY java-springboot/$ID/src $ID/src
-COPY java-springboot/$ID/frontend/src $ID/frontend/src
-COPY java-springboot/$ID/frontend/public $ID/frontend/public
-COPY java-springboot/$ID/frontend/vue.config.js $ID/frontend/
-COPY java-springboot/workshop-infrastructure/src workshop-infrastructure/src
-COPY java-springboot/workshop-hub/src workshop-hub/src
-
-# Build Vue frontend with configurable base path
-ARG VUE_APP_BASE_PATH=/
-ENV VUE_APP_BASE_PATH=\${VUE_APP_BASE_PATH}
-RUN --mount=type=cache,target=/root/.npm \\
-    if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
-        cd $ID/frontend && npm run build; \\
-    fi
-
-# Build only the $ID module jar (skip tests for speed)
-RUN --mount=type=cache,target=/root/.gradle \\
-    ./gradlew :$ID:bootJar -x test --no-daemon
-
-FROM eclipse-temurin:21-jre
-
-WORKDIR /app
-
-# Copy the Spring Boot fat jar from the build stage
-COPY --from=builder /workspace/java-springboot/$ID/build/libs/${ID}-0.0.1-SNAPSHOT.jar app.jar
-
-# Copy editable source files for in-browser editing (used in containerized mode)
-COPY --from=builder /workspace/java-springboot/$ID/build.gradle.kts /workshop-sources/build.gradle.kts
-COPY --from=builder /workspace/java-springboot/$ID/src/main/resources/application.properties /workshop-sources/src/main/resources/application.properties
-
-# Set environment variable to point to the editable source files
-ENV WORKSHOP_BASE_PATH=/workshop-sources
-
-EXPOSE $PORT
-
-ENTRYPOINT ["java", "-jar", "app.jar"]
-DOC
-
-# Create build.gradle.kts
-cat <<DOC > "$MODULE_DIR/build.gradle.kts"
+cat <<EOF > "$BACKEND_MODULE_DIR/build.gradle.kts"
 plugins {
-    id("org.springframework.boot") version "3.4.1"
-    id("io.spring.dependency-management") version "1.1.7"
-    kotlin("jvm") version "1.9.25"
-    kotlin("plugin.spring") version "1.9.25"
+    java
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
 }
 
 group = "com.redis.workshop"
@@ -180,46 +106,28 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("com.fasterxml.jackson.module:jackson-module-kotlin")
-    implementation("org.jetbrains.kotlin:kotlin-reflect")
-
-    // TODO: Add Redis dependencies as needed
-    // implementation("org.springframework.boot:spring-boot-starter-data-redis")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
-}
-
-kotlin {
-    compilerOptions {
-        freeCompilerArgs.addAll("-Xjsr305=strict")
-    }
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 
 tasks.withType<Test> {
     useJUnitPlatform()
 }
-DOC
+EOF
 
-# Create settings.gradle.kts for this module (matches working workshops)
-cat <<DOC > "$MODULE_DIR/settings.gradle.kts"
+cat <<EOF > "$BACKEND_MODULE_DIR/settings.gradle.kts"
 rootProject.name = "redis-springboot-workshop"
 
-include("workshop-infrastructure")
 include("$ID")
-DOC
+EOF
 
-# Create application.properties
-cat <<DOC > "$MODULE_DIR/src/main/resources/application.properties"
-server.port=$PORT
+cat <<EOF > "$BACKEND_MODULE_DIR/src/main/resources/application.properties"
 spring.application.name=$SERVICE_NAME
+server.port=\${SERVER_PORT:$BACKEND_PORT}
+EOF
 
-# Redis configuration (uncomment to enable)
-# spring.data.redis.host=redis
-# spring.data.redis.port=6379
-DOC
-
-# Create main application class
-cat <<DOC > "$MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/${PASCAL_CASE}Application.java"
+cat <<EOF > "$BACKEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/${PASCAL_CASE}Application.java"
 package com.redis.workshop.$PACKAGE_NAME;
 
 import org.springframework.boot.SpringApplication;
@@ -227,140 +135,367 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 public class ${PASCAL_CASE}Application {
+
     public static void main(String[] args) {
         SpringApplication.run(${PASCAL_CASE}Application.class, args);
     }
 }
-DOC
+EOF
 
-# Create EditorController
-cat <<DOC > "$MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/EditorController.java"
-package com.redis.workshop.$PACKAGE_NAME;
+cat <<EOF > "$BACKEND_MODULE_DIR/Dockerfile"
+# syntax=docker/dockerfile:1.4
 
-import org.springframework.core.io.ClassPathResource;
-import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.*;
+FROM eclipse-temurin:21-jdk AS builder
 
-import java.io.*;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
-import java.util.Map;
+WORKDIR /workspace/java-springboot
 
-@RestController
-@RequestMapping("/api/editor")
-public class EditorController {
+COPY java-springboot/gradlew .
+COPY java-springboot/gradle gradle
+COPY java-springboot/build.gradle.kts .
+COPY java-springboot/$ID/settings.gradle.kts .
+COPY java-springboot/buildSrc buildSrc
+COPY java-springboot/$ID/build.gradle.kts $ID/
 
-    private static final String SOURCE_ROOT = System.getenv().getOrDefault("WORKSHOP_SOURCE_ROOT", "src/main/");
+RUN --mount=type=cache,target=/root/.gradle \\
+    ./gradlew :$ID:dependencies --no-daemon || true
 
-    @GetMapping("/file/{fileName}")
-    public ResponseEntity<Map<String, String>> getFile(@PathVariable String fileName) {
-        try {
-            String content = readFile(fileName);
-            return ResponseEntity.ok(Map.of("content", content, "fileName", fileName));
-        } catch (IOException e) {
-            return ResponseEntity.notFound().build();
-        }
-    }
+COPY java-springboot/$ID/src $ID/src
 
-    @PostMapping("/file/{fileName}")
-    public ResponseEntity<Map<String, String>> saveFile(@PathVariable String fileName, @RequestBody Map<String, String> body) {
-        try {
-            String content = body.get("content");
-            writeFile(fileName, content);
-            return ResponseEntity.ok(Map.of("message", "File saved successfully", "fileName", fileName));
-        } catch (IOException e) {
-            return ResponseEntity.internalServerError().body(Map.of("error", e.getMessage()));
-        }
-    }
+RUN --mount=type=cache,target=/root/.gradle \\
+    ./gradlew :$ID:bootJar -x test --no-daemon
 
-    private String readFile(String fileName) throws IOException {
-        Path path = resolveFilePath(fileName);
-        if (path != null && Files.exists(path)) {
-            return Files.readString(path);
-        }
-        // Fall back to classpath resource
-        ClassPathResource resource = new ClassPathResource(fileName);
-        try (InputStream is = resource.getInputStream()) {
-            return new String(is.readAllBytes(), StandardCharsets.UTF_8);
-        }
-    }
+FROM eclipse-temurin:21-jre
 
-    private void writeFile(String fileName, String content) throws IOException {
-        Path path = resolveFilePath(fileName);
-        if (path != null) {
-            Files.createDirectories(path.getParent());
-            Files.writeString(path, content);
-        } else {
-            throw new IOException("Cannot write to classpath resource: " + fileName);
-        }
-    }
+WORKDIR /app
 
-    private Path resolveFilePath(String fileName) {
-        // Map file names to their source paths
-        if (fileName.endsWith(".java")) {
-            return Paths.get(SOURCE_ROOT, "java/com/redis/workshop/$PACKAGE_NAME", fileName);
-        } else if (fileName.equals("application.properties")) {
-            return Paths.get(SOURCE_ROOT, "resources", fileName);
-        } else if (fileName.endsWith(".kts")) {
-            return Paths.get(fileName);
-        }
-        return null;
+COPY --from=builder /workspace/java-springboot/$ID/build/libs/${ID}-0.0.1-SNAPSHOT.jar app.jar
+
+EXPOSE $BACKEND_PORT
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/build.gradle.kts"
+plugins {
+    java
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
+}
+
+group = "com.redis.workshop"
+version = "0.0.1-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
     }
 }
-DOC
 
-# ========== FRONTEND FILES ==========
+repositories {
+    mavenCentral()
+}
 
-# package.json
-cat <<DOC > "$FRONTEND_DIR/package.json"
+dependencies {
+    implementation(project(":workshop-infrastructure"))
+
+    implementation("org.springframework.boot:spring-boot-starter-web")
+
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/settings.gradle.kts"
+rootProject.name = "redis-springboot-workshop"
+
+include("workshop-infrastructure")
+include("$FRONTEND_MODULE")
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/application.properties"
+spring.application.name=${SERVICE_NAME}-frontend
+server.port=\${SERVER_PORT:$FRONTEND_PORT}
+workshop.backend.url=\${WORKSHOP_BACKEND_URL:http://127.0.0.1:$BACKEND_PORT}
+workshop.source.path=\${WORKSHOP_SOURCE_PATH:\${WORKSHOP_BASE_PATH:}}
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/frontend/${PASCAL_CASE}FrontendApplication.java"
+package com.redis.workshop.$PACKAGE_NAME.frontend;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication(scanBasePackages = {
+    "com.redis.workshop.$PACKAGE_NAME.frontend",
+    "com.redis.workshop.infrastructure"
+})
+public class ${PASCAL_CASE}FrontendApplication {
+
+    public static void main(String[] args) {
+        SpringApplication.run(${PASCAL_CASE}FrontendApplication.class, args);
+    }
+}
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/frontend/infrastructure/${PASCAL_CASE}SpaController.java"
+package com.redis.workshop.$PACKAGE_NAME.frontend.infrastructure;
+
+import org.springframework.stereotype.Controller;
+import org.springframework.web.bind.annotation.GetMapping;
+
+@Controller
+public class ${PASCAL_CASE}SpaController {
+
+    @GetMapping({"/", "/editor"})
+    public String app() {
+        return "forward:/index.html";
+    }
+}
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/frontend/infrastructure/${PASCAL_CASE}WorkshopConfig.java"
+package com.redis.workshop.$PACKAGE_NAME.frontend.infrastructure;
+
+import com.redis.workshop.infrastructure.WorkshopConfig;
+import org.springframework.stereotype.Component;
+
+import java.util.Map;
+
+@Component
+public class ${PASCAL_CASE}WorkshopConfig implements WorkshopConfig {
+
+    private static final Map<String, String> EDITABLE_FILES = Map.ofEntries(
+        Map.entry("build.gradle.kts", "build.gradle.kts"),
+        Map.entry("application.properties", "src/main/resources/application.properties"),
+        Map.entry("${PASCAL_CASE}Application.java", "src/main/java/com/redis/workshop/$PACKAGE_NAME/${PASCAL_CASE}Application.java")
+    );
+
+    private static final Map<String, String> ORIGINAL_CONTENTS = Map.ofEntries(
+        Map.entry("build.gradle.kts", """
+            plugins {
+                java
+                id("org.springframework.boot")
+                id("io.spring.dependency-management")
+            }
+
+            group = "com.redis.workshop"
+            version = "0.0.1-SNAPSHOT"
+
+            java {
+                toolchain {
+                    languageVersion = JavaLanguageVersion.of(21)
+                }
+            }
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                implementation("org.springframework.boot:spring-boot-starter-web")
+
+                testImplementation("org.springframework.boot:spring-boot-starter-test")
+                testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+            }
+
+            tasks.withType<Test> {
+                useJUnitPlatform()
+            }
+            """),
+        Map.entry("application.properties", """
+            spring.application.name=$SERVICE_NAME
+            server.port=\${SERVER_PORT:$BACKEND_PORT}
+            """),
+        Map.entry("${PASCAL_CASE}Application.java", """
+            package com.redis.workshop.$PACKAGE_NAME;
+
+            import org.springframework.boot.SpringApplication;
+            import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+            @SpringBootApplication
+            public class ${PASCAL_CASE}Application {
+
+                public static void main(String[] args) {
+                    SpringApplication.run(${PASCAL_CASE}Application.class, args);
+                }
+            }
+            """)
+    );
+
+    @Override
+    public Map<String, String> getEditableFiles() {
+        return EDITABLE_FILES;
+    }
+
+    @Override
+    public String getOriginalContent(String fileName) {
+        return ORIGINAL_CONTENTS.get(fileName);
+    }
+
+    @Override
+    public String getModuleName() {
+        return "$ID";
+    }
+
+    @Override
+    public String getWorkshopTitle() {
+        return "$TITLE";
+    }
+
+    @Override
+    public String getWorkshopDescription() {
+        return "TODO: Describe the workshop outcomes.";
+    }
+}
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/test/java/com/redis/workshop/$PACKAGE_NAME/frontend/${PASCAL_CASE}FrontendIntegrationTest.java"
+package com.redis.workshop.$PACKAGE_NAME.frontend;
+
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.web.servlet.MockMvc;
+
+import static org.hamcrest.Matchers.hasKey;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+@SpringBootTest(
+    classes = ${PASCAL_CASE}FrontendApplication.class,
+    webEnvironment = SpringBootTest.WebEnvironment.MOCK,
+    properties = "workshop.backend.url=http://127.0.0.1:1"
+)
+@AutoConfigureMockMvc
+class ${PASCAL_CASE}FrontendIntegrationTest {
+
+    @Autowired
+    private MockMvc mockMvc;
+
+    @Test
+    void editorApiIsExposedInFrontendModule() throws Exception {
+        mockMvc.perform(get("/api/editor/files"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$", hasKey("files")))
+            .andExpect(jsonPath("$", hasKey("workshopTitle")));
+    }
+
+    @Test
+    void backendApiIsHandledByProxyInFrontendModule() throws Exception {
+        mockMvc.perform(get("/api/health"))
+            .andExpect(status().isBadGateway());
+    }
+}
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/Dockerfile"
+# syntax=docker/dockerfile:1.4
+
+FROM eclipse-temurin:21-jdk AS builder
+
+ARG SKIP_FRONTEND_BUILD=false
+
+RUN if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
+        apt-get update \\
+        && apt-get install -y nodejs npm \\
+        && rm -rf /var/lib/apt/lists/*; \\
+    fi
+
+WORKDIR /workspace/java-springboot
+
+COPY java-springboot/gradlew .
+COPY java-springboot/gradle gradle
+COPY java-springboot/build.gradle.kts .
+COPY java-springboot/$FRONTEND_MODULE/settings.gradle.kts .
+COPY java-springboot/buildSrc buildSrc
+COPY java-springboot/$FRONTEND_MODULE/build.gradle.kts $FRONTEND_MODULE/
+COPY java-springboot/workshop-infrastructure/build.gradle.kts workshop-infrastructure/
+
+RUN --mount=type=cache,target=/root/.gradle \\
+    ./gradlew :$FRONTEND_MODULE:dependencies --no-daemon || true
+
+COPY workshop-frontend-shared /workshop-frontend-shared
+RUN ln -s /workshop-frontend-shared /workspace/workshop-frontend-shared
+
+COPY java-springboot/$FRONTEND_MODULE/frontend/package*.json $FRONTEND_MODULE/frontend/
+COPY java-springboot/$FRONTEND_MODULE/frontend/babel.config.js $FRONTEND_MODULE/frontend/
+
+RUN --mount=type=cache,target=/root/.npm \\
+    if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
+        cd $FRONTEND_MODULE/frontend && npm install; \\
+    fi
+
+COPY java-springboot/$FRONTEND_MODULE/src $FRONTEND_MODULE/src
+COPY java-springboot/$FRONTEND_MODULE/frontend/src $FRONTEND_MODULE/frontend/src
+COPY java-springboot/$FRONTEND_MODULE/frontend/public $FRONTEND_MODULE/frontend/public
+COPY java-springboot/$FRONTEND_MODULE/frontend/vue.config.js $FRONTEND_MODULE/frontend/
+COPY java-springboot/workshop-infrastructure/src workshop-infrastructure/src
+
+RUN if [ "\$SKIP_FRONTEND_BUILD" = "true" ]; then \\
+        test -f $FRONTEND_MODULE/src/main/resources/static/index.html; \\
+    fi
+
+ARG VUE_APP_BASE_PATH=/
+ENV VUE_APP_BASE_PATH=\${VUE_APP_BASE_PATH}
+RUN --mount=type=cache,target=/root/.npm \\
+    if [ "\$SKIP_FRONTEND_BUILD" != "true" ]; then \\
+        cd $FRONTEND_MODULE/frontend && npm run build; \\
+    fi
+
+RUN --mount=type=cache,target=/root/.gradle \\
+    ./gradlew :$FRONTEND_MODULE:bootJar -x test --no-daemon
+
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+COPY --from=builder /workspace/java-springboot/$FRONTEND_MODULE/build/libs/${FRONTEND_MODULE}-0.0.1-SNAPSHOT.jar app.jar
+
+ENV WORKSHOP_SOURCE_PATH=/workshop-sources
+ENV WORKSHOP_BASE_PATH=/workshop-sources
+
+EXPOSE $FRONTEND_PORT
+
+ENTRYPOINT ["java", "-jar", "app.jar"]
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/package.json"
 {
   "name": "$SERVICE_NAME-frontend",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build",
-    "lint": "vue-cli-service lint"
+    "build": "vue-cli-service build"
   },
   "dependencies": {
     "@redis-workshop/shared": "file:../../../../workshop-frontend-shared",
     "core-js": "^3.8.3",
-    "highlight.js": "^11.11.1",
     "vue": "^3.2.13",
     "vue-router": "^4.0.3"
   },
   "devDependencies": {
     "@babel/core": "^7.12.16",
-    "@babel/eslint-parser": "^7.12.16",
     "@vue/cli-plugin-babel": "~5.0.0",
-    "@vue/cli-plugin-eslint": "~5.0.0",
     "@vue/cli-plugin-router": "~5.0.0",
-    "@vue/cli-service": "~5.0.0",
-    "eslint": "^7.32.0",
-    "eslint-plugin-vue": "^8.0.3"
-  },
-  "eslintConfig": {
-    "root": true,
-    "env": { "node": true },
-    "extends": ["plugin:vue/vue3-essential", "eslint:recommended"],
-    "parserOptions": { "parser": "@babel/eslint-parser" },
-    "rules": {}
-  },
-  "browserslist": ["> 1%", "last 2 versions", "not dead", "not ie 11"]
+    "@vue/cli-service": "~5.0.0"
+  }
 }
-DOC
+EOF
 
-# babel.config.js
-cat <<'DOC' > "$FRONTEND_DIR/babel.config.js"
+cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/babel.config.js"
 module.exports = {
-  presets: [
-    '@vue/cli-plugin-babel/preset'
-  ]
+  presets: ['@vue/cli-plugin-babel/preset']
 }
-DOC
+EOF
 
-# vue.config.js
-cat <<DOC > "$FRONTEND_DIR/vue.config.js"
+cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/vue.config.js"
 const { defineConfig } = require('@vue/cli-service')
 
 const basePath = process.env.VUE_APP_BASE_PATH || '/'
@@ -370,42 +505,34 @@ module.exports = defineConfig({
   outputDir: '../src/main/resources/static',
   publicPath: basePath,
   devServer: {
-    port: 8081,
+    port: $FRONTEND_PORT,
     proxy: {
       '/api': {
-        target: 'http://localhost:$PORT',
+        target: 'http://localhost:$BACKEND_PORT',
         changeOrigin: true
       }
     }
   }
 })
-DOC
+EOF
 
-# public/index.html
-cat <<DOC > "$FRONTEND_DIR/public/index.html"
+cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/public/index.html"
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="utf-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width,initial-scale=1.0">
-    <link rel="icon" href="<%= BASE_URL %>favicon.ico">
-    <title>$TITLE Workshop</title>
+    <title>$TITLE</title>
   </head>
   <body>
-    <noscript>
-      <strong>We're sorry but this application doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
-    </noscript>
     <div id="app"></div>
   </body>
 </html>
-DOC
+EOF
 
-# src/main.js
-cat <<'DOC' > "$FRONTEND_DIR/src/main.js"
+cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/main.js"
 import { getBasePath } from './utils/basePath'
 
-// Ensure dynamic chunks load from the correct base path when proxied by the Hub.
 // eslint-disable-next-line no-undef
 __webpack_public_path__ = `${getBasePath()}/`.replace(/\/+$/, '/')
 
@@ -413,382 +540,71 @@ import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router'
 
-// Import styles from shared package using relative path
 import '../../../../workshop-frontend-shared/src/styles/tokens.css'
 import '../../../../workshop-frontend-shared/src/styles/dark-theme.css'
 import '../../../../workshop-frontend-shared/src/styles/components.css'
 
 createApp(App).use(router).mount('#app')
-DOC
+EOF
 
-# src/App.vue
-cat <<'DOC' > "$FRONTEND_DIR/src/App.vue"
+cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/App.vue"
 <template>
-  <div id="app">
-    <router-view/>
-  </div>
+  <router-view />
 </template>
+EOF
 
-<script>
-export default {
-  name: 'App'
-}
-</script>
-
-<style>
-* {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: var(--font-family-base);
-  background-color: var(--color-background);
-  color: var(--color-text);
-  line-height: var(--line-height-normal);
-}
-
-#app {
-  min-height: 100vh;
-}
-</style>
-DOC
-
-# src/utils/basePath.js
-cat <<'DOC' > "$FRONTEND_DIR/src/utils/basePath.js"
-/**
- * Re-export from shared package for backward compatibility.
- */
-export { getBasePath, getApiUrl } from '../../../../../workshop-frontend-shared/src/utils/basePath.js';
-DOC
-
-# src/utils/components.js
-cat <<'DOC' > "$FRONTEND_DIR/src/utils/components.js"
-/**
- * Re-export shared components for simplified imports.
- * Uses relative path to avoid webpack module resolution issues with file: links.
- *
- * Usage:
- *   import { WorkshopModal, WorkshopHeader } from '../utils/components';
- */
-export { default as WorkshopModal } from '../../../../../workshop-frontend-shared/src/components/WorkshopModal.vue';
-export { default as WorkshopStageNav } from '../../../../../workshop-frontend-shared/src/components/WorkshopStageNav.vue';
-export { default as WorkshopProgressIndicator } from '../../../../../workshop-frontend-shared/src/components/WorkshopProgressIndicator.vue';
-export { default as WorkshopHubLink } from '../../../../../workshop-frontend-shared/src/components/WorkshopHubLink.vue';
-export { default as WorkshopHeader } from '../../../../../workshop-frontend-shared/src/components/WorkshopHeader.vue';
-DOC
-
-# src/utils/progress.js
-cat <<'DOC' > "$FRONTEND_DIR/src/utils/progress.js"
-/**
- * Workshop progress tracking utility.
- * Stores progress in localStorage to persist across page reloads.
- */
-
-const STORAGE_KEY_PREFIX = 'workshop_progress_';
-
-export function getProgress(workshopId) {
-  const key = STORAGE_KEY_PREFIX + workshopId;
-  const stored = localStorage.getItem(key);
-  return stored ? JSON.parse(stored) : { currentStage: 0, completedStages: [], testsCompleted: {} };
-}
-
-export function saveProgress(workshopId, progress) {
-  const key = STORAGE_KEY_PREFIX + workshopId;
-  localStorage.setItem(key, JSON.stringify(progress));
-}
-
-export function resetProgress(workshopId) {
-  const key = STORAGE_KEY_PREFIX + workshopId;
-  localStorage.removeItem(key);
-}
-
-export function completeStage(workshopId, stageIndex) {
-  const progress = getProgress(workshopId);
-  if (!progress.completedStages.includes(stageIndex)) {
-    progress.completedStages.push(stageIndex);
-  }
-  if (stageIndex >= progress.currentStage) {
-    progress.currentStage = stageIndex + 1;
-  }
-  saveProgress(workshopId, progress);
-  return progress;
-}
-
-export function completeTest(workshopId, stageIndex, testId) {
-  const progress = getProgress(workshopId);
-  if (!progress.testsCompleted[stageIndex]) {
-    progress.testsCompleted[stageIndex] = [];
-  }
-  if (!progress.testsCompleted[stageIndex].includes(testId)) {
-    progress.testsCompleted[stageIndex].push(testId);
-  }
-  saveProgress(workshopId, progress);
-  return progress;
-}
-
-export function isTestCompleted(workshopId, stageIndex, testId) {
-  const progress = getProgress(workshopId);
-  return progress.testsCompleted[stageIndex]?.includes(testId) || false;
-}
-DOC
-
-# src/router/index.js
-cat <<DOC > "$FRONTEND_DIR/src/router/index.js"
+cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/src/router/index.js"
 import { createRouter, createWebHistory } from 'vue-router'
 import { getBasePath } from '../utils/basePath'
 
-const ${PASCAL_CASE}Home = () => import('../views/${PASCAL_CASE}Home.vue')
-const ${PASCAL_CASE}Editor = () => import('../views/${PASCAL_CASE}Editor.vue')
+const HomeView = () => import('../views/${PASCAL_CASE}Home.vue')
+const EditorView = () => import('../views/${PASCAL_CASE}Editor.vue')
 
 const routes = [
-  {
-    path: '/',
-    name: '${PASCAL_CASE}Home',
-    component: ${PASCAL_CASE}Home
-  },
-  {
-    path: '/editor',
-    name: '${PASCAL_CASE}Editor',
-    component: ${PASCAL_CASE}Editor
-  }
+  { path: '/', name: '${PASCAL_CASE}Home', component: HomeView },
+  { path: '/editor', name: '${PASCAL_CASE}Editor', component: EditorView }
 ]
 
-const router = createRouter({
+export default createRouter({
   history: createWebHistory(getBasePath() || '/'),
   routes
 })
+EOF
 
-export default router
-DOC
+cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/utils/basePath.js"
+export { getBasePath, getApiUrl } from '../../../../../workshop-frontend-shared/src/utils/basePath.js'
+EOF
 
-# src/views/Home.vue (standardized structure with stages and progress tracking)
-cat <<DOC > "$FRONTEND_DIR/src/views/${PASCAL_CASE}Home.vue"
+cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/utils/components.js"
+export { default as WorkshopHeader } from '../../../../../workshop-frontend-shared/src/components/WorkshopHeader.vue'
+export { default as WorkshopModal } from '../../../../../workshop-frontend-shared/src/components/WorkshopModal.vue'
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/src/views/${PASCAL_CASE}Home.vue"
 <template>
   <div class="workshop-home">
-    <!-- Workshop Header with Hub Link and Progress -->
-    <WorkshopHeader
-      :hub-url="workshopHubUrl"
-      :steps="stageNames"
-      :current-step="currentStage"
-      clickable
-      @step-click="goToStage"
-    />
+    <WorkshopHeader :hub-url="workshopHubUrl" />
 
     <div class="main-container">
-      <!-- STAGE 1: Introduction -->
-      <div v-if="currentStage === 0" class="stage-content">
-        <div class="instructions">
-          <h2>STAGE 1: Introduction</h2>
-          <p class="intro">
-            TODO: Add workshop introduction and goals here.
-          </p>
-
-          <div class="step-item">
-            <h4>What You'll Learn</h4>
-            <p class="step-description">
-              TODO: Describe what the user will learn in this workshop.
-            </p>
-            <ul class="step-list">
-              <li>TODO: Learning objective 1</li>
-              <li>TODO: Learning objective 2</li>
-              <li>TODO: Learning objective 3</li>
-            </ul>
-          </div>
-
-          <div class="button-group">
-            <button @click="goToStage(1)" class="btn btn-primary">
-              Start Learning →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- STAGE 2: Learn -->
-      <div v-if="currentStage === 1" class="stage-content">
-        <div class="instructions">
-          <h2>STAGE 2: Learn the Concepts</h2>
-          <p class="intro">
-            TODO: Add learning content here.
-          </p>
-
-          <div class="step-item">
-            <h4>Step 1: TODO</h4>
-            <p class="step-description">
-              TODO: Explain the first concept.
-            </p>
-          </div>
-
-          <div class="step-item">
-            <h4>Step 2: TODO</h4>
-            <p class="step-description">
-              TODO: Explain the second concept.
-            </p>
-          </div>
-
-          <div class="button-group">
-            <button @click="goToStage(0)" class="btn btn-secondary">
-              ← Back
-            </button>
-            <button @click="goToStage(2)" class="btn btn-primary">
-              Start Building →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- STAGE 3: Build -->
-      <div v-if="currentStage === 2" class="stage-content">
-        <div class="instructions">
-          <h2>STAGE 3: Build It Yourself</h2>
-
-          <div class="alert alert-info">
-            <strong>Option 1: Use the In-Browser Code Editor</strong>
-            <p style="margin: 0.5rem 0 0 0;">
-              <router-link to="/editor" class="editor-link">Open Code Editor →</router-link>
-            </p>
-          </div>
-
-          <div class="step-item">
-            <h4>Option 2: Manual Implementation</h4>
-            <p class="step-description">
-              TODO: Add manual implementation steps here.
-            </p>
-          </div>
-
-          <div class="button-group">
-            <button @click="goToStage(1)" class="btn btn-secondary">
-              ← Back
-            </button>
-            <button @click="goToStage(3)" class="btn btn-primary">
-              Test Your Work →
-            </button>
-          </div>
-        </div>
-      </div>
-
-      <!-- STAGE 4: Test -->
-      <div v-if="currentStage === 3" class="stage-content">
-        <div class="instructions">
-          <h2>STAGE 4: Test & Verify</h2>
-
-          <div class="step-item" :class="{ 'completed': testsCompleted.test1 }">
-            <div class="test-header">
-              <h4>Test 1: TODO</h4>
-              <span v-if="testsCompleted.test1" class="test-check">✓ Done</span>
-            </div>
-            <p class="test-description">
-              TODO: Add test description here.
-            </p>
-            <button v-if="!testsCompleted.test1" @click="completeTest('test1')" class="btn btn-outline btn-sm">
-              Mark Complete
-            </button>
-          </div>
-
-          <div class="step-item" :class="{ 'completed': testsCompleted.test2 }">
-            <div class="test-header">
-              <h4>Test 2: TODO</h4>
-              <span v-if="testsCompleted.test2" class="test-check">✓ Done</span>
-            </div>
-            <p class="test-description">
-              TODO: Add test description here.
-            </p>
-            <button v-if="!testsCompleted.test2" @click="completeTest('test2')" class="btn btn-outline btn-sm">
-              Mark Complete
-            </button>
-          </div>
-
-          <div v-if="allTestsCompleted" class="alert alert-success">
-            <strong>🎉 Congratulations!</strong> You've completed the $TITLE workshop!
-          </div>
-
-          <div class="button-group">
-            <button @click="goToStage(2)" class="btn btn-secondary">
-              ← Back
-            </button>
-            <button @click="resetWorkshop" class="btn btn-warning">
-              Restart Workshop
-            </button>
-          </div>
-        </div>
-      </div>
+      <h1>$TITLE</h1>
+      <p>TODO: Add workshop guidance, demos, and success criteria.</p>
+      <router-link to="/editor" class="btn btn-primary">Open Editor</router-link>
     </div>
-
-    <!-- Confirmation Modal -->
-    <WorkshopModal
-      v-model="showRestartModal"
-      title="Restart Workshop?"
-      message="This will reset all your progress. Are you sure?"
-      type="confirm"
-      confirm-text="Yes, Restart"
-      @confirm="confirmRestart"
-    />
   </div>
 </template>
 
 <script>
-import { WorkshopHeader, WorkshopModal } from '../utils/components';
-import { getProgress, saveProgress, resetProgress } from '../utils/progress';
-
-const WORKSHOP_ID = '$ID';
+import { WorkshopHeader } from '../utils/components'
 
 export default {
   name: '${PASCAL_CASE}Home',
-  components: { WorkshopHeader, WorkshopModal },
-  data() {
-    return {
-      currentStage: 0,
-      stageNames: ['Intro', 'Learn', 'Build', 'Test'],
-      testsCompleted: {},
-      showRestartModal: false
-    };
-  },
+  components: { WorkshopHeader },
   computed: {
     workshopHubUrl() {
-      return window.location.protocol + '//' + window.location.hostname + ':9000';
-    },
-    allTestsCompleted() {
-      return this.testsCompleted.test1 && this.testsCompleted.test2;
-    }
-  },
-  mounted() {
-    this.loadProgress();
-  },
-  methods: {
-    loadProgress() {
-      const progress = getProgress(WORKSHOP_ID);
-      this.currentStage = progress.currentStage || 0;
-      this.testsCompleted = progress.testsCompleted?.[3]
-        ? { test1: progress.testsCompleted[3].includes('test1'), test2: progress.testsCompleted[3].includes('test2') }
-        : {};
-    },
-    saveCurrentProgress() {
-      const progress = getProgress(WORKSHOP_ID);
-      progress.currentStage = this.currentStage;
-      if (!progress.testsCompleted) progress.testsCompleted = {};
-      progress.testsCompleted[3] = Object.keys(this.testsCompleted).filter(k => this.testsCompleted[k]);
-      saveProgress(WORKSHOP_ID, progress);
-    },
-    goToStage(stage) {
-      this.currentStage = stage;
-      this.saveCurrentProgress();
-    },
-    completeTest(testId) {
-      this.testsCompleted[testId] = true;
-      this.saveCurrentProgress();
-    },
-    resetWorkshop() {
-      this.showRestartModal = true;
-    },
-    confirmRestart() {
-      resetProgress(WORKSHOP_ID);
-      this.currentStage = 0;
-      this.testsCompleted = {};
-      this.showRestartModal = false;
+      return window.location.protocol + '//' + window.location.hostname + ':9000'
     }
   }
-};
+}
 </script>
 
 <style scoped>
@@ -799,220 +615,78 @@ export default {
 }
 
 .main-container {
-  max-width: 900px;
+  max-width: 960px;
   margin: 0 auto;
-  padding-top: var(--spacing-4);
-}
-
-.stage-content {
   background: var(--color-surface);
   border-radius: var(--radius-xl);
   padding: var(--spacing-6);
-  box-shadow: var(--shadow-xl);
-  border: 1px solid var(--color-border);
-}
-
-.instructions h2 {
-  color: var(--color-text);
-  margin-bottom: var(--spacing-4);
-  font-size: var(--font-size-xl);
-}
-
-.intro {
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-5);
-  line-height: 1.6;
-}
-
-.step-list {
-  margin: var(--spacing-3) 0 0 var(--spacing-5);
-  color: var(--color-text-secondary);
-  line-height: 1.8;
-}
-
-.step-list li {
-  margin-bottom: var(--spacing-2);
-}
-
-.step-item.completed {
-  opacity: 0.7;
-  border-left-color: #10b981;
-}
-
-.test-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--spacing-2);
-}
-
-.test-check {
-  color: #10b981;
-  font-weight: var(--font-weight-semibold);
-  font-size: var(--font-size-sm);
 }
 </style>
-DOC
+EOF
 
-# src/views/Editor.vue (using shared WorkshopEditorLayout)
-cat <<DOC > "$FRONTEND_DIR/src/views/${PASCAL_CASE}Editor.vue"
+cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/src/views/${PASCAL_CASE}Editor.vue"
 <template>
-  <WorkshopEditorLayout
-    ref="layout"
-    title="$TITLE"
-    :files="files"
-    @file-loaded="onFileLoaded"
-  >
-    <template #instructions>
-      <div class="alert">
-        <strong>Your Task:</strong> TODO: Add task description here.
-      </div>
-
-      <h3>Instructions:</h3>
-      <p class="note">
-        Click the play button (▶) next to any step to automatically apply that change!
-      </p>
-
-      <h4>Step 1: TODO</h4>
-      <ol>
-        <li class="step-with-button">
-          <span class="step-content">Open <code>build.gradle.kts</code></span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Opens the Gradle build file">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="loadFileStep('build.gradle.kts')">▶</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">TODO: Add step description</span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">▶</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 2: Rebuild & Test</h4>
-      <ol start="3">
-        <li>Go to <a :href="workshopHubUrl" target="_blank" class="link">Workshop Hub</a> and rebuild the app</li>
-        <li><router-link to="/" class="link">Return to home</router-link> to verify!</li>
-      </ol>
-    </template>
-  </WorkshopEditorLayout>
+  <WorkshopEditorLayout title="$TITLE Editor" :files="files" />
 </template>
 
 <script>
-import { WorkshopEditorLayout } from '../../../../../workshop-frontend-shared/src/index.js';
+import { WorkshopEditorLayout } from '../../../../../workshop-frontend-shared/src/index.js'
 
 export default {
   name: '${PASCAL_CASE}Editor',
   components: { WorkshopEditorLayout },
   data() {
     return {
-      files: [
-        'build.gradle.kts',
-        'application.properties'
-      ],
-      currentFile: null,
-      fileContent: ''
-    };
-  },
-  computed: {
-    workshopHubUrl() {
-      return this.\$refs.layout?.workshopHubUrl || (window.location.protocol + '//' + window.location.hostname + ':9000');
+      files: ['build.gradle.kts', 'application.properties', '${PASCAL_CASE}Application.java']
     }
-  },
-  methods: {
-    onFileLoaded({ fileName, content }) {
-      this.currentFile = fileName;
-      this.fileContent = content;
-    },
-    async loadFileStep(fileName) {
-      await this.\$refs.layout.loadFile(fileName);
-    },
-    saveFile() {
-      this.\$refs.layout.save();
-    }
-    // TODO: Add workshop-specific auto-fix methods here
   }
-};
+}
 </script>
+EOF
 
-<style scoped>
-/* All styling provided by WorkshopEditorLayout */
-</style>
-DOC
+append_if_missing() {
+  local line="$1"
+  local file="$2"
+  if ! grep -Fqx "$line" "$file"; then
+    printf '%s\n' "$line" >> "$file"
+  fi
+}
 
-# Update registry
-cat <<DOC >> "$REGISTRY_PATH"
+append_if_missing "include(\"$ID\")" "$SETTINGS_PATH"
+append_if_missing "include(\"$FRONTEND_MODULE\")" "$SETTINGS_PATH"
+
+cat <<EOF >> "$REGISTRY_PATH"
   - id: $ID
     title: $TITLE
     description: >-
-      TODO: Add workshop description.
+      TODO: Describe the workshop goals and learner outcomes.
     difficulty: Beginner
     estimatedMinutes: 30
     serviceName: $SERVICE_NAME
-    port: $PORT
+    port: $FRONTEND_PORT
     url: /workshop/$SERVICE_NAME/
     dockerfile: java-springboot/$ID/Dockerfile
+    frontendServiceName: $SERVICE_NAME
+    frontendPort: $FRONTEND_PORT
+    frontendDockerfile: java-springboot/$FRONTEND_MODULE/Dockerfile
+    backendServiceName: $BACKEND_SERVICE_NAME
+    backendPort: $BACKEND_PORT
+    backendDockerfile: java-springboot/$ID/Dockerfile
     topics:
       - TODO
-DOC
+EOF
 
-# Update settings.gradle.kts
-SETTINGS_FILE="$ROOT_DIR/java-springboot/settings.gradle.kts"
-if [ -f "$SETTINGS_FILE" ]; then
-  if command -v rg >/dev/null 2>&1; then
-    if ! rg -n "include\(\"$ID\"\)" "$SETTINGS_FILE" >/dev/null; then
-      echo "include(\"$ID\")" >> "$SETTINGS_FILE"
-    fi
-  else
-    if ! grep -q "include(\"$ID\")" "$SETTINGS_FILE"; then
-      echo "include(\"$ID\")" >> "$SETTINGS_FILE"
-    fi
-  fi
-fi
+cat <<EOF
+Created:
+- backend module: java-springboot/$ID
+- frontend module: java-springboot/$FRONTEND_MODULE
 
-echo ""
-echo "✅ Workshop scaffold created: $MODULE_DIR"
-echo ""
-echo "Structure created:"
-echo "  $ID/"
-echo "  ├── Dockerfile"
-echo "  ├── README.md"
-echo "  ├── build.gradle.kts"
-echo "  ├── settings.gradle.kts"
-echo "  ├── src/main/java/com/redis/workshop/$PACKAGE_NAME/"
-echo "  │   ├── ${PASCAL_CASE}Application.java"
-echo "  │   └── EditorController.java"
-echo "  ├── src/main/resources/application.properties"
-echo "  └── frontend/"
-echo "      ├── package.json"
-echo "      ├── vue.config.js"
-echo "      ├── public/index.html"
-echo "      └── src/"
-echo "          ├── main.js (with shared CSS imports)"
-echo "          ├── App.vue"
-echo "          ├── router/index.js"
-echo "          ├── utils/"
-echo "          │   ├── basePath.js"
-echo "          │   ├── components.js (shared component re-exports)"
-echo "          │   └── progress.js (progress tracking utility)"
-echo "          └── views/"
-echo "              ├── ${PASCAL_CASE}Home.vue (standardized 4-stage structure)"
-echo "              └── ${PASCAL_CASE}Editor.vue"
-echo ""
-echo "Features included:"
-echo "  • WorkshopHeader with progress indicator and Hub link"
-echo "  • 4-stage workshop flow (Intro → Learn → Build → Test)"
-echo "  • Progress tracking with localStorage persistence"
-echo "  • Shared CSS imports (tokens, dark-theme, components)"
-echo "  • WorkshopModal for confirmations"
-echo ""
-echo "Next steps:"
-echo "  1. cd java-springboot/$ID/frontend && npm install"
-echo "  2. Customize stages and content in ${PASCAL_CASE}Home.vue"
-echo "  3. Customize editor instructions in ${PASCAL_CASE}Editor.vue"
-echo "  4. Add your workshop-specific Java files"
-echo "  5. Run: ./java-springboot/gradlew :workshop-hub:generateCompose"
-echo ""
+Registered:
+- workshops.yaml
+- java-springboot/settings.gradle.kts
+
+Next steps:
+1. Fill in the TODOs in both generated modules.
+2. Run ./java-springboot/gradlew -p java-springboot :workshop-hub:generateCompose
+3. If the hub DinD image should ship this workshop with prebuilt frontend assets, add $FRONTEND_MODULE to java-springboot/workshop-hub/Dockerfile.
+EOF
