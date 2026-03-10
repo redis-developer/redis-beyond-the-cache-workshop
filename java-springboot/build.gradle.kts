@@ -104,3 +104,14 @@ subprojects {
         }
     }
 }
+
+tasks.register<Exec>("workshopStandardizationCheck") {
+    group = "verification"
+    description = "Validate workshop registry, module structure, compose freshness, and scaffold output."
+    workingDir = rootProject.projectDir.parentFile
+    commandLine("bash", "scripts/validate-workshops.sh")
+}
+
+tasks.named("check") {
+    dependsOn("workshopStandardizationCheck")
+}

@@ -3,7 +3,9 @@ package com.redis.workshop.hub.tools;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import com.redis.workshop.hub.model.Workshop;
+import com.redis.workshop.hub.model.WorkshopHealthcheck;
 import com.redis.workshop.hub.model.WorkshopRegistry;
+import com.redis.workshop.hub.model.WorkshopSidecar;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -11,10 +13,17 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 
 public class ComposeGenerator {
+
+    private enum ServiceRole {
+        FRONTEND,
+        BACKEND,
+        COMBINED
+    }
 
     public static void main(String[] args) throws IOException {
         String rootPath = args.length > 0 && !args[0].isBlank()
@@ -51,10 +60,15 @@ public class ComposeGenerator {
         Map<String, Object> root = new LinkedHashMap<>();
         Map<String, Object> services = new LinkedHashMap<>();
 
-        services.put("redis", buildRedisService(localMode));
+        List<Workshop> redisWorkshops = workshopsUsingInfrastructure(workshops, "redis");
+        services.put(
+            "redis",
+            buildRedisService(localMode, workshops.stream().anyMatch(ComposeGenerator::requiresRedisStack), redisWorkshops)
+        );
         services.put("redis-insight", buildRedisInsightService());
-        if (needsPostgres(workshops)) {
-            services.put("postgres", buildPostgresService(localMode));
+        List<Workshop> postgresWorkshops = workshopsUsingInfrastructure(workshops, "postgres");
+        if (!postgresWorkshops.isEmpty()) {
+            services.put("postgres", buildPostgresService(localMode, postgresWorkshops));
         }
 
         for (Workshop workshop : workshops) {
@@ -62,21 +76,21 @@ public class ComposeGenerator {
             String backendServiceName = getBackendServiceName(workshop);
 
             if (frontendServiceName.equals(backendServiceName)) {
+                services.put(frontendServiceName, buildCombinedWorkshopService(workshop, localMode));
+            } else {
+                services.put(
+                    backendServiceName,
+                    buildWorkshopBackendService(workshop, localMode)
+                );
                 services.put(
                     frontendServiceName,
-                    buildWorkshopFrontendService(workshop, localMode, null)
+                    buildWorkshopFrontendService(workshop, localMode, backendServiceName)
                 );
-                continue;
             }
 
-            services.put(
-                backendServiceName,
-                buildWorkshopBackendService(workshop, localMode)
-            );
-            services.put(
-                frontendServiceName,
-                buildWorkshopFrontendService(workshop, localMode, backendServiceName)
-            );
+            for (WorkshopSidecar sidecar : workshop.getSidecars()) {
+                services.put(sidecar.getServiceName(), buildSidecarService(workshop, sidecar));
+            }
         }
 
         root.put("services", services);
@@ -87,9 +101,9 @@ public class ComposeGenerator {
         mapper.writeValue(outputPath.toFile(), root);
     }
 
-    private static Map<String, Object> buildRedisService(boolean localMode) {
+    private static Map<String, Object> buildRedisService(boolean localMode, boolean useRedisStack, List<Workshop> workshops) {
         Map<String, Object> service = new LinkedHashMap<>();
-        service.put("image", "redis:latest");
+        service.put("image", useRedisStack ? "redis/redis-stack-server:latest" : "redis:latest");
         service.put("ports", List.of("6379:6379"));
 
         Map<String, Object> healthcheck = new LinkedHashMap<>();
@@ -100,7 +114,7 @@ public class ComposeGenerator {
         service.put("healthcheck", healthcheck);
 
         if (localMode) {
-            service.put("profiles", List.of("infrastructure", "workshops"));
+            service.put("profiles", buildLocalInfrastructureProfiles(workshops, true));
         }
 
         return service;
@@ -132,17 +146,39 @@ public class ComposeGenerator {
         int backendPort = getBackendPort(workshop);
 
         Map<String, Object> service = new LinkedHashMap<>();
-        service.put("build", buildBuildConfig(dockerfile, localMode, buildFrontendBuildArgs(localMode)));
+        service.put("build", buildBuildConfig(dockerfile, localMode, buildFrontendBuildArgs(workshop, localMode)));
         service.put("ports", List.of(frontendPort + ":" + frontendPort));
         service.put(
             "environment",
-            buildWorkshopEnvironment(workshop, localMode, frontendPort, backendServiceName, backendPort)
+            buildWorkshopEnvironment(workshop, ServiceRole.FRONTEND, frontendPort, backendServiceName, backendPort)
         );
 
         String volumeRoot = localMode ? "${WORKSHOP_ROOT_PATH:-.}" : "${WORKSHOP_ROOT_PATH:-/workshops}";
         service.put("volumes", List.of(volumeRoot + "/" + sourceModulePath + ":/workshop-sources"));
 
-        List<String> dependsOn = buildFrontendDependencies(workshop, localMode, backendServiceName);
+        List<String> dependsOn = buildFrontendDependencies(backendServiceName);
+        if (!dependsOn.isEmpty()) {
+            service.put("depends_on", dependsOn);
+        }
+
+        service.put("profiles", buildWorkshopProfiles(workshop));
+        return service;
+    }
+
+    private static Map<String, Object> buildCombinedWorkshopService(Workshop workshop, boolean localMode) {
+        String dockerfile = workshop.getEffectiveFrontendDockerfile();
+        String sourceModulePath = getFrontendSourceModulePath(workshop);
+        int frontendPort = getFrontendPort(workshop);
+
+        Map<String, Object> service = new LinkedHashMap<>();
+        service.put("build", buildBuildConfig(dockerfile, localMode, buildFrontendBuildArgs(workshop, localMode)));
+        service.put("ports", List.of(frontendPort + ":" + frontendPort));
+        service.put("environment", buildWorkshopEnvironment(workshop, ServiceRole.COMBINED, frontendPort, null, null));
+
+        String volumeRoot = localMode ? "${WORKSHOP_ROOT_PATH:-.}" : "${WORKSHOP_ROOT_PATH:-/workshops}";
+        service.put("volumes", List.of(volumeRoot + "/" + sourceModulePath + ":/workshop-sources"));
+
+        List<String> dependsOn = buildRuntimeDependencies(workshop, true);
         if (!dependsOn.isEmpty()) {
             service.put("depends_on", dependsOn);
         }
@@ -159,12 +195,12 @@ public class ComposeGenerator {
         Map<String, Object> service = new LinkedHashMap<>();
         service.put("build", buildBuildConfig(dockerfile, localMode, List.of("SKIP_FRONTEND_BUILD=true")));
         service.put("ports", List.of(backendPort + ":" + backendPort));
-        service.put("environment", buildWorkshopEnvironment(workshop, localMode, backendPort, null, null));
+        service.put("environment", buildWorkshopEnvironment(workshop, ServiceRole.BACKEND, backendPort, null, null));
 
         String volumeRoot = localMode ? "${WORKSHOP_ROOT_PATH:-.}" : "${WORKSHOP_ROOT_PATH:-/workshops}";
         service.put("volumes", List.of(volumeRoot + "/" + modulePath + ":/workshop-sources"));
 
-        List<String> dependsOn = buildBackendDependencies(workshop, localMode);
+        List<String> dependsOn = buildRuntimeDependencies(workshop, true);
         if (!dependsOn.isEmpty()) {
             service.put("depends_on", dependsOn);
         }
@@ -182,84 +218,61 @@ public class ComposeGenerator {
         return build;
     }
 
-    private static List<String> buildFrontendBuildArgs(boolean localMode) {
+    private static List<String> buildFrontendBuildArgs(Workshop workshop, boolean localMode) {
         if (localMode) {
             return List.of("SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}");
         }
         return List.of(
             "VUE_APP_BASE_PATH=/",
-            "SKIP_FRONTEND_BUILD=true"
+            "SKIP_FRONTEND_BUILD=" + (workshop.isFrontendPrebuildEnabled() ? "true" : "false")
         );
     }
 
     private static List<String> buildWorkshopEnvironment(
         Workshop workshop,
-        boolean localMode,
+        ServiceRole role,
         int runtimePort,
         String backendServiceName,
         Integer backendPort
     ) {
-        List<String> env = new ArrayList<>();
-        env.add("SPRING_DATA_REDIS_HOST=redis");
-        env.add("SPRING_DATA_REDIS_PORT=6379");
-        env.add("SPRING_REDIS_HOST=redis");
-        env.add("SPRING_REDIS_PORT=6379");
-        env.add("WORKSHOP_BASE_PATH=/workshop-sources");
-
-        if (isDistributedLocks(workshop)) {
-            env.add("SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/workshop");
-            env.add("SPRING_DATASOURCE_USERNAME=workshop");
-            env.add("SPRING_DATASOURCE_PASSWORD=workshop");
+        LinkedHashMap<String, String> env = new LinkedHashMap<>();
+        if (hasInfrastructureDependency(workshop, "redis")) {
+            env.put("SPRING_DATA_REDIS_HOST", "redis");
+            env.put("SPRING_DATA_REDIS_PORT", "6379");
+            env.put("SPRING_REDIS_HOST", "redis");
+            env.put("SPRING_REDIS_PORT", "6379");
         }
+        env.put("WORKSHOP_BASE_PATH", "/workshop-sources");
+        applyEnvOverrides(env, workshop.getCommonEnvOverrides());
+        applyEnvOverrides(env, resolveRoleEnvOverrides(workshop, role));
 
         if (runtimePort != 8080) {
-            env.add("SERVER_PORT=" + runtimePort);
+            env.put("SERVER_PORT", String.valueOf(runtimePort));
         }
 
         if (backendServiceName != null && !backendServiceName.isBlank() && backendPort != null && backendPort > 0) {
-            env.add("WORKSHOP_BACKEND_URL=http://" + backendServiceName + ":" + backendPort);
+            env.put("WORKSHOP_BACKEND_URL", "http://" + backendServiceName + ":" + backendPort);
         }
 
-        // Keep local and internal mode behavior consistent for runtime port binding.
-        if (localMode && runtimePort == 8080) {
-            return env;
-        }
-        return env;
+        return toEnvironmentList(env);
     }
 
-    private static List<String> buildFrontendDependencies(Workshop workshop, boolean localMode, String backendServiceName) {
-        List<String> deps = new ArrayList<>();
-
+    private static List<String> buildFrontendDependencies(String backendServiceName) {
+        LinkedHashSet<String> deps = new LinkedHashSet<>();
         if (backendServiceName != null && !backendServiceName.isBlank()) {
             deps.add(backendServiceName);
         }
-
-        if (localMode) {
-            deps.addAll(buildInfrastructureDependencies(workshop));
-        } else if (isDistributedLocks(workshop)) {
-            deps.addAll(buildInfrastructureDependencies(workshop));
-        }
-
-        return deps;
+        return List.copyOf(deps);
     }
 
-    private static List<String> buildBackendDependencies(Workshop workshop, boolean localMode) {
-        if (localMode) {
-            return buildInfrastructureDependencies(workshop);
+    private static List<String> buildRuntimeDependencies(Workshop workshop, boolean includeSidecars) {
+        LinkedHashSet<String> deps = new LinkedHashSet<>(workshop.getInfrastructureDependencies());
+        if (includeSidecars) {
+            for (WorkshopSidecar sidecar : workshop.getSidecars()) {
+                deps.add(sidecar.getServiceName());
+            }
         }
-        if (isDistributedLocks(workshop)) {
-            return buildInfrastructureDependencies(workshop);
-        }
-        return List.of();
-    }
-
-    private static List<String> buildInfrastructureDependencies(Workshop workshop) {
-        List<String> deps = new ArrayList<>();
-        deps.add("redis");
-        if (isDistributedLocks(workshop)) {
-            deps.add("postgres");
-        }
-        return deps;
+        return List.copyOf(deps);
     }
 
     private static List<String> buildWorkshopProfiles(Workshop workshop) {
@@ -298,22 +311,22 @@ public class ComposeGenerator {
         return 8080;
     }
 
-    private static boolean needsPostgres(List<Workshop> workshops) {
-        return workshops.stream().anyMatch(ComposeGenerator::isDistributedLocks);
+    private static List<Workshop> workshopsUsingInfrastructure(List<Workshop> workshops, String serviceName) {
+        return workshops.stream()
+            .filter(workshop -> hasInfrastructureDependency(workshop, serviceName))
+            .toList();
     }
 
-    private static boolean isDistributedLocks(Workshop workshop) {
-        String id = workshop.getId();
-        String serviceName = workshop.getServiceName();
-        String frontendService = workshop.getEffectiveFrontendServiceName();
-        String backendService = workshop.getEffectiveBackendServiceName();
-        return "3_distributed_locks".equals(id)
-            || "distributed-locks".equals(serviceName)
-            || "distributed-locks".equals(frontendService)
-            || "distributed-locks-api".equals(backendService);
+    private static boolean requiresRedisStack(Workshop workshop) {
+        return hasInfrastructureDependency(workshop, "redis") && workshop.usesRedisStack();
     }
 
-    private static Map<String, Object> buildPostgresService(boolean localMode) {
+    private static boolean hasInfrastructureDependency(Workshop workshop, String serviceName) {
+        return workshop.getInfrastructureDependencies().stream()
+            .anyMatch(serviceName::equals);
+    }
+
+    private static Map<String, Object> buildPostgresService(boolean localMode, List<Workshop> workshops) {
         Map<String, Object> service = new LinkedHashMap<>();
         service.put("image", "postgres:16");
         service.put("ports", List.of("5432:5432"));
@@ -332,10 +345,96 @@ public class ComposeGenerator {
         service.put("healthcheck", healthcheck);
 
         if (localMode) {
-            service.put("profiles", List.of("workshops", "workshop-3_distributed_locks"));
+            service.put("profiles", buildLocalInfrastructureProfiles(workshops, false));
         }
 
         return service;
+    }
+
+    private static List<String> buildLocalInfrastructureProfiles(List<Workshop> workshops, boolean includeInfrastructureProfile) {
+        LinkedHashSet<String> profiles = new LinkedHashSet<>();
+        if (includeInfrastructureProfile) {
+            profiles.add("infrastructure");
+        }
+        profiles.add("workshops");
+        for (Workshop workshop : workshops) {
+            profiles.add("workshop-" + workshop.getId());
+        }
+        return List.copyOf(profiles);
+    }
+
+    private static Map<String, String> resolveRoleEnvOverrides(Workshop workshop, ServiceRole role) {
+        return switch (role) {
+            case FRONTEND -> workshop.getFrontendEnvOverrides();
+            case BACKEND -> workshop.getBackendEnvOverrides();
+            case COMBINED -> mergeEnvOverrides(workshop.getFrontendEnvOverrides(), workshop.getBackendEnvOverrides());
+        };
+    }
+
+    private static Map<String, String> mergeEnvOverrides(Map<String, String> first, Map<String, String> second) {
+        LinkedHashMap<String, String> merged = new LinkedHashMap<>();
+        applyEnvOverrides(merged, first);
+        applyEnvOverrides(merged, second);
+        return merged;
+    }
+
+    private static void applyEnvOverrides(Map<String, String> target, Map<String, String> overrides) {
+        overrides.forEach(target::put);
+    }
+
+    private static List<String> toEnvironmentList(Map<String, String> env) {
+        return env.entrySet().stream()
+            .map(entry -> entry.getKey() + "=" + entry.getValue())
+            .toList();
+    }
+
+    private static Map<String, Object> buildSidecarService(Workshop workshop, WorkshopSidecar sidecar) {
+        Map<String, Object> service = new LinkedHashMap<>();
+        service.put("image", sidecar.getImage());
+        if (sidecar.getPort() != null && sidecar.getPort() > 0) {
+            service.put("ports", List.of(sidecar.getPort() + ":" + sidecar.getPort()));
+        }
+        if (!sidecar.getEnv().isEmpty()) {
+            service.put("environment", toEnvironmentList(sidecar.getEnv()));
+        }
+        if (!sidecar.getDependsOn().isEmpty()) {
+            service.put("depends_on", sidecar.getDependsOn());
+        }
+        if (!sidecar.getCommand().isEmpty()) {
+            service.put("command", sidecar.getCommand());
+        }
+
+        Map<String, Object> healthcheck = buildHealthcheck(sidecar.getHealthcheck());
+        if (!healthcheck.isEmpty()) {
+            service.put("healthcheck", healthcheck);
+        }
+
+        service.put("profiles", buildWorkshopProfiles(workshop));
+        return service;
+    }
+
+    private static Map<String, Object> buildHealthcheck(WorkshopHealthcheck healthcheck) {
+        if (healthcheck == null) {
+            return Map.of();
+        }
+
+        Map<String, Object> config = new LinkedHashMap<>();
+        if (!healthcheck.getTest().isEmpty()) {
+            config.put("test", healthcheck.getTest());
+        }
+        if (healthcheck.getInterval() != null && !healthcheck.getInterval().isBlank()) {
+            config.put("interval", healthcheck.getInterval());
+        }
+        if (healthcheck.getTimeout() != null && !healthcheck.getTimeout().isBlank()) {
+            config.put("timeout", healthcheck.getTimeout());
+        }
+        if (healthcheck.getRetries() != null) {
+            config.put("retries", healthcheck.getRetries());
+        }
+        if (healthcheck.getStartPeriod() != null && !healthcheck.getStartPeriod().isBlank()) {
+            config.put("start_period", healthcheck.getStartPeriod());
+        }
+        return config;
     }
 
     private static String getModulePath(String dockerfile) {

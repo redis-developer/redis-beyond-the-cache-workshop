@@ -90,7 +90,9 @@
         <div v-if="visibleSection >= 4" class="step-item highlight-section">
           <h4>4. Implement It Yourself</h4>
           <p class="step-description">
-            Now it's your turn! Implement the reentrant lock in the workshop code.
+            Now it's your turn. The next step walks through the same learner path used everywhere else in this
+            workshop: update <code>build.gradle.kts</code>, <code>application.properties</code>, and
+            <code>LockManager.java</code>, then verify the result in the demo.
           </p>
           <router-link to="/reentrant/implement" class="btn btn-primary">Go to Implementation →</router-link>
         </div>
@@ -467,4 +469,3 @@ export default {
   }
 }
 </style>
-

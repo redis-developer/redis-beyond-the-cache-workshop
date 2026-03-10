@@ -1,5 +1,8 @@
 package com.redis.workshop.locks.frontend;
 
+import org.hamcrest.Matchers;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
@@ -7,7 +10,10 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -26,13 +32,52 @@ class DistributedLocksFrontendIntegrationTest {
     void editorApiIsExposedInFrontendModule() throws Exception {
         mockMvc.perform(get("/api/editor/files"))
             .andExpect(status().isOk())
+            .andExpect(jsonPath("$.files", hasSize(3)))
             .andExpect(jsonPath("$", hasKey("files")))
-            .andExpect(jsonPath("$", hasKey("workshopTitle")));
+            .andExpect(jsonPath("$", hasKey("workshopTitle")))
+            .andExpect(jsonPath("$", hasKey("workshopDescription")))
+            .andExpect(jsonPath("$.files[*].name", not(Matchers.hasItem("PurchaseService.java"))))
+            .andExpect(jsonPath("$.workshopTitle").value("Distributed Locks"))
+            .andExpect(jsonPath("$.workshopDescription").value("Protect shared workflows with Redis-based distributed locks."));
     }
 
     @Test
     void inventoryApiIsHandledByProxyInFrontendModule() throws Exception {
         mockMvc.perform(get("/api/inventory"))
             .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    void purchaseServiceIsReadOnlyReviewContent() throws Exception {
+        mockMvc.perform(get("/api/editor/file/PurchaseService.java"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.error").value("Invalid file name: PurchaseService.java"));
+
+        mockMvc.perform(get("/api/review/purchase-service"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.fileName").value("PurchaseService.java"))
+            .andExpect(jsonPath("$.language").value("java"))
+            .andExpect(jsonPath("$.content").value(Matchers.containsString("lockManager.withLock(")));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {
+        "/",
+        "/reentrant",
+        "/reentrant/implement",
+        "/reentrant/editor",
+        "/reentrant/demo",
+        "/demo",
+        "/editor",
+        "/implement",
+        "/implementation",
+        "/complete",
+        "/scenario/1",
+        "/scenario/1/2"
+    })
+    void spaRoutesForwardToIndexHtml(String route) throws Exception {
+        mockMvc.perform(get(route))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
     }
 }

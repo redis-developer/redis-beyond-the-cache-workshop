@@ -258,6 +258,7 @@
 
 <script>
 import { WorkshopHeader, WorkshopStageNav } from '../utils/components';
+import { getWorkshopHubUrl } from '../utils/basePath';
 import { loadProgress, saveProgress } from '../utils/progress';
 
 export default {
@@ -268,7 +269,7 @@ export default {
   },
   computed: {
     workshopHubUrl() {
-      return window.location.protocol + '//' + window.location.hostname + ':9000';
+      return getWorkshopHubUrl();
     }
   },
   mounted() {
@@ -444,4 +445,3 @@ h2 { color: var(--color-text); margin-bottom: var(--spacing-4); }
   .feature-row { flex-direction: column; align-items: center; text-align: center; }
 }
 </style>
-

@@ -152,7 +152,7 @@
             <!-- Test 8: Redis Insight Exploration -->
             <div v-else-if="testStep === 8" class="test-step insight-test">
               <h4>Test 8: Redis Insight Exploration</h4>
-              <p class="test-instructions">Open <a href="http://localhost:5540" target="_blank" class="link">Redis Insight</a> and explore the data structures:</p>
+              <p class="test-instructions">Open <a :href="redisInsightUrl" target="_blank" class="link">Redis Insight</a> and explore the data structures:</p>
 
               <div class="insight-guide">
                 <div class="insight-section">
@@ -347,12 +347,17 @@
 </template>
 
 <script>
-import { getApiUrl } from '../utils/basePath';
+import { getApiUrl, getRedisInsightUrl } from '../utils/basePath';
 
 const STORAGE_KEY = 'agentMemoryWorkshop';
 
 export default {
   name: 'MemoryChat',
+  computed: {
+    redisInsightUrl() {
+      return getRedisInsightUrl();
+    }
+  },
   data() {
     return {
       apiKey: localStorage.getItem('openai_api_key') || '',

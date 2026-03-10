@@ -392,6 +392,7 @@ POST /v1/long-term-memory/search
 
 <script>
 import { WorkshopHeader, WorkshopStageNav } from '../utils/components';
+import { getWorkshopHubUrl } from '../utils/basePath';
 import { loadProgress, saveProgress } from '../utils/progress';
 
 export default {
@@ -404,7 +405,7 @@ export default {
   },
   computed: {
     workshopHubUrl() {
-      return window.location.protocol + '//' + window.location.hostname + ':9000';
+      return getWorkshopHubUrl();
     }
   },
   mounted() {

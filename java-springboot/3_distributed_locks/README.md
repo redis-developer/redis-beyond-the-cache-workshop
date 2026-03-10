@@ -25,9 +25,11 @@ Open **http://localhost:8082**
 
 | Stage | What You Do |
 |-------|-------------|
-| 1. See the Problem | Run scenarios, observe duplicates and overselling |
-| 2. Fix It | Implement Redisson lock in LockManager |
-| 3. Verify | Re-run scenarios, only one worker succeeds |
+| 1. `/` | Reproduce the race-condition problem from the workshop home page |
+| 2. `/reentrant` | Learn why a reentrant lock is required for nested checkout calls |
+| 3. `/reentrant/implement` | Review the implementation guide before editing code |
+| 4. `/reentrant/editor` or your IDE | Update `build.gradle.kts`, `src/main/resources/application.properties`, and `src/main/java/com/redis/workshop/locks/service/LockManager.java` |
+| 5. `/reentrant/demo` | Rebuild from the Workshop Hub and verify the job, inventory, and checkout scenarios |
 
 ## Scenarios
 
@@ -38,6 +40,14 @@ Open **http://localhost:8082**
 5. **Inventory Oversell** - Prevent concurrent stock updates
 
 ## Your Tasks
+
+The editable implementation path is:
+
+1. `build.gradle.kts`
+2. `src/main/resources/application.properties`
+3. `src/main/java/com/redis/workshop/locks/service/LockManager.java`
+
+`src/main/java/com/redis/workshop/locks/service/PurchaseService.java` is included as a read-only review step so you can see how `withLock()` protects the inventory workflow.
 
 ### 1. `application.properties` - Enable lock mode
 ```properties

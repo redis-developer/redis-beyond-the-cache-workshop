@@ -7,7 +7,7 @@
   >
     <template #instructions>
       <div class="alert">
-        <strong>Your Task:</strong> Implement the Agent Memory Service using the official Java SDK to enable working memory and long-term memory for AI agents.
+        <strong>Your Task:</strong> Complete the three workshop files in order to wire raw AMS SDK calls, the Spring AI chat memory bridge, and the advisor chain used by the chat UI.
       </div>
 
       <!-- Progress Tracker -->
@@ -374,7 +374,7 @@
 </template>
 
 <script>
-import { WorkshopEditorLayout, getBasePath } from '../../../../../workshop-frontend-shared/src/index.js';
+import { WorkshopEditorLayout, getBasePath, getWorkshopHubUrl } from '../../../../../workshop-frontend-shared/src/index.js';
 
 const STORAGE_KEY = 'agentMemoryWorkshop';
 
@@ -383,7 +383,7 @@ export default {
   components: { WorkshopEditorLayout },
   data() {
     return {
-      files: ['AgentMemoryService.java', 'ChatService.java', 'AmsChatMemoryRepository.java'],
+      files: ['AgentMemoryService.java', 'AmsChatMemoryRepository.java', 'ChatService.java'],
       currentFile: null,
       fileContent: '',
       currentStep: 0,
@@ -408,7 +408,7 @@ export default {
   computed: {
     basePath() { return getBasePath(); },
     workshopHubUrl() {
-      return `${window.location.protocol}//${window.location.hostname}:9000`;
+      return getWorkshopHubUrl();
     },
     completedSteps() {
       return this.completedStepsSet.size;
@@ -445,21 +445,27 @@ export default {
     },
     async checkWorkshopCompletion() {
       this.fileContents['AgentMemoryService.java'] = await this.fetchFileContent('AgentMemoryService.java');
+      this.fileContents['AmsChatMemoryRepository.java'] = await this.fetchFileContent('AmsChatMemoryRepository.java');
       this.fileContents['ChatService.java'] = await this.fetchFileContent('ChatService.java');
       const amsContent = this.fileContents['AgentMemoryService.java'] || '';
+      const repositoryContent = this.fileContents['AmsChatMemoryRepository.java'] || '';
       const chatContent = this.fileContents['ChatService.java'] || '';
       const checks = [
         !amsContent.includes('// TODO: Step 0 - Initialize the MemoryAPIClient'),
-        !amsContent.includes('// TODO: Step 1 - Use the SDK to get working memory'),
-        !amsContent.includes('// TODO: Step 2 - Use the SDK to save working memory'),
-        !amsContent.includes('// TODO: Step 3 - Use the SDK to delete working memory'),
-        !amsContent.includes('// TODO: Step 4 - Use the SDK to create long-term memories'),
-        !amsContent.includes('// TODO: Step 5 - Use the SDK to search long-term memories'),
-        !amsContent.includes('// TODO: Step 6 - Use the SDK to get a specific memory'),
-        !chatContent.includes('// TODO: Step 7 - Create conversationId'),
-        !chatContent.includes('// TODO: Step 8 - Pass conversationId to advisors'),
-        !chatContent.includes('// TODO: Step 9 - Add MessageChatMemoryAdvisor'),
-        !chatContent.includes('// TODO: Step 10 - Add LongTermMemoryAdvisor')
+        !amsContent.includes('// TODO: Step 1 - Implement using client.workingMemory().getWorkingMemory(sessionId)'),
+        !amsContent.includes('// TODO: Step 2 - Implement using client.workingMemory().putWorkingMemory(sessionId, memory)'),
+        !amsContent.includes('// TODO: Step 3 - Implement using client.workingMemory().deleteWorkingMemory(sessionId)'),
+        !amsContent.includes('// TODO: Step 4 - Implement using client.longTermMemory().createLongTermMemories(memories)'),
+        !amsContent.includes('// TODO: Step 5 - Implement using client.longTermMemory().searchLongTermMemories(searchRequest)'),
+        !amsContent.includes('// TODO: Step 6 - Implement using client.longTermMemory().getLongTermMemory(memoryId)'),
+        !amsContent.includes('// TODO: Step 7 - Implement using client.longTermMemory().deleteLongTermMemories(memoryIds)'),
+        !amsContent.includes('// TODO: Implement using client.health().healthCheck()'),
+        !repositoryContent.includes('// TODO: Step 9 - Implement getContextPercentage'),
+        !repositoryContent.includes('// TODO: Step 10 - Implement findByConversationId'),
+        !repositoryContent.includes('// TODO: Step 11 - Implement saveAll'),
+        !chatContent.includes('// TODO: Step 12 - Add advisor params to pass conversationId'),
+        !chatContent.includes('// TODO: Step 13 - Add MessageChatMemoryAdvisor to enable working memory'),
+        !chatContent.includes('// TODO: Step 14 - Add LongTermMemoryAdvisor for semantic memory search')
       ];
       this.workshopComplete = checks.every(Boolean);
       if (this.workshopComplete) {
@@ -978,4 +984,3 @@ export default {
   font-size: 0.9rem;
 }
 </style>
-

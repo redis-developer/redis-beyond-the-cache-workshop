@@ -117,7 +117,7 @@
 
 <script>
 import { WorkshopHeader } from '../utils/components';
-import { getApiUrl } from '../utils/basePath';
+import { getApiUrl, getWorkshopHubUrl } from '../utils/basePath';
 
 export default {
   name: 'MemoryDemo',
@@ -139,7 +139,7 @@ export default {
   },
   computed: {
     workshopHubUrl() {
-      return window.location.protocol + '//' + window.location.hostname + ':9000';
+      return getWorkshopHubUrl();
     }
   },
   mounted() {

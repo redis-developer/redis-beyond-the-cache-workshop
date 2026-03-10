@@ -1,0 +1,13 @@
+moduleName: classpath-manifest-workshop
+basePath: ../workshop-root
+title: Classpath Manifest Workshop
+description: Loaded from classpath manifest data
+editableFiles:
+  - name: application.properties
+    path: src/main/resources/application.properties
+    resetContentLocation: ../shared-reset/application.properties
+  - name: Dockerfile
+    path: Dockerfile
+    language: dockerfile
+    resetContent: |
+      FROM eclipse-temurin:21

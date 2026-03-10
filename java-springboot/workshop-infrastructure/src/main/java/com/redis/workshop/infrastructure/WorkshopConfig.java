@@ -9,7 +9,8 @@ import java.util.Map;
  * and their original content for restoration.
  * 
  * This allows the workshop infrastructure to be completely reusable
- * across different labs without modification.
+ * across different labs without modification. Implementations may come
+ * from code or from a loaded manifest via the shared infrastructure.
  */
 public interface WorkshopConfig {
     
@@ -117,4 +118,3 @@ public interface WorkshopConfig {
         return "Interactive Redis workshop with in-browser code editing";
     }
 }
-

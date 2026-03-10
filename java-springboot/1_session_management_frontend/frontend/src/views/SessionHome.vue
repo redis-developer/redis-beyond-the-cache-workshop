@@ -27,12 +27,12 @@
 
           <div v-if="stage1Tests.test1" class="test-item" :class="{ 'completed': stage1Tests.test2 }">
             <div class="test-header">
-              <h4>Test 2: Restart the Application</h4>
+              <h4>Test 2: Restart the Backend</h4>
               <span v-if="stage1Tests.test2" class="test-check">Done</span>
             </div>
-            <p class="test-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and restart the app (without rebuilding). This simulates a server restart or deployment.</p>
+            <p class="test-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and restart the workshop backend without rebuilding. This simulates a server restart or deployment.</p>
             <button v-if="!stage1Tests.test2" @click="completeStage1Test('test2')" class="btn btn-outline btn-sm">
-              I've restarted the app
+              I've restarted the backend
             </button>
           </div>
 
@@ -100,7 +100,7 @@
 
           <div class="step-item">
             <h4>Step 4: Restart and Verify</h4>
-            <p class="step-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and rebuild & restart the app. Then come back to see the difference!</p>
+            <p class="step-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and rebuild and restart the workshop backend. Then come back to see the difference.</p>
           </div>
         </div>
 
@@ -125,12 +125,12 @@
 
           <div v-if="stage3Tests.test1" class="test-item" :class="{ 'completed': stage3Tests.test2 }">
             <div class="test-header">
-              <h4>Test 2: Restart the Application</h4>
+              <h4>Test 2: Restart the Backend</h4>
               <span v-if="stage3Tests.test2" class="test-check">Done</span>
             </div>
-            <p class="test-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and restart the app (without rebuilding).</p>
+            <p class="test-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and restart the workshop backend without rebuilding.</p>
             <button v-if="!stage3Tests.test2" @click="completeStage3Test('test2')" class="btn btn-outline btn-sm">
-              I've restarted the app
+              I've restarted the backend
             </button>
           </div>
 
@@ -173,23 +173,12 @@
 
           <div v-if="stage3Tests.test4" class="test-item" :class="{ 'completed': stage3Tests.test5 }">
             <div class="test-header">
-              <h4>Test 5: Multiple Sessions (Optional)</h4>
+              <h4>Test 5: Separate Browser Session (Optional)</h4>
               <span v-if="stage3Tests.test5" class="test-check">Done</span>
             </div>
-            <p class="test-description">Open in incognito or a different browser - you'll get a different Session ID. Max 2 concurrent sessions are allowed.</p>
+            <p class="test-description">Open the workshop in an incognito or private window, or use a different browser. You should see a different session ID there while this browser stays logged in.</p>
             <button v-if="!stage3Tests.test5" @click="completeStage3Test('test5')" class="btn btn-outline btn-sm">
-              I've tested multiple sessions
-            </button>
-          </div>
-
-          <div v-if="stage3Tests.test5" class="test-item" :class="{ 'completed': stage3Tests.test6 }">
-            <div class="test-header">
-              <h4>Test 6: Max Sessions Limit (Optional)</h4>
-              <span v-if="stage3Tests.test6" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Try a 3rd browser - login will be blocked. This security feature prevents unlimited concurrent sessions.</p>
-            <button v-if="!stage3Tests.test6" @click="completeStage3Test('test6')" class="btn btn-outline btn-sm">
-              I've tested the session limit
+              I've tested a second browser session
             </button>
           </div>
 
@@ -278,7 +267,12 @@
 
 
 <script>
-import { getBasePath } from "../utils/basePath";
+import {
+  getApiUrl,
+  getBasePath,
+  getRedisInsightUrl,
+  getWorkshopHubUrl
+} from "../utils/basePath";
 import { WorkshopModal, WorkshopHeader } from "../utils/components";
 
 export default {
@@ -309,8 +303,7 @@ export default {
         test2: false,
         test3: false,
         test4: false,
-        test5: false,
-        test6: false
+        test5: false
       },
       modal: {
         show: false,
@@ -326,15 +319,10 @@ export default {
       return getBasePath();
     },
     workshopHubUrl() {
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      return `${protocol}//${hostname}:9000`;
+      return getWorkshopHubUrl();
     },
     redisInsightUrl() {
-      // Redis Insight runs on port 5540 (exposed from internal container)
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      return `${protocol}//${hostname}:5540`;
+      return getRedisInsightUrl();
     },
     sessionIdChanged() {
       return this.previousSessionId && this.previousSessionId !== this.sessionInfo.sessionId;
@@ -377,7 +365,7 @@ export default {
     },
     async fetchSessionInfo() {
       try {
-        const response = await fetch(`${this.basePath}/api/session-info`, {
+        const response = await fetch(getApiUrl('/api/session-info'), {
           credentials: 'include'
         });
         if (response.status === 401 || response.status === 403) {
@@ -402,7 +390,7 @@ export default {
     },
     async markStage1Complete() {
       try {
-        const response = await fetch(`${this.basePath}/api/mark-stage1-complete`, {
+        const response = await fetch(getApiUrl('/api/mark-stage1-complete'), {
           method: 'POST',
           credentials: 'include'
         });
@@ -436,7 +424,7 @@ export default {
     resetProgress() {
       this.showModal('confirm', 'Reset Progress', 'Reset all test progress? You will start from the first test again.', () => {
         this.stage1Tests = { test1: false, test2: false, test3: false };
-        this.stage3Tests = { test1: false, test2: false, test3: false, test4: false, test5: false, test6: false };
+        this.stage3Tests = { test1: false, test2: false, test3: false, test4: false, test5: false };
         this.previousSessionId = null;
         localStorage.removeItem('stage1Tests');
         localStorage.removeItem('stage3Tests');
@@ -444,10 +432,10 @@ export default {
       });
     },
     async restartLab() {
-      this.showModal('confirm', 'Restart Lab', 'Are you sure you want to restart the lab? This will restore all files to their original state and reset your progress. You will need to restart the application after this.', async () => {
+      this.showModal('confirm', 'Restart Lab', 'Are you sure you want to restart the lab? This will restore all files to their original state and reset your progress. You will need to restart the workshop backend after this.', async () => {
         this.restartingLab = true;
         try {
-          const response = await fetch(`${this.basePath}/api/editor/restore`, {
+          const response = await fetch(getApiUrl('/api/editor/restore'), {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include'
@@ -457,12 +445,12 @@ export default {
           if (data.success) {
             // Reset test progress
             this.stage1Tests = { test1: false, test2: false, test3: false };
-            this.stage3Tests = { test1: false, test2: false, test3: false, test4: false, test5: false, test6: false };
+            this.stage3Tests = { test1: false, test2: false, test3: false, test4: false, test5: false };
             this.previousSessionId = null;
             localStorage.removeItem('stage1Tests');
             localStorage.removeItem('stage3Tests');
             localStorage.removeItem('previousSessionId');
-            this.showModal('alert', 'Lab Reset', 'Lab reset! Please restart the application from the Workshop Hub.\n\nThen refresh this page to start from Stage 1.');
+            this.showModal('alert', 'Lab Reset', 'Lab reset! Please restart the workshop backend from the Workshop Hub.\n\nThen refresh this page to start from Stage 1.');
           } else {
             this.showModal('alert', 'Error', 'Error: ' + (data.error || 'Failed to restore files'));
           }

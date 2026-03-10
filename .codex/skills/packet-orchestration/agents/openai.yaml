@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parallel Work Orchestration"
+  short_description: "Parallel feature work and handoffs"
+  default_prompt: "Use $packet-orchestration to split this feature into atomic packets, dispatch parallel agents, and review packet outcomes."

@@ -1,0 +1,13 @@
+moduleName: 3_distributed_locks
+title: Distributed Locks
+description: Protect shared workflows with Redis-based distributed locks.
+editableFiles:
+  - name: build.gradle.kts
+    path: build.gradle.kts
+    resetContentLocation: workshop-files/build.gradle.kts
+  - name: application.properties
+    path: src/main/resources/application.properties
+    resetContentLocation: workshop-files/application.properties
+  - name: LockManager.java
+    path: src/main/java/com/redis/workshop/locks/service/LockManager.java
+    resetContentLocation: workshop-files/LockManager.java

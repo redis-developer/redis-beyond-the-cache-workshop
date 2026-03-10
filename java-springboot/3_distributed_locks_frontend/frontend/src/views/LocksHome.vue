@@ -187,7 +187,7 @@
 
 <script>
 import { LOCK_TYPES, loadProgress, saveProgress, clearProgress, getLockTypeProgress, getCompletedLockTypesCount } from '../utils/locksWorkshop';
-import { getApiUrl } from '../utils/basePath';
+import { getApiUrl, getWorkshopHubUrl } from '../utils/basePath';
 import { WorkshopModal, WorkshopStageNav, WorkshopHeader } from "../utils/components";
 
 export default {
@@ -220,9 +220,7 @@ export default {
       return getCompletedLockTypesCount();
     },
     workshopHubUrl() {
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      return `${protocol}//${hostname}:9000`;
+      return getWorkshopHubUrl();
     }
   },
   mounted() {

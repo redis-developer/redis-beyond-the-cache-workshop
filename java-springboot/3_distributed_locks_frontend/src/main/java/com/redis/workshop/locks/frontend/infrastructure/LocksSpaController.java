@@ -10,13 +10,20 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class LocksSpaController {
 
-    @GetMapping("/")
-    public String home() {
-        return "forward:/index.html";
-    }
-
-    @GetMapping("/demo")
-    public String demo() {
+    @GetMapping({
+        "/",
+        "/reentrant",
+        "/reentrant/implement",
+        "/reentrant/editor",
+        "/reentrant/demo",
+        "/demo",
+        "/implement",
+        "/implementation",
+        "/complete",
+        "/scenario/{index}",
+        "/scenario/{index}/{step}"
+    })
+    public String app() {
         return "forward:/index.html";
     }
 }

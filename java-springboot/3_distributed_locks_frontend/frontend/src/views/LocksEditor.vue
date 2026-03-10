@@ -1,16 +1,21 @@
 <template>
   <WorkshopEditorLayout
     ref="layout"
-    title="Enable Redisson Locks"
+    title="Implement the Reentrant Lock"
     :files="files"
     @file-loaded="onFileLoaded"
   >
     <template #instructions>
       <div class="alert">
-        <strong>Your Task:</strong> Implement distributed locking step-by-step.
+        <strong>Your Task:</strong> Follow the workshop path
+        <code>/reentrant</code> → <code>/reentrant/implement</code> → <code>/reentrant/editor</code> → <code>/reentrant/demo</code>.
       </div>
 
-      <p class="note">Type the code yourself for maximum learning. Hover over <span class="info-icon-inline">i</span> for explanations, use hint buttons (?) if stuck.</p>
+      <p class="note">
+        Type the code yourself for maximum learning. In this editor you will change
+        <code>build.gradle.kts</code>, <code>application.properties</code>, and <code>LockManager.java</code>,
+        then review <code>PurchaseService.java</code> before rebuilding and testing.
+      </p>
 
       <h4>Step 1: Add Dependencies</h4>
       <div class="concept-box">
@@ -126,15 +131,20 @@
       </div>
       <ol start="10">
         <li class="step-with-button">
-          <span class="step-content">Open <code>PurchaseService.java</code> (read-only review)</span>
+          <span class="step-content">Show <code>PurchaseService.java</code> (read-only review)</span>
           <div class="button-group">
             <span class="tooltip-wrapper" data-tooltip="See how withLock() protects the inventory read-modify-write from race conditions">
               <span class="info-icon">i</span>
             </span>
-            <button class="play-btn" @click="loadFileStep('PurchaseService.java')">▶</button>
+            <button class="play-btn" @click="loadPurchaseServiceReview">▶</button>
           </div>
         </li>
       </ol>
+
+      <div v-if="purchaseServiceReview" class="concept-box review-source">
+        <p><strong>PurchaseService.java</strong> is shown here as a read-only reference:</p>
+        <pre><code>{{ purchaseServiceReview }}</code></pre>
+      </div>
 
       <h4>Step 5: Rebuild & Test</h4>
       <ol start="11">
@@ -153,6 +163,7 @@
 
 <script>
 import { WorkshopEditorLayout } from '../../../../../workshop-frontend-shared/src/index.js';
+import { getApiUrl, getWorkshopHubUrl } from '../utils/basePath';
 
 export default {
   name: 'LocksEditor',
@@ -162,16 +173,16 @@ export default {
       files: [
         'build.gradle.kts',
         'application.properties',
-        'LockManager.java',
-        'PurchaseService.java'
+        'LockManager.java'
       ],
       currentFile: null,
-      fileContent: ''
+      fileContent: '',
+      purchaseServiceReview: ''
     };
   },
   computed: {
     workshopHubUrl() {
-      return this.$refs.layout?.workshopHubUrl || `${window.location.protocol}//${window.location.hostname}:9000`;
+      return this.$refs.layout?.workshopHubUrl || getWorkshopHubUrl();
     }
   },
   methods: {
@@ -181,6 +192,20 @@ export default {
     },
     async loadFileStep(fileName) {
       await this.$refs.layout.loadFile(fileName);
+    },
+    async loadPurchaseServiceReview() {
+      try {
+        const response = await fetch(getApiUrl('/api/review/purchase-service'));
+        const data = await response.json();
+        if (data.error) {
+          this.$refs.layout.showStatus(data.error, 'error');
+          return;
+        }
+        this.purchaseServiceReview = data.content || '';
+        this.$refs.layout.showStatus('Read-only review loaded.', 'success');
+      } catch (error) {
+        this.$refs.layout.showStatus('Failed to load PurchaseService.java review.', 'error');
+      }
     },
     saveFile() {
       this.$refs.layout.save();

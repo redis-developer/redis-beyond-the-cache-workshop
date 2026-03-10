@@ -1,6 +1,12 @@
 package com.redis.workshop.hub.model;
 
+import java.util.List;
+import java.util.Map;
+
 public class Workshop {
+    private static final List<String> DEFAULT_INFRASTRUCTURE_DEPENDENCIES = List.of("redis");
+    private static final String DEFAULT_REDIS_FLAVOR = "standard";
+
     private String id;
     private String title;
     private String description;
@@ -16,6 +22,11 @@ public class Workshop {
     private String backendServiceName;
     private Integer backendPort;
     private String backendDockerfile;
+    private List<String> infrastructureDependencies;
+    private WorkshopEnvOverrides envOverrides;
+    private List<WorkshopSidecar> sidecars;
+    private String redisFlavor;
+    private Boolean frontendPrebuild;
     private String[] topics;
 
     public Workshop() {
@@ -151,6 +162,81 @@ public class Workshop {
 
     public void setBackendDockerfile(String backendDockerfile) {
         this.backendDockerfile = backendDockerfile;
+    }
+
+    public List<String> getInfrastructureDependencies() {
+        if (infrastructureDependencies == null || infrastructureDependencies.isEmpty()) {
+            return DEFAULT_INFRASTRUCTURE_DEPENDENCIES;
+        }
+        return List.copyOf(infrastructureDependencies);
+    }
+
+    public void setInfrastructureDependencies(List<String> infrastructureDependencies) {
+        this.infrastructureDependencies = infrastructureDependencies;
+    }
+
+    public WorkshopEnvOverrides getEnvOverrides() {
+        return envOverrides;
+    }
+
+    public void setEnvOverrides(WorkshopEnvOverrides envOverrides) {
+        this.envOverrides = envOverrides;
+    }
+
+    public Map<String, String> getCommonEnvOverrides() {
+        if (envOverrides == null) {
+            return Map.of();
+        }
+        return envOverrides.getCommon();
+    }
+
+    public Map<String, String> getFrontendEnvOverrides() {
+        if (envOverrides == null) {
+            return Map.of();
+        }
+        return envOverrides.getFrontend();
+    }
+
+    public Map<String, String> getBackendEnvOverrides() {
+        if (envOverrides == null) {
+            return Map.of();
+        }
+        return envOverrides.getBackend();
+    }
+
+    public List<WorkshopSidecar> getSidecars() {
+        if (sidecars == null || sidecars.isEmpty()) {
+            return List.of();
+        }
+        return List.copyOf(sidecars);
+    }
+
+    public void setSidecars(List<WorkshopSidecar> sidecars) {
+        this.sidecars = sidecars;
+    }
+
+    public String getRedisFlavor() {
+        return hasText(redisFlavor) ? redisFlavor : DEFAULT_REDIS_FLAVOR;
+    }
+
+    public void setRedisFlavor(String redisFlavor) {
+        this.redisFlavor = redisFlavor;
+    }
+
+    public boolean usesRedisStack() {
+        return "stack".equalsIgnoreCase(getRedisFlavor());
+    }
+
+    public Boolean getFrontendPrebuild() {
+        return frontendPrebuild != null ? frontendPrebuild : Boolean.TRUE;
+    }
+
+    public void setFrontendPrebuild(Boolean frontendPrebuild) {
+        this.frontendPrebuild = frontendPrebuild;
+    }
+
+    public boolean isFrontendPrebuildEnabled() {
+        return Boolean.TRUE.equals(getFrontendPrebuild());
     }
 
     public String[] getTopics() {

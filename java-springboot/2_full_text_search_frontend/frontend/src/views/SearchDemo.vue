@@ -37,7 +37,7 @@
           <!-- Test Step 4: Combined Filters -->
           <div v-else-if="testStep === 4" class="test-step">
             <h4>Test 4: Combined Filters</h4>
-            <p>Select a <strong>Genre</strong> (e.g., "sci-fi") AND enter a <strong>Year</strong> (e.g., 1999).</p>
+            <p>Select a <strong>Genre</strong> (for example, "Sci-Fi") AND enter a <strong>Year</strong> (e.g., 1999).</p>
             <p class="observation"><strong>Observe:</strong> Multiple filters combine with AND logic. The <code>@Indexed</code> fields (year, genres) enable exact match filtering, while <code>@Searchable</code> fields enable full-text search. You can mix both!</p>
             <button @click="completeStep(4)" class="btn btn-primary">Completed - Next Test</button>
           </div>
@@ -165,7 +165,7 @@
 </template>
 
 <script>
-import { getBasePath } from "../utils/basePath";
+import { getApiUrl, getRedisInsightUrl } from "../utils/basePath";
 
 const STORAGE_KEY = 'fullTextSearchWorkshop';
 
@@ -185,11 +185,8 @@ export default {
     };
   },
   computed: {
-    basePath() {
-      return getBasePath();
-    },
     redisInsightUrl() {
-      return 'http://localhost:5540';
+      return getRedisInsightUrl();
     }
   },
   async mounted() {
@@ -227,7 +224,7 @@ export default {
     },
     async fetchGenres() {
       try {
-        const response = await fetch(`${this.basePath}/api/genres`);
+        const response = await fetch(getApiUrl('/api/genres'));
         if (response.ok) {
           const data = await response.json();
           this.availableGenres = data.genres || [];
@@ -255,7 +252,7 @@ export default {
         if (this.searchParams.actors) params.append('cast', this.searchParams.actors);
         if (this.searchParams.year) params.append('year', this.searchParams.year);
         if (this.searchParams.genres) params.append('genres', this.searchParams.genres);
-        const response = await fetch(`${this.basePath}/api/search?${params}`);
+        const response = await fetch(getApiUrl(`/api/search?${params}`));
         if (response.ok) {
           const data = await response.json();
           this.movies = data.movies || [];
@@ -280,7 +277,7 @@ export default {
       }
       this.restartingLab = true;
       try {
-        const response = await fetch(`${this.basePath}/api/editor/restore`, {
+        const response = await fetch(getApiUrl('/api/editor/restore'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           credentials: 'include'

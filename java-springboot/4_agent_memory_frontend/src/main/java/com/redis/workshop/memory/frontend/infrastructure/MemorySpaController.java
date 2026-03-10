@@ -10,18 +10,8 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class MemorySpaController {
 
-    @GetMapping("/")
-    public String home() {
-        return "forward:/index.html";
-    }
-
-    @GetMapping("/demo")
-    public String demo() {
-        return "forward:/index.html";
-    }
-
-    @GetMapping("/learn")
-    public String learn() {
+    @GetMapping({"/", "/challenges", "/demo", "/learn"})
+    public String app() {
         return "forward:/index.html";
     }
 }

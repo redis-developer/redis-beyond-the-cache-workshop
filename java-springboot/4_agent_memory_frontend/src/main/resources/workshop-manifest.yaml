@@ -1,0 +1,13 @@
+moduleName: 4_agent_memory
+title: Agent Memory Workshop
+description: Implement Agent Memory Server SDK calls and Spring AI memory advisors.
+editableFiles:
+  - name: AgentMemoryService.java
+    path: src/main/java/com/redis/workshop/memory/service/AgentMemoryService.java
+    resetContentLocation: workshop/AgentMemoryService.reset.java
+  - name: AmsChatMemoryRepository.java
+    path: src/main/java/com/redis/workshop/memory/infrastructure/AmsChatMemoryRepository.java
+    resetContentLocation: workshop/AmsChatMemoryRepository.reset.java
+  - name: ChatService.java
+    path: src/main/java/com/redis/workshop/memory/service/ChatService.java
+    resetContentLocation: workshop/ChatService.reset.java

@@ -1,0 +1,13 @@
+moduleName: 1_session_management
+title: Distributed Session Management with Redis
+description: Learn how to use Redis for distributed session management in Spring Boot applications
+editableFiles:
+  - name: build.gradle.kts
+    path: build.gradle.kts
+    resetContentLocation: reset/build.gradle.kts
+  - name: application.properties
+    path: src/main/resources/application.properties
+    resetContentLocation: reset/application.properties
+  - name: SecurityConfig.java
+    path: src/main/java/com/redis/workshop/session/config/SecurityConfig.java
+    resetContentLocation: reset/SecurityConfig.java

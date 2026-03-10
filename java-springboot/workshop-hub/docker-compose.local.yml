@@ -1,7 +1,7 @@
 ---
 services:
   redis:
-    image: "redis:latest"
+    image: "redis/redis-stack-server:latest"
     ports:
     - "6379:6379"
     healthcheck:
@@ -17,6 +17,10 @@ services:
     profiles:
     - "infrastructure"
     - "workshops"
+    - "workshop-1_session_management"
+    - "workshop-2_full_text_search"
+    - "workshop-3_distributed_locks"
+    - "workshop-4_agent_memory"
   redis-insight:
     image: "redis/redisinsight:latest"
     ports:
@@ -85,7 +89,6 @@ services:
     - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/1_session_management:/workshop-sources"
     depends_on:
     - "session-management-api"
-    - "redis"
     profiles:
     - "workshops"
     - "workshop-1_session_management"
@@ -131,7 +134,6 @@ services:
     - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/2_full_text_search:/workshop-sources"
     depends_on:
     - "full-text-search-api"
-    - "redis"
     profiles:
     - "workshops"
     - "workshop-2_full_text_search"
@@ -175,17 +177,12 @@ services:
     - "SPRING_REDIS_HOST=redis"
     - "SPRING_REDIS_PORT=6379"
     - "WORKSHOP_BASE_PATH=/workshop-sources"
-    - "SPRING_DATASOURCE_URL=jdbc:postgresql://postgres:5432/workshop"
-    - "SPRING_DATASOURCE_USERNAME=workshop"
-    - "SPRING_DATASOURCE_PASSWORD=workshop"
     - "SERVER_PORT=8082"
     - "WORKSHOP_BACKEND_URL=http://distributed-locks-api:18082"
     volumes:
     - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/3_distributed_locks:/workshop-sources"
     depends_on:
     - "distributed-locks-api"
-    - "redis"
-    - "postgres"
     profiles:
     - "workshops"
     - "workshop-3_distributed_locks"
@@ -203,11 +200,13 @@ services:
     - "SPRING_REDIS_HOST=redis"
     - "SPRING_REDIS_PORT=6379"
     - "WORKSHOP_BASE_PATH=/workshop-sources"
+    - "AGENT_MEMORY_SERVER_URL=http://agent-memory-server:8000"
     - "SERVER_PORT=18083"
     volumes:
     - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/4_agent_memory:/workshop-sources"
     depends_on:
     - "redis"
+    - "agent-memory-server"
     profiles:
     - "workshops"
     - "workshop-4_agent_memory"
@@ -231,7 +230,46 @@ services:
     - "${WORKSHOP_ROOT_PATH:-.}/java-springboot/4_agent_memory:/workshop-sources"
     depends_on:
     - "agent-memory-api"
+    profiles:
+    - "workshops"
+    - "workshop-4_agent_memory"
+  agent-memory-server:
+    image: "redislabs/agent-memory-server:latest"
+    ports:
+    - "8000:8000"
+    environment:
+    - "REDIS_URL=redis://redis:6379"
+    - "PORT=8000"
+    - "GENERATION_MODEL=${GENERATION_MODEL:-gpt-4o-mini}"
+    - "EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}"
+    - "OPENAI_API_KEY=${OPENAI_API_KEY:-}"
+    - "ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}"
+    - "LONG_TERM_MEMORY=True"
+    - "ENABLE_TOPIC_EXTRACTION=True"
+    - "SUMMARIZATION_THRESHOLD=0.7"
+    - "DEDUPLICATION_DISTANCE_THRESHOLD=0.35"
+    - "ENABLE_NER=True"
+    - "DISABLE_AUTH=true"
+    depends_on:
     - "redis"
+    command:
+    - "agent-memory"
+    - "api"
+    - "--host"
+    - "0.0.0.0"
+    - "--port"
+    - "8000"
+    - "--task-backend=asyncio"
+    healthcheck:
+      test:
+      - "CMD"
+      - "curl"
+      - "-f"
+      - "http://localhost:8000/v1/health"
+      interval: "10s"
+      timeout: "5s"
+      retries: 5
+      start_period: "10s"
     profiles:
     - "workshops"
     - "workshop-4_agent_memory"

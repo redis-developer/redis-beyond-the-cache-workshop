@@ -48,47 +48,16 @@ Enter your OpenAI API key when prompted.
 
 ## Your Tasks
 
-### 1. `AmsChatMemoryRepository.java` - Implement AMS client calls
+Work through the same three files shown in the in-browser editor:
 
-```java
-// Save working memory
-client.workingMemory().appendMessagesToWorkingMemory(
-    sessionId, messages, namespace, model, null, userId);
+1. `AgentMemoryService.java`
+   Implement the core AMS SDK calls for working memory, long-term memory, and the health check.
+2. `AmsChatMemoryRepository.java`
+   Bridge Spring AI conversation state to AMS, including context percentage lookup, conversation loading, deduplicated writes, and TTL setup.
+3. `ChatService.java`
+   Pass the conversation ID into the advisor chain and enable the working-memory and long-term-memory advisors used by the chat demo.
 
-// Get working memory
-return client.workingMemory()
-    .getWorkingMemory(sessionId, userId, namespace, model, windowSize);
-
-// Store long-term memory
-MemoryRecord record = MemoryRecord.builder()
-    .text(text)
-    .userId(userId)
-    .memoryType(MemoryType.SEMANTIC)
-    .build();
-client.longTermMemory().createLongTermMemories(List.of(record));
-
-// Search memories
-SearchRequest request = SearchRequest.builder()
-    .text(query)
-    .userId(userId)
-    .limit(5)
-    .build();
-return client.longTermMemory().searchLongTermMemory(request);
-```
-
-### 2. `ChatService.java` - Wire up the advisor
-
-```java
-// Build system prompt with retrieved memories
-String systemPrompt = buildSystemPromptWithMemories(userId, userMessage);
-
-// Call LLM with memory context
-ChatResponse response = chatClient.prompt()
-    .system(systemPrompt)
-    .user(userMessage)
-    .call()
-    .chatResponse();
-```
+The editor guidance follows this order: SDK client setup first, repository integration second, advisor wiring last.
 
 ## Memory Types
 
@@ -133,4 +102,3 @@ docker compose -f docker-compose.local.yml --profile workshop-4_agent_memory dow
 - [Agent Memory Server Docs](https://redis.github.io/agent-memory-server/)
 - [Java SDK Guide](https://redis.github.io/agent-memory-server/api/sdks/java-sdk/)
 - [Redis Vector Search](https://redis.io/docs/latest/develop/interact/search-and-query/query/vector-search/)
-

@@ -270,7 +270,8 @@
 </template>
 
 <script>
-import { WorkshopEditorLayout, getBasePath } from '../../../../../workshop-frontend-shared/src/index.js';
+import { getApiUrl, getWorkshopHubUrl } from '../utils/basePath';
+import { WorkshopEditorLayout } from '../utils/components';
 
 const STORAGE_KEY = 'fullTextSearchWorkshop';
 
@@ -308,11 +309,8 @@ export default {
     await this.checkWorkshopCompletion();
   },
   computed: {
-    basePath() { return getBasePath(); },
     workshopHubUrl() {
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      return `${protocol}//${hostname}:9000`;
+      return getWorkshopHubUrl();
     }
   },
   methods: {
@@ -342,7 +340,7 @@ export default {
     },
     async fetchFileContent(fileName) {
       try {
-        const url = `${this.basePath}/api/editor/file/${fileName}`;
+        const url = getApiUrl(`/api/editor/file/${fileName}`);
         const response = await fetch(url, { credentials: 'include' });
         const data = await response.json();
         return data.content || '';

@@ -124,7 +124,7 @@
 
       <h4>Step 4: Restart and Verify</h4>
       <ol start="11">
-        <li>Go to the <a :href="workshopHubUrl" target="_blank" class="link">Workshop Hub</a> and rebuild & restart the app</li>
+        <li>Go to the <a :href="workshopHubUrl" target="_blank" class="link">Workshop Hub</a> and rebuild and restart the workshop backend</li>
         <li><router-link to="/welcome" class="link">Return to workshop</router-link> to verify!</li>
       </ol>
     </template>
@@ -133,6 +133,7 @@
 
 <script>
 import { WorkshopEditorLayout } from '../../../../../workshop-frontend-shared/src/index.js';
+import { getWorkshopHubUrl } from '../utils/basePath';
 
 export default {
   name: 'SessionEditor',
@@ -150,7 +151,7 @@ export default {
   },
   computed: {
     workshopHubUrl() {
-      return this.$refs.layout?.workshopHubUrl || `${window.location.protocol}//${window.location.hostname}:9000`;
+      return this.$refs.layout?.workshopHubUrl || getWorkshopHubUrl();
     }
   },
   methods: {

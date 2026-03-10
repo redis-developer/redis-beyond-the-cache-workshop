@@ -6,7 +6,12 @@
 // import '@redis-workshop/shared/styles/dark-theme.css'
 
 // Utilities
-export { getBasePath, getApiUrl } from './utils/basePath.js';
+export {
+  getBasePath,
+  getApiUrl,
+  getWorkshopHubUrl,
+  getRedisInsightUrl
+} from './utils/basePath.js';
 
 // Components - Editor
 export { default as CodeEditor } from './components/CodeEditor.vue';
@@ -20,4 +25,3 @@ export { default as WorkshopHubLink } from './components/WorkshopHubLink.vue';
 export { default as WorkshopHeader } from './components/WorkshopHeader.vue';
 
 export default {};
-

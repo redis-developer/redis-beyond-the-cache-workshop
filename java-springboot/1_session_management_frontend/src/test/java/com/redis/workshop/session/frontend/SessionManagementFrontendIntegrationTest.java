@@ -6,10 +6,13 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.redirectedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @SpringBootTest(
@@ -28,7 +31,28 @@ class SessionManagementFrontendIntegrationTest {
         mockMvc.perform(get("/api/editor/files"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$", hasKey("files")))
-            .andExpect(jsonPath("$", hasKey("workshopTitle")));
+            .andExpect(jsonPath("$", hasKey("workshopTitle")))
+            .andExpect(jsonPath("$.workshopTitle").value("Distributed Session Management with Redis"))
+            .andExpect(jsonPath("$.files[*].name", hasItem("SecurityConfig.java")));
+    }
+
+    @Test
+    void spaRoutesAreHandledByFrontendModule() throws Exception {
+        mockMvc.perform(get("/"))
+            .andExpect(status().is3xxRedirection())
+            .andExpect(redirectedUrl("/login"));
+
+        mockMvc.perform(get("/login"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/welcome"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/editor"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
     }
 
     @Test

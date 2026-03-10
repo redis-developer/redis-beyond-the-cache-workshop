@@ -67,6 +67,7 @@ mkdir -p "$BACKEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME"
 mkdir -p "$BACKEND_MODULE_DIR/src/main/resources"
 mkdir -p "$FRONTEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/frontend/infrastructure"
 mkdir -p "$FRONTEND_MODULE_DIR/src/main/resources/static"
+mkdir -p "$FRONTEND_MODULE_DIR/src/main/resources/workshop-manifest-reset"
 mkdir -p "$FRONTEND_MODULE_DIR/frontend/public"
 mkdir -p "$FRONTEND_MODULE_DIR/frontend/src/assets/logo"
 mkdir -p "$FRONTEND_MODULE_DIR/frontend/src/router"
@@ -250,105 +251,99 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class ${PASCAL_CASE}SpaController {
 
-    @GetMapping({"/", "/editor"})
+    @GetMapping("/")
     public String app() {
         return "forward:/index.html";
     }
 }
 EOF
 
-cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/frontend/infrastructure/${PASCAL_CASE}WorkshopConfig.java"
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/frontend/infrastructure/${PASCAL_CASE}WorkshopManifestConfiguration.java"
 package com.redis.workshop.$PACKAGE_NAME.frontend.infrastructure;
 
 import com.redis.workshop.infrastructure.WorkshopConfig;
-import org.springframework.stereotype.Component;
+import com.redis.workshop.infrastructure.WorkshopManifestLoader;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
 
-import java.util.Map;
+@Configuration
+public class ${PASCAL_CASE}WorkshopManifestConfiguration {
 
-@Component
-public class ${PASCAL_CASE}WorkshopConfig implements WorkshopConfig {
-
-    private static final Map<String, String> EDITABLE_FILES = Map.ofEntries(
-        Map.entry("build.gradle.kts", "build.gradle.kts"),
-        Map.entry("application.properties", "src/main/resources/application.properties"),
-        Map.entry("${PASCAL_CASE}Application.java", "src/main/java/com/redis/workshop/$PACKAGE_NAME/${PASCAL_CASE}Application.java")
-    );
-
-    private static final Map<String, String> ORIGINAL_CONTENTS = Map.ofEntries(
-        Map.entry("build.gradle.kts", """
-            plugins {
-                java
-                id("org.springframework.boot")
-                id("io.spring.dependency-management")
-            }
-
-            group = "com.redis.workshop"
-            version = "0.0.1-SNAPSHOT"
-
-            java {
-                toolchain {
-                    languageVersion = JavaLanguageVersion.of(21)
-                }
-            }
-
-            repositories {
-                mavenCentral()
-            }
-
-            dependencies {
-                implementation("org.springframework.boot:spring-boot-starter-web")
-
-                testImplementation("org.springframework.boot:spring-boot-starter-test")
-                testRuntimeOnly("org.junit.platform:junit-platform-launcher")
-            }
-
-            tasks.withType<Test> {
-                useJUnitPlatform()
-            }
-            """),
-        Map.entry("application.properties", """
-            spring.application.name=$SERVICE_NAME
-            server.port=\${SERVER_PORT:$BACKEND_PORT}
-            """),
-        Map.entry("${PASCAL_CASE}Application.java", """
-            package com.redis.workshop.$PACKAGE_NAME;
-
-            import org.springframework.boot.SpringApplication;
-            import org.springframework.boot.autoconfigure.SpringBootApplication;
-
-            @SpringBootApplication
-            public class ${PASCAL_CASE}Application {
-
-                public static void main(String[] args) {
-                    SpringApplication.run(${PASCAL_CASE}Application.class, args);
-                }
-            }
-            """)
-    );
-
-    @Override
-    public Map<String, String> getEditableFiles() {
-        return EDITABLE_FILES;
+    @Bean
+    @ConditionalOnMissingBean(WorkshopConfig.class)
+    WorkshopConfig workshopConfig(WorkshopManifestLoader workshopManifestLoader) {
+        return workshopManifestLoader.loadWorkshopConfig()
+            .orElseThrow(() -> new IllegalStateException("Expected workshop-manifest.yaml to be available"));
     }
+}
+EOF
 
-    @Override
-    public String getOriginalContent(String fileName) {
-        return ORIGINAL_CONTENTS.get(fileName);
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-manifest.yaml"
+moduleName: $ID
+title: $TITLE
+description: >-
+  TODO: Describe the workshop outcomes.
+editableFiles:
+  - name: build.gradle.kts
+    path: build.gradle.kts
+    resetContentLocation: workshop-manifest-reset/build.gradle.kts
+  - name: application.properties
+    path: src/main/resources/application.properties
+    resetContentLocation: workshop-manifest-reset/application.properties
+  - name: ${PASCAL_CASE}Application.java
+    path: src/main/java/com/redis/workshop/$PACKAGE_NAME/${PASCAL_CASE}Application.java
+    resetContentLocation: workshop-manifest-reset/${PASCAL_CASE}Application.java
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-manifest-reset/build.gradle.kts"
+plugins {
+    java
+    id("org.springframework.boot")
+    id("io.spring.dependency-management")
+}
+
+group = "com.redis.workshop"
+version = "0.0.1-SNAPSHOT"
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(21)
     }
+}
 
-    @Override
-    public String getModuleName() {
-        return "$ID";
-    }
+repositories {
+    mavenCentral()
+}
 
-    @Override
-    public String getWorkshopTitle() {
-        return "$TITLE";
-    }
+dependencies {
+    implementation("org.springframework.boot:spring-boot-starter-web")
 
-    @Override
-    public String getWorkshopDescription() {
-        return "TODO: Describe the workshop outcomes.";
+    testImplementation("org.springframework.boot:spring-boot-starter-test")
+    testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+}
+
+tasks.withType<Test> {
+    useJUnitPlatform()
+}
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-manifest-reset/application.properties"
+spring.application.name=$SERVICE_NAME
+server.port=\${SERVER_PORT:$BACKEND_PORT}
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-manifest-reset/${PASCAL_CASE}Application.java"
+package com.redis.workshop.$PACKAGE_NAME;
+
+import org.springframework.boot.SpringApplication;
+import org.springframework.boot.autoconfigure.SpringBootApplication;
+
+@SpringBootApplication
+public class ${PASCAL_CASE}Application {
+
+    public static void main(String[] args) {
+        SpringApplication.run(${PASCAL_CASE}Application.class, args);
     }
 }
 EOF
@@ -572,7 +567,12 @@ export default createRouter({
 EOF
 
 cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/utils/basePath.js"
-export { getBasePath, getApiUrl } from '../../../../../workshop-frontend-shared/src/utils/basePath.js'
+export {
+  getBasePath,
+  getApiUrl,
+  getWorkshopHubUrl,
+  getRedisInsightUrl
+} from '../../../../../workshop-frontend-shared/src/utils/basePath.js'
 EOF
 
 cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/utils/components.js"
@@ -595,13 +595,14 @@ cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/src/views/${PASCAL_CASE}Home.vue"
 
 <script>
 import { WorkshopHeader } from '../utils/components'
+import { getWorkshopHubUrl } from '../utils/basePath'
 
 export default {
   name: '${PASCAL_CASE}Home',
   components: { WorkshopHeader },
   computed: {
     workshopHubUrl() {
-      return window.location.protocol + '//' + window.location.hostname + ':9000'
+      return getWorkshopHubUrl()
     }
   }
 }
@@ -665,13 +666,17 @@ cat <<EOF >> "$REGISTRY_PATH"
     serviceName: $SERVICE_NAME
     port: $FRONTEND_PORT
     url: /workshop/$SERVICE_NAME/
-    dockerfile: java-springboot/$ID/Dockerfile
+    dockerfile: java-springboot/$FRONTEND_MODULE/Dockerfile
     frontendServiceName: $SERVICE_NAME
     frontendPort: $FRONTEND_PORT
     frontendDockerfile: java-springboot/$FRONTEND_MODULE/Dockerfile
     backendServiceName: $BACKEND_SERVICE_NAME
     backendPort: $BACKEND_PORT
     backendDockerfile: java-springboot/$ID/Dockerfile
+    infrastructureDependencies:
+      - redis
+    redisFlavor: standard
+    frontendPrebuild: true
     topics:
       - TODO
 EOF
@@ -688,5 +693,4 @@ Registered:
 Next steps:
 1. Fill in the TODOs in both generated modules.
 2. Run ./java-springboot/gradlew -p java-springboot :workshop-hub:generateCompose
-3. If the hub DinD image should ship this workshop with prebuilt frontend assets, add $FRONTEND_MODULE to java-springboot/workshop-hub/Dockerfile.
 EOF

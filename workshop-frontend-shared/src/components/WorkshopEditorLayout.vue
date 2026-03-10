@@ -27,6 +27,7 @@
 
 <script>
 import CodeEditor from './CodeEditor.vue';
+import { getWorkshopHubUrl } from '../utils/basePath.js';
 
 export default {
   name: 'WorkshopEditorLayout',
@@ -38,9 +39,7 @@ export default {
   emits: ['file-loaded', 'file-saved'],
   computed: {
     workshopHubUrl() {
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      return `${protocol}//${hostname}:9000`;
+      return getWorkshopHubUrl();
     }
   },
   methods: {
@@ -106,4 +105,3 @@ export default {
 @media (max-width: 1024px) { .workshop-panel { width: 300px; } }
 @media (max-width: 768px) { .main-container { flex-direction: column; } .workshop-panel { width: 100%; max-height: 40vh; } }
 </style>
-

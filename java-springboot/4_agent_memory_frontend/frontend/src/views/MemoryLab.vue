@@ -222,7 +222,7 @@ agentMemoryService.putWorkingMemory(sessionId, memory).block();</code></pre>
 
 <script>
 import { WorkshopHeader, WorkshopStageNav } from '../utils/components';
-import { getApiUrl } from '../utils/basePath';
+import { getApiUrl, getWorkshopHubUrl } from '../utils/basePath';
 import { loadProgress, saveProgress } from '../utils/progress';
 
 export default {
@@ -254,7 +254,7 @@ export default {
     };
   },
   computed: {
-    workshopHubUrl() { return window.location.protocol + '//' + window.location.hostname + ':9000'; }
+    workshopHubUrl() { return getWorkshopHubUrl(); }
   },
   mounted() {
     const progress = loadProgress();

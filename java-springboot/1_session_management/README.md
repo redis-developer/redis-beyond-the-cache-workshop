@@ -11,15 +11,14 @@ Learn how to solve the problem of lost sessions using Redis and Spring Session.
 ## Run with Docker
 
 ```bash
-# From repository root
 cd java-springboot/workshop-hub
 
-# Start Redis + Workshop
+# Start the hub, Redis, and workshop 1
 docker compose -f docker-compose.local.yml --profile infrastructure up -d
 docker compose -f docker-compose.local.yml --profile workshop-1_session_management up -d
 ```
 
-Open **http://localhost:8080**
+Open **http://localhost:9000** and launch the **Session Management** workshop from the Hub.
 
 Login: `user` / `password`
 
@@ -27,19 +26,25 @@ Login: `user` / `password`
 
 | Stage | What You Do |
 |-------|-------------|
-| 1. See the Problem | Login, restart app, observe session loss |
-| 2. Fix It | Enable Redis session in 3 files |
-| 3. Verify | Restart app, session persists |
+| 1. See the Problem | Login, restart the workshop backend, observe session loss |
+| 2. Fix It | Update the 3 editable files listed below |
+| 3. Verify | Rebuild and restart the workshop backend, then confirm the session survives |
 
-## Your Tasks
+## Editable Files And Tasks
 
-### 1. `build.gradle.kts` - Uncomment dependencies
+### 1. `build.gradle.kts`
+
+Uncomment the Redis dependencies:
+
 ```kotlin
 implementation("org.springframework.boot:spring-boot-starter-data-redis")
 implementation("org.springframework.session:spring-session-data-redis")
 ```
 
-### 2. `application.properties` - Enable Redis store
+### 2. `src/main/resources/application.properties`
+
+Enable Redis-backed session storage:
+
 ```properties
 spring.session.store-type=redis
 spring.session.redis.namespace=spring:session
@@ -47,16 +52,27 @@ spring.session.redis.flush-mode=immediate
 spring.session.redis.repository-type=default
 ```
 
-### 3. `RedisSessionConfig.java` - Uncomment annotations
-```java
-@Configuration
-@EnableRedisHttpSession(maxInactiveIntervalInSeconds = 1800)
-```
+### 3. `src/main/java/com/redis/workshop/session/config/SecurityConfig.java`
 
-## View Sessions in Redis Insight
+Uncomment the `HttpSessionSecurityContextRepository` import, the `SecurityContextRepository` bean, and the `securityContext(...)` filter-chain wiring.
 
-Open **http://localhost:5540** and search for:
-```
+## Verify The Fix
+
+1. Log in and note the current session ID.
+2. Restart the workshop backend from the Hub without rebuilding and confirm the session is lost.
+3. Make the three code changes above.
+4. Rebuild and restart the workshop backend from the Hub.
+5. Refresh the workshop and confirm you stay logged in with the same session ID.
+
+## View Sessions In Redis Insight
+
+Use the **Open Redis Insight** action inside the workshop, or open **http://localhost:9000/workshop/redis-insight/** when running through the Hub.
+
+If you are running the workshop frontend directly instead of through the Hub, use **http://localhost:5540**.
+
+Search for:
+
+```text
 spring:session:*
 ```
 
@@ -70,4 +86,3 @@ docker compose -f docker-compose.local.yml --profile workshop-1_session_manageme
 
 - [Spring Session Docs](https://spring.io/projects/spring-session)
 - [Redis Session Management](https://redis.io/docs/manual/session-management/)
-

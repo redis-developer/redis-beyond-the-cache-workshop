@@ -463,13 +463,14 @@ MemoryRecordResults results = client.longTermMemory()
 
 <script>
 import { WorkshopHeader } from '../utils/components';
+import { getWorkshopHubUrl } from '../utils/basePath';
 
 export default {
   name: 'MemoryLearn',
   components: { WorkshopHeader },
   computed: {
     workshopHubUrl() {
-      return window.location.protocol + '//' + window.location.hostname + ':9000';
+      return getWorkshopHubUrl();
     }
   }
 };
@@ -598,4 +599,3 @@ h1 { color: var(--color-text); margin-bottom: var(--spacing-4); }
   .toc ul { flex-direction: column; }
 }
 </style>
-

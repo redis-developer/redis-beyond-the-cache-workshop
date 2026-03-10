@@ -16,6 +16,12 @@
 
         <p class="intro"><strong>Option 2: Edit files in your IDE</strong></p>
 
+        <p class="intro">
+          Follow the same path shown in the workshop UI: update <code>build.gradle.kts</code>, then
+          <code>application.properties</code>, then <code>LockManager.java</code>, review
+          <code>PurchaseService.java</code>, rebuild from the Workshop Hub, and validate in the demo.
+        </p>
+
         <div class="impl-step">
           <h4>Step 1: Add Dependencies</h4>
           <p>Open <code>build.gradle.kts</code> and uncomment the Redis and Redisson dependencies:</p>
@@ -118,6 +124,7 @@ try {
 </template>
 
 <script>
+import { getWorkshopHubUrl } from '../utils/basePath';
 import { fetchLockStatus, updateLockTypeProgress } from '../utils/locksWorkshop';
 
 export default {
@@ -131,9 +138,7 @@ export default {
   },
   computed: {
     workshopHubUrl() {
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      return `${protocol}//${hostname}:9000`;
+      return getWorkshopHubUrl();
     }
   },
   mounted() {
@@ -272,4 +277,3 @@ export default {
 .btn-secondary:hover { background: var(--color-border); }
 .btn-disabled { background: var(--color-dark-800); color: var(--color-text-muted); cursor: not-allowed; }
 </style>
-

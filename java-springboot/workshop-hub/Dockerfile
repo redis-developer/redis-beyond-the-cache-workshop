@@ -38,68 +38,27 @@ COPY frontend/package*.json /workspace/frontend/
 RUN --mount=type=cache,target=/root/.npm \
     cd /workspace/frontend && npm install
 
-# Copy workshop module frontend package files and install dependencies
-COPY java-springboot/1_session_management_frontend/frontend/package*.json 1_session_management_frontend/frontend/
-COPY java-springboot/1_session_management_frontend/frontend/babel.config.js 1_session_management_frontend/frontend/
-COPY java-springboot/2_full_text_search_frontend/frontend/package*.json 2_full_text_search_frontend/frontend/
-COPY java-springboot/2_full_text_search_frontend/frontend/babel.config.js 2_full_text_search_frontend/frontend/
-COPY java-springboot/3_distributed_locks_frontend/frontend/package*.json 3_distributed_locks_frontend/frontend/
-COPY java-springboot/3_distributed_locks_frontend/frontend/babel.config.js 3_distributed_locks_frontend/frontend/
-COPY java-springboot/4_agent_memory_frontend/frontend/package*.json 4_agent_memory_frontend/frontend/
-COPY java-springboot/4_agent_memory_frontend/frontend/babel.config.js 4_agent_memory_frontend/frontend/
-RUN --mount=type=cache,target=/root/.npm \
-    cd 1_session_management_frontend/frontend && npm install
-RUN --mount=type=cache,target=/root/.npm \
-    cd 2_full_text_search_frontend/frontend && npm install
-RUN --mount=type=cache,target=/root/.npm \
-    cd 3_distributed_locks_frontend/frontend && npm install
-RUN --mount=type=cache,target=/root/.npm \
-    cd 4_agent_memory_frontend/frontend && npm install
-
-# Copy frontend source and build
+# Copy source tree and workshop registry for frontend discovery/build.
+COPY workshops.yaml /workspace/workshops.yaml
 COPY frontend/src /workspace/frontend/src
 COPY frontend/public /workspace/frontend/public
 COPY frontend/vue.config.js /workspace/frontend/
+COPY java-springboot /workspace/java-springboot
 
-# Build frontend
+# Prebuild workshop frontends flagged in workshops.yaml and stage their static assets.
+RUN --mount=type=cache,target=/root/.npm \
+    chmod +x /workspace/java-springboot/workshop-hub/scripts/prebuild-workshop-frontends.sh \
+    && /workspace/java-springboot/workshop-hub/scripts/prebuild-workshop-frontends.sh \
+        /workspace/workshops.yaml \
+        /workspace \
+        /workspace/prebuilt-workshops
+
+# Build hub frontend and copy it into Spring Boot static resources.
 RUN --mount=type=cache,target=/root/.npm \
     mkdir -p /workspace/java-springboot/workshop-hub/src/main/resources/static/vue \
     && cd /workspace/frontend && npm run build
-
-# Copy frontend build to Spring Boot static resources
 RUN mkdir -p workshop-hub/src/main/resources/static/vue \
     && cp -r /workspace/frontend/dist/* workshop-hub/src/main/resources/static/vue/
-
-# Copy workshop module frontend sources and build assets
-COPY java-springboot/1_session_management_frontend/src 1_session_management_frontend/src
-COPY java-springboot/1_session_management_frontend/frontend/src 1_session_management_frontend/frontend/src
-COPY java-springboot/1_session_management_frontend/frontend/public 1_session_management_frontend/frontend/public
-COPY java-springboot/1_session_management_frontend/frontend/vue.config.js 1_session_management_frontend/frontend/
-COPY java-springboot/2_full_text_search_frontend/src 2_full_text_search_frontend/src
-COPY java-springboot/2_full_text_search_frontend/frontend/src 2_full_text_search_frontend/frontend/src
-COPY java-springboot/2_full_text_search_frontend/frontend/public 2_full_text_search_frontend/frontend/public
-COPY java-springboot/2_full_text_search_frontend/frontend/vue.config.js 2_full_text_search_frontend/frontend/
-COPY java-springboot/3_distributed_locks_frontend/src 3_distributed_locks_frontend/src
-COPY java-springboot/3_distributed_locks_frontend/frontend/src 3_distributed_locks_frontend/frontend/src
-COPY java-springboot/3_distributed_locks_frontend/frontend/public 3_distributed_locks_frontend/frontend/public
-COPY java-springboot/3_distributed_locks_frontend/frontend/vue.config.js 3_distributed_locks_frontend/frontend/
-COPY java-springboot/4_agent_memory_frontend/src 4_agent_memory_frontend/src
-COPY java-springboot/4_agent_memory_frontend/frontend/src 4_agent_memory_frontend/frontend/src
-COPY java-springboot/4_agent_memory_frontend/frontend/public 4_agent_memory_frontend/frontend/public
-COPY java-springboot/4_agent_memory_frontend/frontend/vue.config.js 4_agent_memory_frontend/frontend/
-ENV VUE_APP_BASE_PATH=/
-RUN --mount=type=cache,target=/root/.npm \
-    cd 1_session_management_frontend/frontend && npm run build
-RUN --mount=type=cache,target=/root/.npm \
-    cd 2_full_text_search_frontend/frontend && npm run build
-RUN --mount=type=cache,target=/root/.npm \
-    cd 3_distributed_locks_frontend/frontend && npm run build
-RUN --mount=type=cache,target=/root/.npm \
-    cd 4_agent_memory_frontend/frontend && npm run build
-
-# Copy source code
-COPY java-springboot/workshop-hub/src workshop-hub/src
-COPY java-springboot/workshop-infrastructure/src workshop-infrastructure/src
 
 # Build the application
 RUN --mount=type=cache,target=/root/.gradle \
@@ -124,11 +83,8 @@ COPY java-springboot/workshop-hub/docker-compose.internal.yml /app/docker-compos
 # Copy all workshop source files (for building workshops inside DinD)
 COPY . /workshops
 
-# Ensure prebuilt workshop frontends are present in the build context
-COPY --from=builder /workspace/java-springboot/1_session_management_frontend/src/main/resources/static /workshops/java-springboot/1_session_management_frontend/src/main/resources/static
-COPY --from=builder /workspace/java-springboot/2_full_text_search_frontend/src/main/resources/static /workshops/java-springboot/2_full_text_search_frontend/src/main/resources/static
-COPY --from=builder /workspace/java-springboot/3_distributed_locks_frontend/src/main/resources/static /workshops/java-springboot/3_distributed_locks_frontend/src/main/resources/static
-COPY --from=builder /workspace/java-springboot/4_agent_memory_frontend/src/main/resources/static /workshops/java-springboot/4_agent_memory_frontend/src/main/resources/static
+# Overlay staged prebuilt workshop frontend assets at their discovered workspace paths.
+COPY --from=builder /workspace/prebuilt-workshops/ /workshops/
 
 # Copy the startup script
 COPY java-springboot/workshop-hub/scripts/entrypoint.sh /entrypoint.sh

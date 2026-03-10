@@ -21,6 +21,7 @@ repositories {
       // Spring Boot dependencies for the infrastructure
       implementation("org.springframework.boot:spring-boot-starter-web")
       implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
+      implementation("com.fasterxml.jackson.dataformat:jackson-dataformat-yaml")
       annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 
       // Make this a library (not a standalone application)

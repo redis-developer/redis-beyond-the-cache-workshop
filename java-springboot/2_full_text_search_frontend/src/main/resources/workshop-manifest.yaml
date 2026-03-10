@@ -1,0 +1,25 @@
+moduleName: 2_full_text_search
+title: Full-Text Search with Redis
+description: Build a Redis-backed movie search app with the SPA, editor, and backend APIs split into separate services.
+editableFiles:
+  - name: build.gradle.kts
+    path: build.gradle.kts
+    resetContentLocation: workshop-manifest-reset/build.gradle.kts
+  - name: application.properties
+    path: src/main/resources/application.properties
+    resetContentLocation: workshop-manifest-reset/application.properties
+  - name: Movie.java
+    path: src/main/java/com/redis/workshop/search/domain/Movie.java
+    resetContentLocation: workshop-manifest-reset/Movie.java
+  - name: FullTextSearchApplication.java
+    path: src/main/java/com/redis/workshop/search/FullTextSearchApplication.java
+    resetContentLocation: workshop-manifest-reset/FullTextSearchApplication.java
+  - name: MovieRepository.java
+    path: src/main/java/com/redis/workshop/search/repository/MovieRepository.java
+    resetContentLocation: workshop-manifest-reset/MovieRepository.java
+  - name: MovieService.java
+    path: src/main/java/com/redis/workshop/search/service/MovieService.java
+    resetContentLocation: workshop-manifest-reset/MovieService.java
+  - name: SearchService.java
+    path: src/main/java/com/redis/workshop/search/service/SearchService.java
+    resetContentLocation: workshop-manifest-reset/SearchService.java

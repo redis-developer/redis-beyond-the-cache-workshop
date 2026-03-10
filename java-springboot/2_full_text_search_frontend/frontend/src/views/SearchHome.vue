@@ -348,7 +348,7 @@ Cast Index (TAG):
 
 <script>
 import axios from "axios";
-import { getBasePath } from "../utils/basePath";
+import { getApiUrl, getWorkshopHubUrl } from "../utils/basePath";
 import { WorkshopModal, WorkshopStageNav, WorkshopHeader } from "../utils/components";
 
 export default {
@@ -386,13 +386,8 @@ export default {
     this.loadGenres();
   },
   computed: {
-    basePath() {
-      return getBasePath();
-    },
     workshopHubUrl() {
-      const protocol = window.location.protocol;
-      const hostname = window.location.hostname;
-      return `${protocol}//${hostname}:9000`;
+      return getWorkshopHubUrl();
     }
   },
   methods: {
@@ -413,7 +408,7 @@ export default {
     },
     async loadGenres() {
       try {
-        const response = await axios.get(`${this.basePath}/api/genres`);
+        const response = await axios.get(getApiUrl('/api/genres'));
         const genresData = response.data.genres || response.data || [];
         this.genres = Array.isArray(genresData) ? genresData : [];
       } catch (error) {
@@ -438,7 +433,7 @@ export default {
           genres: genres.join(","),
         };
 
-        const response = await axios.get(`${this.basePath}/api/search`, { params });
+        const response = await axios.get(getApiUrl('/api/search'), { params });
         this.searchResults = response.data;
       } catch (error) {
         console.error("Error searching movies:", error);
@@ -467,7 +462,7 @@ export default {
       this.showModal('confirm', 'Restart Lab', 'Are you sure you want to restart the lab? This will restore all files to their original state and reset your progress. You will need to restart the application after this.', async () => {
         this.restartingLab = true;
         try {
-          const response = await axios.post(`${this.basePath}/api/editor/restore`);
+          const response = await axios.post(getApiUrl('/api/editor/restore'));
 
           if (response.data.success) {
             this.currentStage = 1;

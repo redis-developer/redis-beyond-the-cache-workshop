@@ -18,6 +18,10 @@ workshops:
     backendServiceName: session-management-api
     backendPort: 18080
     backendDockerfile: java-springboot/1_session_management/Dockerfile
+    infrastructureDependencies:
+      - redis
+    redisFlavor: standard
+    frontendPrebuild: true
     topics:
       - Sessions
       - Spring Session
@@ -40,6 +44,10 @@ workshops:
     backendServiceName: full-text-search-api
     backendPort: 18081
     backendDockerfile: java-springboot/2_full_text_search/Dockerfile
+    infrastructureDependencies:
+      - redis
+    redisFlavor: stack
+    frontendPrebuild: true
     topics:
       - Query Engine
       - Full-Text Search
@@ -62,6 +70,16 @@ workshops:
     backendServiceName: distributed-locks-api
     backendPort: 18082
     backendDockerfile: java-springboot/3_distributed_locks/Dockerfile
+    infrastructureDependencies:
+      - redis
+      - postgres
+    envOverrides:
+      backend:
+        SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workshop
+        SPRING_DATASOURCE_USERNAME: workshop
+        SPRING_DATASOURCE_PASSWORD: workshop
+    redisFlavor: standard
+    frontendPrebuild: true
     topics:
       - Distributed Locks
       - Concurrency
@@ -85,6 +103,50 @@ workshops:
     backendServiceName: agent-memory-api
     backendPort: 18083
     backendDockerfile: java-springboot/4_agent_memory/Dockerfile
+    infrastructureDependencies:
+      - redis
+    sidecars:
+      - serviceName: agent-memory-server
+        image: redislabs/agent-memory-server:latest
+        port: 8000
+        env:
+          REDIS_URL: redis://redis:6379
+          PORT: "8000"
+          GENERATION_MODEL: ${GENERATION_MODEL:-gpt-4o-mini}
+          EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+          OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+          ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+          LONG_TERM_MEMORY: "True"
+          ENABLE_TOPIC_EXTRACTION: "True"
+          SUMMARIZATION_THRESHOLD: "0.7"
+          DEDUPLICATION_DISTANCE_THRESHOLD: "0.35"
+          ENABLE_NER: "True"
+          DISABLE_AUTH: "true"
+        dependsOn:
+          - redis
+        command:
+          - agent-memory
+          - api
+          - --host
+          - 0.0.0.0
+          - --port
+          - "8000"
+          - --task-backend=asyncio
+        healthcheck:
+          test:
+            - CMD
+            - curl
+            - -f
+            - http://localhost:8000/v1/health
+          interval: 10s
+          timeout: 5s
+          retries: 5
+          startPeriod: 10s
+    envOverrides:
+      backend:
+        AGENT_MEMORY_SERVER_URL: http://agent-memory-server:8000
+    redisFlavor: stack
+    frontendPrebuild: true
     topics:
       - AI Agents
       - Memory Management
