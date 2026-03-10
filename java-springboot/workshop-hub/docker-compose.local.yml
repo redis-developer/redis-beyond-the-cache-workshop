@@ -69,7 +69,7 @@ services:
   session-management:
     build:
       context: "${WORKSHOP_ROOT_PATH:-.}"
-      dockerfile: "java-springboot/1_session_management/Dockerfile"
+      dockerfile: "java-springboot/1_session_management_frontend/Dockerfile"
       args:
       - "SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}"
     ports:
@@ -164,7 +164,7 @@ services:
   distributed-locks:
     build:
       context: "${WORKSHOP_ROOT_PATH:-.}"
-      dockerfile: "java-springboot/3_distributed_locks/Dockerfile"
+      dockerfile: "java-springboot/3_distributed_locks_frontend/Dockerfile"
       args:
       - "SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}"
     ports:
@@ -214,7 +214,7 @@ services:
   agent-memory:
     build:
       context: "${WORKSHOP_ROOT_PATH:-.}"
-      dockerfile: "java-springboot/4_agent_memory/Dockerfile"
+      dockerfile: "java-springboot/4_agent_memory_frontend/Dockerfile"
       args:
       - "SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}"
     ports:

@@ -61,7 +61,7 @@ services:
   session-management:
     build:
       context: "${WORKSHOP_ROOT_PATH:-/workshops}"
-      dockerfile: "java-springboot/1_session_management/Dockerfile"
+      dockerfile: "java-springboot/1_session_management_frontend/Dockerfile"
       args:
       - "VUE_APP_BASE_PATH=/"
       - "SKIP_FRONTEND_BUILD=true"
@@ -154,7 +154,7 @@ services:
   distributed-locks:
     build:
       context: "${WORKSHOP_ROOT_PATH:-/workshops}"
-      dockerfile: "java-springboot/3_distributed_locks/Dockerfile"
+      dockerfile: "java-springboot/3_distributed_locks_frontend/Dockerfile"
       args:
       - "VUE_APP_BASE_PATH=/"
       - "SKIP_FRONTEND_BUILD=true"
@@ -203,7 +203,7 @@ services:
   agent-memory:
     build:
       context: "${WORKSHOP_ROOT_PATH:-/workshops}"
-      dockerfile: "java-springboot/4_agent_memory/Dockerfile"
+      dockerfile: "java-springboot/4_agent_memory_frontend/Dockerfile"
       args:
       - "VUE_APP_BASE_PATH=/"
       - "SKIP_FRONTEND_BUILD=true"

@@ -109,7 +109,7 @@ cd java-springboot
 ./gradlew :1_session_management:bootRun
 
 # Terminal 3: Start Vue dev server
-cd java-springboot/1_session_management/frontend
+cd java-springboot/1_session_management_frontend/frontend
 npm install
 npm run serve
 
@@ -175,4 +175,3 @@ docker build \
   -f java-springboot/1_session_management/Dockerfile \
   .
 ```
-

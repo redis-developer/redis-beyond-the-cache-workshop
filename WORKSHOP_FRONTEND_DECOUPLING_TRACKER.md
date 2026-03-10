@@ -253,10 +253,10 @@ Migrate one non-auth workshop first to de-risk architecture.
 Remove absolute API call assumptions that can break under proxy/base-path conditions.
 
 ### Checklist
-- [ ] Audit all workshop frontend API calls.
-- [ ] Replace direct absolute paths with shared base-path helper where needed.
-- [ ] Confirm no visual/style changes introduced.
-- [ ] Validate workshop routes under hub proxy paths.
+- [x] Audit all workshop frontend API calls.
+- [x] Replace direct absolute paths with shared base-path helper where needed.
+- [x] Confirm no visual/style changes introduced.
+- [x] Validate workshop routes under hub proxy paths.
 
 ### Definition Of Done
 - All workshop frontends are base-path-safe.
@@ -264,9 +264,9 @@ Remove absolute API call assumptions that can break under proxy/base-path condit
 - No UI design regressions.
 
 ### Evidence
-- [ ] Link commit(s):
-- [ ] Test command(s):
-- [ ] Results:
+- [ ] Link commit(s): Not committed yet.
+- [x] Test command(s): `rg -n "/api" java-springboot/*/frontend/src -g '!**/node_modules/**'` for final audit review; `./java-springboot/gradlew -p java-springboot -PskipFrontendBuild=true :3_distributed_locks:test :4_agent_memory:test :workshop-hub:test`
+- [x] Results: Remaining raw `/api/...` call sites in `3_distributed_locks` and `4_agent_memory` were converted to `getApiUrl(...)`; no template/style blocks changed; Gradle validation passed on 2026-03-10.
 
 ### Risks
 - Missed API call sites in workshop-specific utilities/components.
@@ -279,10 +279,10 @@ Remove absolute API call assumptions that can break under proxy/base-path condit
 Migrate remaining workshops to the dual-service structure.
 
 ### Checklist
-- [ ] Migrate `1_session_management` (including login/logout/auth behavior via frontend service).
-- [ ] Migrate `3_distributed_locks`.
-- [ ] Migrate `4_agent_memory`.
-- [ ] Validate workshop-specific dependencies (Redis/Postgres/AMS/OpenAI constraints).
+- [x] Migrate `1_session_management` (including login/logout/auth behavior via frontend service).
+- [x] Migrate `3_distributed_locks`.
+- [x] Migrate `4_agent_memory`.
+- [x] Validate workshop-specific dependencies (Redis/Postgres/AMS/OpenAI constraints).
 
 ### Definition Of Done
 - All workshops run in dual-service mode.
@@ -290,9 +290,9 @@ Migrate remaining workshops to the dual-service structure.
 - Workshop-specific behaviors preserved.
 
 ### Evidence
-- [ ] Link commit(s):
-- [ ] Test command(s):
-- [ ] Results:
+- [ ] Link commit(s): Not committed yet.
+- [x] Test command(s): `./java-springboot/gradlew -p java-springboot -PskipFrontendBuild=true :1_session_management_frontend:test :3_distributed_locks_frontend:test :4_agent_memory_frontend:test :1_session_management:test :3_distributed_locks:test :4_agent_memory:test :workshop-hub:test :workshop-hub:generateCompose`; generated compose audit via `rg -n "1_session_management_frontend|3_distributed_locks_frontend|4_agent_memory_frontend|session-management-api|distributed-locks-api|agent-memory-api" java-springboot/workshop-hub/docker-compose.local.yml java-springboot/workshop-hub/docker-compose.internal.yml`
+- [x] Results: Dedicated frontend modules now exist for all remaining workshops, backend modules no longer host SPA/config classes, session auth/login paths are proxied through the frontend module, and generated compose points each workshop frontend at its matching backend service. Static validation passed on 2026-03-10; full live browser smoke coverage for all three migrated workshops is still recommended.
 
 ### Risks
 - Session workshop auth flow requires careful cookie and redirect handling.
@@ -344,7 +344,7 @@ Values: `PENDING`, `PASS`, `FAIL`.
 | ID | Risk | Impact | Mitigation | Status |
 |---|---|---|---|---|
 | R1 | Auth redirect/cookie issues after split | High | Add explicit auth proxy tests; migrate auth workshop after pilot | OPEN |
-| R2 | Hardcoded `/api` paths in some frontends | High | Phase 5 normalization pass + search-based audit | OPEN |
+| R2 | Hardcoded `/api` paths in some frontends | High | Phase 5 normalization pass + search-based audit | MITIGATED |
 | R3 | Hub status mismatch for dual services | Medium | Aggregate service health into one workshop status | OPEN |
 | R4 | Compose profile complexity growth | Medium | Keep generator as single source of truth + tests | OPEN |
 
@@ -361,3 +361,5 @@ Values: `OPEN`, `MITIGATED`, `ACCEPTED`, `CLOSED`.
 | 2026-03-09 | Phase 2 (Compose + Lifecycle Dual Services) | User | Approved to proceed |
 | 2026-03-09 | Phase 3 (Shared Frontend Runtime Module) | User | Approved to proceed |
 | 2026-03-09 | Phase 4 (Pilot Migration: 2_full_text_search) | User | Approved to proceed |
+| 2026-03-10 | Phase 5 (API Path Normalization) | User | Approved to proceed |
+| 2026-03-10 | Phase 6 (Remaining Workshop Migrations) | User | Approved to proceed |

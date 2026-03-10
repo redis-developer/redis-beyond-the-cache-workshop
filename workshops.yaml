@@ -14,7 +14,7 @@ workshops:
     dockerfile: java-springboot/1_session_management/Dockerfile
     frontendServiceName: session-management
     frontendPort: 8080
-    frontendDockerfile: java-springboot/1_session_management/Dockerfile
+    frontendDockerfile: java-springboot/1_session_management_frontend/Dockerfile
     backendServiceName: session-management-api
     backendPort: 18080
     backendDockerfile: java-springboot/1_session_management/Dockerfile
@@ -58,7 +58,7 @@ workshops:
     dockerfile: java-springboot/3_distributed_locks/Dockerfile
     frontendServiceName: distributed-locks
     frontendPort: 8082
-    frontendDockerfile: java-springboot/3_distributed_locks/Dockerfile
+    frontendDockerfile: java-springboot/3_distributed_locks_frontend/Dockerfile
     backendServiceName: distributed-locks-api
     backendPort: 18082
     backendDockerfile: java-springboot/3_distributed_locks/Dockerfile
@@ -81,7 +81,7 @@ workshops:
     dockerfile: java-springboot/4_agent_memory/Dockerfile
     frontendServiceName: agent-memory
     frontendPort: 8083
-    frontendDockerfile: java-springboot/4_agent_memory/Dockerfile
+    frontendDockerfile: java-springboot/4_agent_memory_frontend/Dockerfile
     backendServiceName: agent-memory-api
     backendPort: 18083
     backendDockerfile: java-springboot/4_agent_memory/Dockerfile
