@@ -68,4 +68,3 @@ public class SearchController {
         return result;
     }
 }
-

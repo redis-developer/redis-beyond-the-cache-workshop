@@ -18,10 +18,7 @@ repositories {
 }
 
 dependencies {
-    implementation(project(":workshop-infrastructure"))
-
     implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
 
     // TODO: Add Redis OM Spring dependency for full-text search
     // implementation("com.redis.om:redis-om-spring:1.0.4")

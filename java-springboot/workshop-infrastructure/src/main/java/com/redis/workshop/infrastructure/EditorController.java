@@ -1,6 +1,8 @@
 package com.redis.workshop.infrastructure;
 
 import org.springframework.web.bind.annotation.*;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -21,13 +23,17 @@ import java.util.stream.Collectors;
  */
 @RestController
 @RequestMapping("/api/editor")
+@ConditionalOnBean(WorkshopConfig.class)
+@ConditionalOnProperty(name = "workshop.backend.url")
 public class EditorController {
 
-    private final WorkshopConfig workshopConfig;
+      private final WorkshopConfig workshopConfig;
+      private final FrontendRuntimeProperties runtimeProperties;
 
-    public EditorController(WorkshopConfig workshopConfig) {
-        this.workshopConfig = workshopConfig;
-    }
+      public EditorController(WorkshopConfig workshopConfig, FrontendRuntimeProperties runtimeProperties) {
+          this.workshopConfig = workshopConfig;
+          this.runtimeProperties = runtimeProperties;
+      }
 
     /**
      * Get list of editable files for this workshop
@@ -143,12 +149,17 @@ public class EditorController {
         return response;
     }
 
-    private Path getFilePath(String fileName) {
-        String relativePath = workshopConfig.getEditableFiles().get(fileName);
-        if (relativePath == null) {
-            return null;
-        }
-        return Paths.get(workshopConfig.getBasePath()).resolve(relativePath);
-    }
-}
-
+      private Path getFilePath(String fileName) {
+          String relativePath = workshopConfig.getEditableFiles().get(fileName);
+          if (relativePath == null) {
+              return null;
+          }
+          Path basePath = runtimeProperties.resolveSourcePath()
+              .orElse(Paths.get(workshopConfig.getBasePath()).toAbsolutePath().normalize());
+          Path resolvedPath = basePath.resolve(relativePath).normalize();
+          if (!resolvedPath.startsWith(basePath)) {
+              return null;
+          }
+          return resolvedPath;
+      }
+  }

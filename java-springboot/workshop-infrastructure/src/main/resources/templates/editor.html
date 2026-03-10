@@ -592,7 +592,7 @@
 
             console.log('Loading file:', fileName);
 
-            fetch(`/editor/file/${fileName}`)
+            fetch(`/api/editor/file/${fileName}`)
                 .then(response => {
                     console.log('Response status:', response.status);
                     return response.json();
@@ -630,7 +630,7 @@
 
             const content = editor.getValue();
 
-            fetch(`/editor/file/${currentFile}`, {
+            fetch(`/api/editor/file/${currentFile}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -657,7 +657,7 @@
 
             const content = editor.getValue();
 
-            fetch(`/editor/file/${currentFile}`, {
+            fetch(`/api/editor/file/${currentFile}`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -829,4 +829,3 @@
     </script>
 </body>
 </html>
-

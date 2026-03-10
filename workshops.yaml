@@ -36,7 +36,7 @@ workshops:
     dockerfile: java-springboot/2_full_text_search/Dockerfile
     frontendServiceName: full-text-search
     frontendPort: 8081
-    frontendDockerfile: java-springboot/2_full_text_search/Dockerfile
+    frontendDockerfile: java-springboot/2_full_text_search_frontend/Dockerfile
     backendServiceName: full-text-search-api
     backendPort: 18081
     backendDockerfile: java-springboot/2_full_text_search/Dockerfile

@@ -127,7 +127,7 @@ public class ComposeGenerator {
         String backendServiceName
     ) {
         String dockerfile = workshop.getEffectiveFrontendDockerfile();
-        String modulePath = getModulePath(dockerfile);
+        String sourceModulePath = getFrontendSourceModulePath(workshop);
         int frontendPort = getFrontendPort(workshop);
         int backendPort = getBackendPort(workshop);
 
@@ -140,7 +140,7 @@ public class ComposeGenerator {
         );
 
         String volumeRoot = localMode ? "${WORKSHOP_ROOT_PATH:-.}" : "${WORKSHOP_ROOT_PATH:-/workshops}";
-        service.put("volumes", List.of(volumeRoot + "/" + modulePath + ":/workshop-sources"));
+        service.put("volumes", List.of(volumeRoot + "/" + sourceModulePath + ":/workshop-sources"));
 
         List<String> dependsOn = buildFrontendDependencies(workshop, localMode, backendServiceName);
         if (!dependsOn.isEmpty()) {
@@ -348,6 +348,14 @@ public class ComposeGenerator {
             return dockerfile;
         }
         return parent.toString().replace("\\", "/");
+    }
+
+    private static String getFrontendSourceModulePath(Workshop workshop) {
+        String backendDockerfile = workshop.getEffectiveBackendDockerfile();
+        if (backendDockerfile != null && !backendDockerfile.isBlank()) {
+            return getModulePath(backendDockerfile);
+        }
+        return getModulePath(workshop.getEffectiveFrontendDockerfile());
     }
 
     private static Path resolvePath(Path rootDir, String relativeOrAbsolute) {

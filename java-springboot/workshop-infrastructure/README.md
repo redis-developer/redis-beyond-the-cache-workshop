@@ -28,9 +28,9 @@ Generic configuration interface that defines:
 ### `EditorController.java` (Controller)
 Generic Spring MVC controller that provides:
 - `/editor` - Main editor page with Monaco Editor
-- `/editor/file/{fileName}` - Read file content (GET)
-- `/editor/file/{fileName}` - Save file content (POST)
-- `/editor/restore` - Restore all files to original state (POST)
+- `/api/editor/file/{fileName}` - Read file content (GET)
+- `/api/editor/file/{fileName}` - Save file content (POST)
+- `/api/editor/restore` - Restore all files to original state (POST)
 
 ### `editor.html` (Template)
 Thymeleaf template with:
@@ -197,4 +197,3 @@ See `1_session_management` module for a complete example:
 - **REST API** - JSON-based file operations
 - **Component Scanning** - Automatic configuration detection
 - **Dependency Injection** - Clean, testable architecture
-

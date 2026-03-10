@@ -104,7 +104,7 @@ services:
   full-text-search:
     build:
       context: "${WORKSHOP_ROOT_PATH:-/workshops}"
-      dockerfile: "java-springboot/2_full_text_search/Dockerfile"
+      dockerfile: "java-springboot/2_full_text_search_frontend/Dockerfile"
       args:
       - "VUE_APP_BASE_PATH=/"
       - "SKIP_FRONTEND_BUILD=true"

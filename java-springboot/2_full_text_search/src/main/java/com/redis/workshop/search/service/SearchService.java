@@ -1,7 +1,7 @@
 package com.redis.workshop.search.service;
 
 import com.redis.workshop.search.domain.Movie;
-import com.redis.workshop.search.repository.MovieRepository;
+// import com.redis.workshop.search.repository.MovieRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -15,7 +15,6 @@ import java.util.stream.Collectors;
 // import com.redis.om.spring.search.stream.SearchStream;
 
 // import static redis.clients.jedis.search.aggr.SortedField.SortOrder.DESC;
-
 
 /**
  * Service for performing full-text search operations on movies.
@@ -38,16 +37,6 @@ public class SearchService {
         // this.movieRepository = movieRepository;
     }
 
-    /**
-     * Performs a full-text search on movies with multiple filter criteria.
-     *
-     * @param title   Text to search in movie titles (full-text search)
-     * @param extract Text to search in movie extracts/descriptions (full-text search)
-     * @param actors  List of actors to filter by (exact match)
-     * @param year    Year to filter by (exact match)
-     * @param genres  List of genres to filter by (exact match)
-     * @return Map containing the matched movies, count, and search time
-     */
     public Map<String, Object> searchMovies(
             String title,
             String extract,
@@ -70,15 +59,15 @@ public class SearchService {
         //         .filter(Movie$.TITLE.containing(title))
         //         .filter(Movie$.EXTRACT.containing(extract))
         //         .filter(Movie$.CAST.eq(actors))
-        //         .filter(Movie$.YEAR.eq(year))
-        //         .filter(Movie$.GENRES.eq(genres))
-        //         .sorted(Movie$.YEAR, DESC)
-        //         .collect(Collectors.toList());
+            //         .filter(Movie$.YEAR.eq(year))
+            //         .filter(Movie$.GENRES.eq(genres))
+            //         .sorted(Movie$.YEAR, DESC)
+            //         .collect(Collectors.toList());
 
         // Temporary: Return empty results until Redis OM Spring is configured
         List<Movie> matchedMovies = new ArrayList<>();
-
         long searchTime = System.currentTimeMillis() - startTime;
+
         logger.info("Search completed in {} ms, found {} movies", searchTime, matchedMovies.size());
 
         Map<String, Object> result = new HashMap<>();
@@ -89,9 +78,6 @@ public class SearchService {
         return result;
     }
 
-    /**
-     * Gets all unique genres from the indexed movies.
-     */
     public Set<String> getAllGenres() {
         logger.info("Fetching all unique genres");
         long startTime = System.currentTimeMillis();
@@ -103,8 +89,8 @@ public class SearchService {
 
         // Temporary: Return empty set until Redis OM Spring is configured
         Set<String> allGenres = new HashSet<>();
-
         long fetchTime = System.currentTimeMillis() - startTime;
+
         logger.info("Fetched {} unique genres in {} ms", allGenres.size(), fetchTime);
 
         return allGenres;

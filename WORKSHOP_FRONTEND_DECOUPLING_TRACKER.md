@@ -20,8 +20,8 @@ Split each workshop into two Spring Boot services without changing the visual de
 | 0 | Tracker + Baseline | DONE | Codex | Tracker created |
 | 1 | Schema + Hub Contracts | DONE | Codex | Completed on 2026-03-09 |
 | 2 | Compose + Lifecycle Dual Services | DONE | Codex | Completed on 2026-03-09 |
-| 3 | Shared Frontend Runtime Module | TODO | Codex |  |
-| 4 | Pilot Migration (2_full_text_search) | TODO | Codex |  |
+| 3 | Shared Frontend Runtime Module | DONE | Codex | Completed on 2026-03-09 |
+| 4 | Pilot Migration (2_full_text_search) | DONE | Codex | Corrected and completed on 2026-03-10 |
 | 5 | API Path Normalization (All Workshops) | TODO | Codex |  |
 | 6 | Remaining Workshop Migrations | TODO | Codex |  |
 | 7 | Docs + Scaffold + Final Validation | TODO | Codex |  |
@@ -141,11 +141,11 @@ Generate and operate two services per workshop in compose and manager lifecycle.
 Create reusable Spring module for workshop frontend runtime concerns.
 
 ### Checklist
-- [ ] Create shared module for SPA serving + editor endpoints + backend proxy.
-- [ ] Move/reuse `EditorController` and SPA routing behavior appropriately.
-- [ ] Add configuration for backend target URL and workshop source path.
-- [ ] Handle headers/cookies/redirect rewrites in proxy layer.
-- [ ] Add focused tests for proxy and editor behavior.
+- [x] Create shared module for SPA serving + editor endpoints + backend proxy.
+- [x] Move/reuse `EditorController` and SPA routing behavior appropriately.
+- [x] Add configuration for backend target URL and workshop source path.
+- [x] Handle headers/cookies/redirect rewrites in proxy layer.
+- [x] Add focused tests for proxy and editor behavior.
 
 ### Definition Of Done
 - Frontend runtime module can be reused by multiple workshops.
@@ -153,9 +153,26 @@ Create reusable Spring module for workshop frontend runtime concerns.
 - Proxying to backend supports demo API flows.
 
 ### Evidence
-- [ ] Link commit(s):
-- [ ] Test command(s):
-- [ ] Results:
+- [x] Link commit(s):
+  - Working tree changes:
+    - `java-springboot/workshop-infrastructure/src/main/java/com/redis/workshop/infrastructure/FrontendRuntimeProperties.java`
+    - `java-springboot/workshop-infrastructure/src/main/java/com/redis/workshop/infrastructure/BackendProxyController.java`
+    - `java-springboot/workshop-infrastructure/src/main/java/com/redis/workshop/infrastructure/EditorController.java`
+    - `java-springboot/workshop-infrastructure/src/main/resources/templates/editor.html`
+    - `java-springboot/workshop-infrastructure/src/test/java/com/redis/workshop/infrastructure/EditorControllerTest.java`
+    - `java-springboot/workshop-infrastructure/src/test/java/com/redis/workshop/infrastructure/BackendProxyControllerTest.java`
+    - `java-springboot/workshop-infrastructure/build.gradle.kts`
+    - `java-springboot/workshop-infrastructure/README.md`
+- [x] Test command(s):
+  - `./java-springboot/gradlew -p java-springboot -PskipFrontendBuild=true :workshop-infrastructure:test`
+- [x] Results:
+  - `BUILD SUCCESSFUL`
+
+### Completion Notes
+- Shared frontend runtime now includes reusable backend proxying for `/api/**` with pass-through of request method/query/body.
+- Proxy response handling now rewrites backend-origin redirects and cookie attributes for frontend-safe behavior.
+- Editor file operations now support explicit `workshop.frontend.source-path` / `WORKSHOP_SOURCE_PATH` with compatibility fallback to `WORKSHOP_BASE_PATH`.
+- Legacy editor template API calls were aligned to `/api/editor/...` routes.
 
 ### Risks
 - Auth/cookie/redirect behavior may break if proxy handling is incomplete.
@@ -168,11 +185,11 @@ Create reusable Spring module for workshop frontend runtime concerns.
 Migrate one non-auth workshop first to de-risk architecture.
 
 ### Checklist
-- [ ] Split pilot into backend and frontend Spring Boot services.
-- [ ] Keep existing frontend look and UX unchanged.
-- [ ] Ensure editor features work through frontend service.
-- [ ] Ensure demo/search APIs reachable through frontend proxy.
-- [ ] Validate hub controls and open-workshop flow.
+- [x] Split pilot into backend and frontend Spring Boot services.
+- [x] Keep existing frontend look and UX unchanged.
+- [x] Ensure editor features work through frontend service.
+- [x] Ensure demo/search APIs reachable through frontend proxy.
+- [x] Validate hub controls and open-workshop flow.
 
 ### Definition Of Done
 - Pilot runs as dual service end-to-end from hub.
@@ -180,9 +197,50 @@ Migrate one non-auth workshop first to de-risk architecture.
 - Editor and demo APIs function normally.
 
 ### Evidence
-- [ ] Link commit(s):
-- [ ] Test command(s):
-- [ ] Results:
+- [x] Link commit(s):
+  - Working tree changes:
+    - `java-springboot/settings.gradle.kts`
+    - `workshops.yaml`
+    - `java-springboot/2_full_text_search/build.gradle.kts`
+    - `java-springboot/2_full_text_search/Dockerfile`
+    - `java-springboot/2_full_text_search/src/main/java/com/redis/workshop/search/FullTextSearchApplication.java`
+    - `java-springboot/2_full_text_search/src/main/java/com/redis/workshop/search/controller/SearchController.java`
+    - `java-springboot/2_full_text_search/src/main/java/com/redis/workshop/search/service/SearchService.java`
+    - `java-springboot/2_full_text_search/src/main/java/com/redis/workshop/search/service/MovieService.java`
+    - `java-springboot/2_full_text_search/src/main/resources/application.properties`
+    - `java-springboot/2_full_text_search/src/test/java/com/redis/workshop/search/FullTextSearchBackendModeIntegrationTest.java`
+    - `java-springboot/2_full_text_search_frontend/build.gradle.kts`
+    - `java-springboot/2_full_text_search_frontend/Dockerfile`
+    - `java-springboot/2_full_text_search_frontend/settings.gradle.kts`
+    - `java-springboot/2_full_text_search_frontend/src/main/java/com/redis/workshop/search/frontend/FullTextSearchFrontendApplication.java`
+    - `java-springboot/2_full_text_search_frontend/src/main/java/com/redis/workshop/search/frontend/infrastructure/SearchSpaController.java`
+    - `java-springboot/2_full_text_search_frontend/src/main/java/com/redis/workshop/search/frontend/infrastructure/FullTextSearchWorkshopConfig.java`
+    - `java-springboot/2_full_text_search_frontend/src/main/resources/application.properties`
+    - `java-springboot/2_full_text_search_frontend/src/test/java/com/redis/workshop/search/frontend/FullTextSearchFrontendIntegrationTest.java`
+    - `java-springboot/2_full_text_search_frontend/frontend/**`
+    - `java-springboot/workshop-infrastructure/src/main/java/com/redis/workshop/infrastructure/FrontendRuntimeProperties.java`
+    - `java-springboot/workshop-infrastructure/src/main/java/com/redis/workshop/infrastructure/EditorController.java`
+    - `java-springboot/workshop-infrastructure/src/main/java/com/redis/workshop/infrastructure/SpaController.java`
+    - `java-springboot/workshop-infrastructure/src/main/java/com/redis/workshop/infrastructure/BackendProxyController.java`
+    - `java-springboot/workshop-hub/src/main/java/com/redis/workshop/hub/tools/ComposeGenerator.java`
+    - `java-springboot/workshop-hub/docker-compose.local.yml`
+    - `java-springboot/workshop-hub/docker-compose.internal.yml`
+- [x] Test command(s):
+  - `./java-springboot/gradlew -p java-springboot -PskipFrontendBuild=true :2_full_text_search:test`
+  - `./java-springboot/gradlew -p java-springboot -PskipFrontendBuild=true :2_full_text_search_frontend:test`
+  - `./java-springboot/gradlew -p java-springboot -PskipFrontendBuild=true :workshop-infrastructure:test`
+  - `./java-springboot/gradlew -p java-springboot -PskipFrontendBuild=true :workshop-hub:test --tests com.redis.workshop.hub.model.WorkshopRegistryParsingTest`
+  - `./java-springboot/gradlew -p java-springboot -PskipFrontendBuild=true :workshop-hub:generateCompose`
+- [x] Results:
+  - `BUILD SUCCESSFUL` for all listed commands.
+  - Backend module test confirms `/api/search` remains served by the workshop backend API and editor endpoints are absent.
+  - Frontend module test confirms `/api/search` is handled by the shared proxy and editor endpoints remain available.
+  - Generated compose files now build `full-text-search` from `java-springboot/2_full_text_search_frontend/Dockerfile` while mounting `java-springboot/2_full_text_search` as the editable source path.
+
+### Completion Notes
+- Pilot split now uses two real Gradle/Spring Boot modules: `2_full_text_search` for backend APIs and `2_full_text_search_frontend` for SPA hosting, editor endpoints, and backend proxying.
+- Existing Vue frontend files/routes were moved intact into the dedicated frontend module, preserving the workshop UI/UX.
+- Frontend compose/runtime wiring now mounts the backend module as `/workshop-sources`, so editor actions target the actual backend workshop files instead of the frontend service module.
 
 ### Risks
 - Hidden assumptions in current same-origin calls.
@@ -301,3 +359,5 @@ Values: `OPEN`, `MITIGATED`, `ACCEPTED`, `CLOSED`.
 | 2026-03-09 | Tracker Setup | User | Initial tracker requested |
 | 2026-03-09 | Phase 1 (Schema + Hub Contracts) | User | Approved to proceed |
 | 2026-03-09 | Phase 2 (Compose + Lifecycle Dual Services) | User | Approved to proceed |
+| 2026-03-09 | Phase 3 (Shared Frontend Runtime Module) | User | Approved to proceed |
+| 2026-03-09 | Phase 4 (Pilot Migration: 2_full_text_search) | User | Approved to proceed |

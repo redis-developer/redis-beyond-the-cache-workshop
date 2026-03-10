@@ -108,9 +108,10 @@ public class WorkshopManagerService {
         boolean frontendRunning = isDockerServiceRunning(frontendServiceName);
         boolean backendRunning = frontendServiceName.equals(backendServiceName)
             || isDockerServiceRunning(backendServiceName);
-        status.setStatus(frontendRunning && backendRunning ? "running" : "stopped");
-        if (frontendRunning != backendRunning) {
-            status.setMessage("Partial state: frontend=" + frontendRunning + ", backend=" + backendRunning);
+        status.setStatus(resolveWorkshopStatus(frontendRunning, backendRunning));
+        String message = resolveWorkshopMessage(frontendRunning, backendRunning);
+        if (message != null) {
+            status.setMessage(message);
         }
 
         // Add deployment stage if workshop is being deployed
@@ -202,12 +203,16 @@ public class WorkshopManagerService {
         try {
             logger.info("Starting workshop (localMode={}): {}", localMode, workshopId);
 
-            // If something is already running, stop it first
             Workshop workshop = getWorkshopById(workshopId);
             if (workshop == null) {
                 return new CommandResponse(false, "Workshop not found: " + workshopId);
             }
 
+            if (hasDedicatedFrontend(workshop)) {
+                return startSplitWorkshop(workshopId, workshop, startTime);
+            }
+
+            // If something is already running, stop it first
             ServiceStatus status = checkWorkshopService(workshop);
             if ("running".equals(status.getStatus())) {
                 logger.info("Workshop appears to be running already, stopping existing container before start");
@@ -319,6 +324,29 @@ public class WorkshopManagerService {
 
     public CommandResponse restartWorkshop(String workshopId) {
         logger.info("Restarting workshop: " + workshopId);
+        Workshop workshop = getWorkshopById(workshopId);
+        if (workshop == null) {
+            return new CommandResponse(false, "Workshop not found: " + workshopId);
+        }
+
+        if (hasDedicatedFrontend(workshop)) {
+            deploymentStages.put(workshopId, "stopping");
+            CommandResponse stopResponse = stopBackendOnly(workshopId, workshop);
+            if (!stopResponse.isSuccess()) {
+                deploymentStages.remove(workshopId);
+                return stopResponse;
+            }
+
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            long startTime = System.currentTimeMillis();
+            return startSplitWorkshop(workshopId, workshop, startTime);
+        }
+
         deploymentStages.put(workshopId, "stopping");
         CommandResponse stopResponse = stopWorkshop(workshopId);
 
@@ -342,6 +370,28 @@ public class WorkshopManagerService {
     public CommandResponse restartWorkshopWithoutBuild(String workshopId) {
         logger.info("Restarting workshop without image rebuild: {}", workshopId);
 
+        Workshop workshop = getWorkshopById(workshopId);
+        if (workshop == null) {
+            return new CommandResponse(false, "Workshop not found: " + workshopId);
+        }
+
+        if (hasDedicatedFrontend(workshop)) {
+            deploymentStages.put(workshopId, "stopping");
+            CommandResponse stopResponse = stopBackendOnly(workshopId, workshop);
+            if (!stopResponse.isSuccess()) {
+                deploymentStages.remove(workshopId);
+                return stopResponse;
+            }
+
+            try {
+                Thread.sleep(3000);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+
+            return restartBackendOnlyWithoutBuild(workshopId, workshop);
+        }
+
         deploymentStages.put(workshopId, "stopping");
         CommandResponse stopResponse = stopWorkshop(workshopId);
         if (!stopResponse.isSuccess()) {
@@ -357,12 +407,6 @@ public class WorkshopManagerService {
 
         try {
             deploymentStages.put(workshopId, "starting");
-            Workshop workshop = getWorkshopById(workshopId);
-            if (workshop == null) {
-                deploymentStages.remove(workshopId);
-                return new CommandResponse(false, "Workshop not found: " + workshopId);
-            }
-
             List<String> serviceNames = getServiceNamesForWorkshop(workshop);
             List<String> command = new ArrayList<>(List.of("docker-compose", "-f", getComposeFile(), "up", "-d", "--force-recreate"));
             command.addAll(serviceNames);
@@ -415,6 +459,164 @@ public class WorkshopManagerService {
         }
     }
 
+    private CommandResponse startSplitWorkshop(String workshopId, Workshop workshop, long startTime) {
+        String frontendServiceName = getFrontendServiceNameForWorkshop(workshop);
+        if (!isDockerServiceRunning(frontendServiceName)) {
+            CommandResponse frontendResponse = startFrontendOnly(workshopId, workshop);
+            if (!frontendResponse.isSuccess()) {
+                deploymentStages.remove(workshopId);
+                return frontendResponse;
+            }
+        }
+
+        return startBackendOnlyWithBuild(workshopId, workshop, startTime);
+    }
+
+    private CommandResponse startFrontendOnly(String workshopId, Workshop workshop) {
+        deploymentStages.put(workshopId, "building");
+        String frontendServiceName = getFrontendServiceNameForWorkshop(workshop);
+        List<String> command = new ArrayList<>(List.of(
+            "docker-compose",
+            "-f",
+            getComposeFile(),
+            "up",
+            "-d",
+            "--build",
+            "--no-deps",
+            frontendServiceName
+        ));
+        return runComposeLifecycleCommand(
+            workshopId,
+            command,
+            "[docker-compose up split-frontend {}]",
+            "Failed to start workshop frontend."
+        );
+    }
+
+    private CommandResponse startBackendOnlyWithBuild(String workshopId, Workshop workshop, long startTime) {
+        deploymentStages.put(workshopId, "building");
+        String backendServiceName = getBackendServiceNameForWorkshop(workshop);
+        List<String> command = new ArrayList<>(List.of("docker-compose", "-f", getComposeFile(), "up", "-d", "--build", backendServiceName));
+        CommandResponse response = runComposeLifecycleCommand(
+            workshopId,
+            command,
+            "[docker-compose up split-backend {}]",
+            "Failed to start workshop backend."
+        );
+        if (!response.isSuccess()) {
+            deploymentStages.remove(workshopId);
+            return response;
+        }
+        return finalizeSuccessfulLifecycle(workshopId, startTime, response.getOutput(), "Workshop backend started in %.1f seconds");
+    }
+
+    private CommandResponse restartBackendOnlyWithoutBuild(String workshopId, Workshop workshop) {
+        deploymentStages.put(workshopId, "starting");
+        String backendServiceName = getBackendServiceNameForWorkshop(workshop);
+        List<String> command = new ArrayList<>(List.of(
+            "docker-compose",
+            "-f",
+            getComposeFile(),
+            "up",
+            "-d",
+            "--force-recreate",
+            backendServiceName
+        ));
+        CommandResponse response = runComposeLifecycleCommand(
+            workshopId,
+            command,
+            "[docker-compose up --force-recreate split-backend {}]",
+            "Failed to restart workshop backend."
+        );
+        if (!response.isSuccess()) {
+            deploymentStages.remove(workshopId);
+            return response;
+        }
+        deploymentStages.put(workshopId, "ready");
+        clearDeploymentStageAsync(workshopId);
+        return new CommandResponse(true, "Workshop backend restarted without image rebuild...", response.getOutput());
+    }
+
+    private CommandResponse stopBackendOnly(String workshopId, Workshop workshop) {
+        String backendServiceName = getBackendServiceNameForWorkshop(workshop);
+        List<String> command = new ArrayList<>(List.of("docker-compose", "-f", getComposeFile(), "stop", backendServiceName));
+        return runComposeLifecycleCommand(
+            workshopId,
+            command,
+            "[docker-compose stop split-backend {}]",
+            "Failed to stop workshop backend."
+        );
+    }
+
+    private CommandResponse runComposeLifecycleCommand(
+        String workshopId,
+        List<String> command,
+        String logLabel,
+        String errorPrefix
+    ) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(command);
+            pb.redirectErrorStream(true);
+            configureDockerComposeEnvironment(pb);
+
+            Process process = pb.start();
+            StringBuilder output = new StringBuilder();
+
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append("\n");
+                    logger.info("{} {}", logLabel, line);
+                    updateDeploymentStageFromComposeOutput(workshopId, line);
+                }
+            }
+
+            boolean finished = process.waitFor(300, TimeUnit.SECONDS);
+            if (finished && process.exitValue() == 0) {
+                return new CommandResponse(true, "Command completed", output.toString());
+            }
+
+            String errorMsg = errorPrefix + " Exit code: " + process.exitValue();
+            logger.error(errorMsg + "\nOutput:\n{}", output);
+            return new CommandResponse(false, errorMsg + "\nOutput:\n" + output);
+        } catch (Exception e) {
+            logger.error(errorPrefix + " " + workshopId, e);
+            return new CommandResponse(false, "Error: " + e.getMessage());
+        }
+    }
+
+    private void updateDeploymentStageFromComposeOutput(String workshopId, String line) {
+        if (line.contains("Building")) {
+            deploymentStages.put(workshopId, "building");
+        } else if (line.contains("Creating") || line.contains("Starting") || line.contains("Recreating")) {
+            deploymentStages.put(workshopId, "starting");
+        }
+    }
+
+    private CommandResponse finalizeSuccessfulLifecycle(
+        String workshopId,
+        long startTime,
+        String output,
+        String successMessageTemplate
+    ) {
+        long duration = System.currentTimeMillis() - startTime;
+        deploymentStages.put(workshopId, "ready");
+        logger.info("Workshop {} lifecycle step finished successfully in {} seconds", workshopId, duration / 1000.0);
+        clearDeploymentStageAsync(workshopId);
+        return new CommandResponse(true, String.format(successMessageTemplate, duration / 1000.0), output);
+    }
+
+    private void clearDeploymentStageAsync(String workshopId) {
+        new Thread(() -> {
+            try {
+                Thread.sleep(3000);
+                deploymentStages.remove(workshopId);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+        }).start();
+    }
+
     private String getFrontendServiceNameForWorkshop(Workshop workshop) {
         String serviceName = workshop.getEffectiveFrontendServiceName();
         if (serviceName != null && !serviceName.isBlank()) {
@@ -441,6 +643,24 @@ public class WorkshopManagerService {
             return List.of(frontendService);
         }
         return List.of(frontendService, backendService);
+    }
+
+    boolean hasDedicatedFrontend(Workshop workshop) {
+        return !getFrontendServiceNameForWorkshop(workshop).equals(getBackendServiceNameForWorkshop(workshop));
+    }
+
+    String resolveWorkshopStatus(boolean frontendRunning, boolean backendRunning) {
+        return frontendRunning ? "running" : "stopped";
+    }
+
+    String resolveWorkshopMessage(boolean frontendRunning, boolean backendRunning) {
+        if (frontendRunning && !backendRunning) {
+            return "Frontend is available, backend is unavailable";
+        }
+        if (!frontendRunning && backendRunning) {
+            return "Partial state: frontend=false, backend=true";
+        }
+        return null;
     }
 
     private int getFrontendPortForWorkshop(Workshop workshop) {

@@ -41,16 +41,20 @@ RUN --mount=type=cache,target=/root/.npm \
 # Copy workshop module frontend package files and install dependencies
 COPY java-springboot/1_session_management/frontend/package*.json 1_session_management/frontend/
 COPY java-springboot/1_session_management/frontend/babel.config.js 1_session_management/frontend/
-COPY java-springboot/2_full_text_search/frontend/package*.json 2_full_text_search/frontend/
-COPY java-springboot/2_full_text_search/frontend/babel.config.js 2_full_text_search/frontend/
+COPY java-springboot/2_full_text_search_frontend/frontend/package*.json 2_full_text_search_frontend/frontend/
+COPY java-springboot/2_full_text_search_frontend/frontend/babel.config.js 2_full_text_search_frontend/frontend/
 COPY java-springboot/3_distributed_locks/frontend/package*.json 3_distributed_locks/frontend/
 COPY java-springboot/3_distributed_locks/frontend/babel.config.js 3_distributed_locks/frontend/
+COPY java-springboot/4_agent_memory/frontend/package*.json 4_agent_memory/frontend/
+COPY java-springboot/4_agent_memory/frontend/babel.config.js 4_agent_memory/frontend/
 RUN --mount=type=cache,target=/root/.npm \
     cd 1_session_management/frontend && npm install
 RUN --mount=type=cache,target=/root/.npm \
-    cd 2_full_text_search/frontend && npm install
+    cd 2_full_text_search_frontend/frontend && npm install
 RUN --mount=type=cache,target=/root/.npm \
     cd 3_distributed_locks/frontend && npm install
+RUN --mount=type=cache,target=/root/.npm \
+    cd 4_agent_memory/frontend && npm install
 
 # Copy frontend source and build
 COPY frontend/src /workspace/frontend/src
@@ -70,19 +74,25 @@ RUN mkdir -p workshop-hub/src/main/resources/static/vue \
 COPY java-springboot/1_session_management/frontend/src 1_session_management/frontend/src
 COPY java-springboot/1_session_management/frontend/public 1_session_management/frontend/public
 COPY java-springboot/1_session_management/frontend/vue.config.js 1_session_management/frontend/
-COPY java-springboot/2_full_text_search/frontend/src 2_full_text_search/frontend/src
-COPY java-springboot/2_full_text_search/frontend/public 2_full_text_search/frontend/public
-COPY java-springboot/2_full_text_search/frontend/vue.config.js 2_full_text_search/frontend/
+COPY java-springboot/2_full_text_search_frontend/src 2_full_text_search_frontend/src
+COPY java-springboot/2_full_text_search_frontend/frontend/src 2_full_text_search_frontend/frontend/src
+COPY java-springboot/2_full_text_search_frontend/frontend/public 2_full_text_search_frontend/frontend/public
+COPY java-springboot/2_full_text_search_frontend/frontend/vue.config.js 2_full_text_search_frontend/frontend/
 COPY java-springboot/3_distributed_locks/frontend/src 3_distributed_locks/frontend/src
 COPY java-springboot/3_distributed_locks/frontend/public 3_distributed_locks/frontend/public
 COPY java-springboot/3_distributed_locks/frontend/vue.config.js 3_distributed_locks/frontend/
+COPY java-springboot/4_agent_memory/frontend/src 4_agent_memory/frontend/src
+COPY java-springboot/4_agent_memory/frontend/public 4_agent_memory/frontend/public
+COPY java-springboot/4_agent_memory/frontend/vue.config.js 4_agent_memory/frontend/
 ENV VUE_APP_BASE_PATH=/
 RUN --mount=type=cache,target=/root/.npm \
     cd 1_session_management/frontend && npm run build
 RUN --mount=type=cache,target=/root/.npm \
-    cd 2_full_text_search/frontend && npm run build
+    cd 2_full_text_search_frontend/frontend && npm run build
 RUN --mount=type=cache,target=/root/.npm \
     cd 3_distributed_locks/frontend && npm run build
+RUN --mount=type=cache,target=/root/.npm \
+    cd 4_agent_memory/frontend && npm run build
 
 # Copy source code
 COPY java-springboot/workshop-hub/src workshop-hub/src
@@ -113,8 +123,9 @@ COPY . /workshops
 
 # Ensure prebuilt workshop frontends are present in the build context
 COPY --from=builder /workspace/java-springboot/1_session_management/src/main/resources/static /workshops/java-springboot/1_session_management/src/main/resources/static
-COPY --from=builder /workspace/java-springboot/2_full_text_search/src/main/resources/static /workshops/java-springboot/2_full_text_search/src/main/resources/static
+COPY --from=builder /workspace/java-springboot/2_full_text_search_frontend/src/main/resources/static /workshops/java-springboot/2_full_text_search_frontend/src/main/resources/static
 COPY --from=builder /workspace/java-springboot/3_distributed_locks/src/main/resources/static /workshops/java-springboot/3_distributed_locks/src/main/resources/static
+COPY --from=builder /workspace/java-springboot/4_agent_memory/src/main/resources/static /workshops/java-springboot/4_agent_memory/src/main/resources/static
 
 # Copy the startup script
 COPY java-springboot/workshop-hub/scripts/entrypoint.sh /entrypoint.sh

@@ -3,6 +3,8 @@
   <component name="ProjectModuleManager">
     <modules>
       <module fileurl="file://$PROJECT_DIR$/redis-beyond-the-cache-workshop.iml" filepath="$PROJECT_DIR$/redis-beyond-the-cache-workshop.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/2_full_text_search/redis-springboot-workshop.2_full_text_search.main.iml" filepath="$PROJECT_DIR$/.idea/modules/2_full_text_search/redis-springboot-workshop.2_full_text_search.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/workshop-infrastructure/redis-springboot-workshop.workshop-infrastructure.main.iml" filepath="$PROJECT_DIR$/.idea/modules/workshop-infrastructure/redis-springboot-workshop.workshop-infrastructure.main.iml" />
     </modules>
   </component>
 </project>

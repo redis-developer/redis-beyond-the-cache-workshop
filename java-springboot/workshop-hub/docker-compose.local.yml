@@ -114,7 +114,7 @@ services:
   full-text-search:
     build:
       context: "${WORKSHOP_ROOT_PATH:-.}"
-      dockerfile: "java-springboot/2_full_text_search/Dockerfile"
+      dockerfile: "java-springboot/2_full_text_search_frontend/Dockerfile"
       args:
       - "SKIP_FRONTEND_BUILD=${SKIP_FRONTEND_BUILD:-false}"
     ports:

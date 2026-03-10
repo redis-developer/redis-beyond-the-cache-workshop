@@ -17,14 +17,17 @@ repositories {
     mavenCentral()
 }
 
-dependencies {
-    // Spring Boot dependencies for the infrastructure
-    implementation("org.springframework.boot:spring-boot-starter-web")
-    implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
+  dependencies {
+      // Spring Boot dependencies for the infrastructure
+      implementation("org.springframework.boot:spring-boot-starter-web")
+      implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
+      annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 
-    // Make this a library (not a standalone application)
-    compileOnly("org.springframework.boot:spring-boot-starter")
-}
+      // Make this a library (not a standalone application)
+      compileOnly("org.springframework.boot:spring-boot-starter")
+
+      testImplementation("org.springframework.boot:spring-boot-starter-test")
+  }
 
 // This is a library module, not an executable application
 tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
@@ -34,4 +37,3 @@ tasks.named<org.springframework.boot.gradle.tasks.bundling.BootJar>("bootJar") {
 tasks.named<Jar>("jar") {
     enabled = true
 }
-

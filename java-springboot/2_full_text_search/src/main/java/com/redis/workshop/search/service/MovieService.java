@@ -1,17 +1,17 @@
 package com.redis.workshop.search.service;
 
-import com.fasterxml.jackson.core.type.TypeReference;
+// import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.redis.workshop.search.domain.Movie;
-import com.redis.workshop.search.repository.MovieRepository;
+// import com.redis.workshop.search.domain.Movie;
+// import com.redis.workshop.search.repository.MovieRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.core.io.Resource;
+// import org.springframework.core.io.Resource;
 import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
 
-import java.io.InputStream;
-import java.util.List;
+// import java.io.InputStream;
+// import java.util.List;
 
 /**
  * Service for loading and managing movie data.

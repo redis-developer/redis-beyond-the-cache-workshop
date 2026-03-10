@@ -1,15 +1,10 @@
-package com.redis.workshop.search.infrastructure;
+package com.redis.workshop.search.frontend.infrastructure;
 
 import com.redis.workshop.infrastructure.WorkshopConfig;
 import org.springframework.stereotype.Component;
 
 import java.util.Map;
 
-/**
- * Full-Text Search Workshop Configuration
- * 
- * Defines which files can be edited and their original content for the workshop.
- */
 @Component
 public class FullTextSearchWorkshopConfig implements WorkshopConfig {
 
@@ -24,67 +19,59 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
     );
 
     private static final Map<String, String> ORIGINAL_CONTENTS = Map.ofEntries(
-        Map.entry(
-        "build.gradle.kts", """
+        Map.entry("build.gradle.kts", """
             plugins {
                 java
                 id("org.springframework.boot")
                 id("io.spring.dependency-management")
             }
-            
+
             group = "com.redis.workshop"
             version = "0.0.1-SNAPSHOT"
-            
+
             java {
                 toolchain {
                     languageVersion = JavaLanguageVersion.of(21)
                 }
             }
-            
+
             repositories {
                 mavenCentral()
             }
-            
+
             dependencies {
-                implementation(project(":workshop-infrastructure"))
-            
                 implementation("org.springframework.boot:spring-boot-starter-web")
-                implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
-            
+
                 // TODO: Add Redis OM Spring dependency for full-text search
                 // implementation("com.redis.om:redis-om-spring:1.0.4")
                 // annotationProcessor("com.redis.om:redis-om-spring:1.0.4")
-            
+
                 testImplementation("org.springframework.boot:spring-boot-starter-test")
                 testRuntimeOnly("org.junit.platform:junit-platform-launcher")
             }
-            
+
             tasks.withType<Test> {
                 useJUnitPlatform()
             }
-            """
-        ),
-
+            """),
         Map.entry("application.properties", """
             # Application name
-            spring.application.name=full-text-search
-            
+            spring.application.name=full-text-search-api
+
             # Server configuration
-            server.port=8080
-            
+            server.port=${SERVER_PORT:18081}
+
             # TODO: Configure Redis connection
             # spring.data.redis.host=localhost
             # spring.data.redis.port=6379
-            
+
             # Logging
             logging.level.com.redis.workshop.search=INFO
             logging.level.com.redis.om.spring=INFO
-            """
-        ),
-
+            """),
         Map.entry("Movie.java", """
             package com.redis.workshop.search.domain;
-            
+
             // TODO: Uncomment these imports after adding Redis OM Spring dependency
             // import com.redis.om.spring.annotations.Document;
             // import com.redis.om.spring.annotations.Indexed;
@@ -112,23 +99,22 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
 
                 // TODO: Add @Indexed(sortable = true) for year filtering and sorting
                 private int year;
-            
+
                 // TODO: Add @Indexed for cast filtering
                 private List<String> cast;
-            
+
                 // TODO: Add @Indexed for genres filtering
                 private List<String> genres;
-            
+
                 private String href;
-            
+
                 // TODO: Add @Searchable annotation for full-text search on extract
                 private String extract;
-            
+
                 private String thumbnail;
                 private int thumbnailWidth;
                 private int thumbnailHeight;
-            
-                // Getters and setters below...
+
                 public String getId() { return id; }
                 public void setId(String id) { this.id = id; }
                 public String getTitle() { return title; }
@@ -150,9 +136,7 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
                 public int getThumbnailHeight() { return thumbnailHeight; }
                 public void setThumbnailHeight(int h) { this.thumbnailHeight = h; }
             }
-            """
-        ),
-
+            """),
         Map.entry("FullTextSearchApplication.java", """
             package com.redis.workshop.search;
 
@@ -163,7 +147,6 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
             import org.springframework.boot.SpringApplication;
             import org.springframework.boot.autoconfigure.SpringBootApplication;
             import org.springframework.context.annotation.Bean;
-            import org.springframework.context.annotation.ComponentScan;
 
             /**
              * Main application class for the Full-Text Search Workshop.
@@ -175,20 +158,12 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
              */
             @SpringBootApplication
             // TODO: Add @EnableRedisDocumentRepositories
-            @ComponentScan(basePackages = {
-                "com.redis.workshop.search",         // This workshop's package
-                "com.redis.workshop.infrastructure"  // Shared infrastructure (EditorController, SpaController)
-            })
             public class FullTextSearchApplication {
 
                 public static void main(String[] args) {
                     SpringApplication.run(FullTextSearchApplication.class, args);
                 }
 
-                /**
-                 * Loads sample movie data on startup if not already loaded.
-                 * The movies are stored in Redis as JSON documents and automatically indexed.
-                 */
                 @Bean
                 CommandLineRunner loadData(MovieService movieService) {
                     return args -> {
@@ -200,9 +175,7 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
                     };
                 }
             }
-            """
-        ),
-
+            """),
         Map.entry("MovieRepository.java", """
             package com.redis.workshop.search.repository;
 
@@ -229,24 +202,22 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
                  */
                 // Iterable<String> getAllGenres();
             }
-            """
-        ),
-
+            """),
         Map.entry("MovieService.java", """
             package com.redis.workshop.search.service;
 
-            import com.fasterxml.jackson.core.type.TypeReference;
+            // import com.fasterxml.jackson.core.type.TypeReference;
             import com.fasterxml.jackson.databind.ObjectMapper;
-            import com.redis.workshop.search.domain.Movie;
-            import com.redis.workshop.search.repository.MovieRepository;
+            // import com.redis.workshop.search.domain.Movie;
+            // import com.redis.workshop.search.repository.MovieRepository;
             import org.slf4j.Logger;
             import org.slf4j.LoggerFactory;
-            import org.springframework.core.io.Resource;
+            // import org.springframework.core.io.Resource;
             import org.springframework.core.io.ResourceLoader;
             import org.springframework.stereotype.Service;
 
-            import java.io.InputStream;
-            import java.util.List;
+            // import java.io.InputStream;
+            // import java.util.List;
 
             /**
              * Service for loading and managing movie data.
@@ -299,14 +270,12 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
                     return false;
                 }
             }
-            """
-        ),
-
+            """),
         Map.entry("SearchService.java", """
             package com.redis.workshop.search.service;
 
             import com.redis.workshop.search.domain.Movie;
-            import com.redis.workshop.search.repository.MovieRepository;
+            // import com.redis.workshop.search.repository.MovieRepository;
             import org.slf4j.Logger;
             import org.slf4j.LoggerFactory;
             import org.springframework.stereotype.Service;
@@ -318,9 +287,8 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
             // import com.redis.workshop.search.domain.Movie$;
             // import com.redis.om.spring.search.stream.EntityStream;
             // import com.redis.om.spring.search.stream.SearchStream;
-            
+
             // import static redis.clients.jedis.search.aggr.SortedField.SortOrder.DESC;
-                        
 
             /**
              * Service for performing full-text search operations on movies.
@@ -343,16 +311,6 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
                     // this.movieRepository = movieRepository;
                 }
 
-                /**
-                 * Performs a full-text search on movies with multiple filter criteria.
-                 *
-                 * @param title   Text to search in movie titles (full-text search)
-                 * @param extract Text to search in movie extracts/descriptions (full-text search)
-                 * @param actors  List of actors to filter by (exact match)
-                 * @param year    Year to filter by (exact match)
-                 * @param genres  List of genres to filter by (exact match)
-                 * @return Map containing the matched movies, count, and search time
-                 */
                 public Map<String, Object> searchMovies(
                         String title,
                         String extract,
@@ -375,15 +333,15 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
                     //         .filter(Movie$.TITLE.containing(title))
                     //         .filter(Movie$.EXTRACT.containing(extract))
                     //         .filter(Movie$.CAST.eq(actors))
-                    //         .filter(Movie$.YEAR.eq(year))
-                    //         .filter(Movie$.GENRES.eq(genres))
-                    //         .sorted(Movie$.YEAR, DESC)
-                    //         .collect(Collectors.toList());
+                        //         .filter(Movie$.YEAR.eq(year))
+                        //         .filter(Movie$.GENRES.eq(genres))
+                        //         .sorted(Movie$.YEAR, DESC)
+                        //         .collect(Collectors.toList());
 
                     // Temporary: Return empty results until Redis OM Spring is configured
                     List<Movie> matchedMovies = new ArrayList<>();
-
                     long searchTime = System.currentTimeMillis() - startTime;
+
                     logger.info("Search completed in {} ms, found {} movies", searchTime, matchedMovies.size());
 
                     Map<String, Object> result = new HashMap<>();
@@ -394,9 +352,6 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
                     return result;
                 }
 
-                /**
-                 * Gets all unique genres from the indexed movies.
-                 */
                 public Set<String> getAllGenres() {
                     logger.info("Fetching all unique genres");
                     long startTime = System.currentTimeMillis();
@@ -408,15 +363,14 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
 
                     // Temporary: Return empty set until Redis OM Spring is configured
                     Set<String> allGenres = new HashSet<>();
-
                     long fetchTime = System.currentTimeMillis() - startTime;
+
                     logger.info("Fetched {} unique genres in {} ms", allGenres.size(), fetchTime);
 
                     return allGenres;
                 }
             }
-            """
-        )
+            """)
     );
 
     @Override
@@ -441,7 +395,6 @@ public class FullTextSearchWorkshopConfig implements WorkshopConfig {
 
     @Override
     public String getWorkshopDescription() {
-        return "Learn how to implement full-text search using Redis OM Spring";
+        return "Build a Redis-backed movie search app with the SPA, editor, and backend APIs split into separate services.";
     }
 }
-

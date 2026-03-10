@@ -316,6 +316,22 @@ export default {
     }
   },
   methods: {
+    ensureImport(content, commentedImport, importLine, anchorLine = null) {
+      if (commentedImport && content.includes(commentedImport)) {
+        return content.replace(commentedImport, importLine);
+      }
+      if (content.includes(importLine)) {
+        return content;
+      }
+      if (anchorLine && content.includes(anchorLine)) {
+        return content.replace(anchorLine, `${anchorLine}\n${importLine}`);
+      }
+      const packageMatch = content.match(/^(package [^\n]+;\n)/);
+      if (packageMatch) {
+        return content.replace(packageMatch[1], `${packageMatch[1]}\n${importLine}\n`);
+      }
+      return `${importLine}\n${content}`;
+    },
     onFileLoaded({ fileName, content }) {
       this.currentFile = fileName;
       this.fileContent = content;
@@ -445,6 +461,12 @@ export default {
     enableMovieServiceRepository() {
       if (this.currentFile !== 'MovieService.java') { this.showStatus('Please open MovieService.java first!', 'error'); return; }
       let c = this.getContent();
+      c = this.ensureImport(
+        c,
+        '// import com.redis.workshop.search.repository.MovieRepository;',
+        'import com.redis.workshop.search.repository.MovieRepository;',
+        'import com.fasterxml.jackson.databind.ObjectMapper;'
+      );
       c = c.replace('// TODO: Uncomment after implementing MovieRepository\n    // private final MovieRepository movieRepository;', 'private final MovieRepository movieRepository;');
       c = c.replace('public MovieService(ObjectMapper objectMapper, ResourceLoader resourceLoader /* , MovieRepository movieRepository */) {\n        this.objectMapper = objectMapper;\n        this.resourceLoader = resourceLoader;\n        // this.movieRepository = movieRepository;', 'public MovieService(ObjectMapper objectMapper, ResourceLoader resourceLoader, MovieRepository movieRepository) {\n        this.objectMapper = objectMapper;\n        this.resourceLoader = resourceLoader;\n        this.movieRepository = movieRepository;');
       this.setContent(c);
@@ -454,6 +476,36 @@ export default {
     enableLoadAndSaveMovies() {
       if (this.currentFile !== 'MovieService.java') { this.showStatus('Please open MovieService.java first!', 'error'); return; }
       let c = this.getContent();
+      c = this.ensureImport(
+        c,
+        '// import com.fasterxml.jackson.core.type.TypeReference;',
+        'import com.fasterxml.jackson.core.type.TypeReference;',
+        'import com.fasterxml.jackson.databind.ObjectMapper;'
+      );
+      c = this.ensureImport(
+        c,
+        '// import com.redis.workshop.search.domain.Movie;',
+        'import com.redis.workshop.search.domain.Movie;',
+        'import com.fasterxml.jackson.databind.ObjectMapper;'
+      );
+      c = this.ensureImport(
+        c,
+        '// import org.springframework.core.io.Resource;',
+        'import org.springframework.core.io.Resource;',
+        'import org.slf4j.LoggerFactory;'
+      );
+      c = this.ensureImport(
+        c,
+        '// import java.io.InputStream;',
+        'import java.io.InputStream;',
+        'import org.springframework.stereotype.Service;'
+      );
+      c = this.ensureImport(
+        c,
+        '// import java.util.List;',
+        'import java.util.List;',
+        'import org.springframework.stereotype.Service;'
+      );
       c = c.replace('// TODO: Uncomment after implementing MovieRepository\n        /*\n        Resource resource = resourceLoader.getResource("classpath:" + filePath);\n        try (InputStream is = resource.getInputStream()) {\n            List<Movie> movies = objectMapper.readValue(is, new TypeReference<>() {});\n            long startTime = System.currentTimeMillis();\n            movieRepository.saveAll(movies);\n            long elapsedMillis = System.currentTimeMillis() - startTime;\n            log.info("Saved {} movies in {} ms", movies.size(), elapsedMillis);\n        }\n        */\n        log.info("MovieService.loadAndSaveMovies() - Redis OM Spring not yet configured");', 'Resource resource = resourceLoader.getResource("classpath:" + filePath);\n        try (InputStream is = resource.getInputStream()) {\n            List<Movie> movies = objectMapper.readValue(is, new TypeReference<>() {});\n            long startTime = System.currentTimeMillis();\n            movieRepository.saveAll(movies);\n            long elapsedMillis = System.currentTimeMillis() - startTime;\n            log.info("Saved {} movies in {} ms", movies.size(), elapsedMillis);\n        }');
       this.setContent(c);
       this.showStatus('loadAndSaveMovies() enabled! Click Save!', 'success');
@@ -470,6 +522,12 @@ export default {
     enableSearchServiceDependencies() {
       if (this.currentFile !== 'SearchService.java') { this.showStatus('Please open SearchService.java first!', 'error'); return; }
       let c = this.getContent();
+      c = this.ensureImport(
+        c,
+        '// import com.redis.workshop.search.repository.MovieRepository;',
+        'import com.redis.workshop.search.repository.MovieRepository;',
+        'import com.redis.workshop.search.domain.Movie;'
+      );
       c = c.replace('// import com.redis.workshop.search.domain.Movie$;', 'import com.redis.workshop.search.domain.Movie$;');
       c = c.replace('// import com.redis.om.spring.search.stream.EntityStream;', 'import com.redis.om.spring.search.stream.EntityStream;');
       c = c.replace('// import com.redis.om.spring.search.stream.SearchStream;', 'import com.redis.om.spring.search.stream.SearchStream;');
