@@ -66,9 +66,7 @@ Uncomment the `HttpSessionSecurityContextRepository` import, the `SecurityContex
 
 ## View Sessions In Redis Insight
 
-Use the **Open Redis Insight** action inside the workshop, or open **http://localhost:9000/workshop/redis-insight/** when running through the Hub.
-
-If you are running the workshop frontend directly instead of through the Hub, use **http://localhost:5540**.
+Use the **Open Redis Insight** action inside the workshop, or open **http://localhost:5540** directly.
 
 Search for:
 

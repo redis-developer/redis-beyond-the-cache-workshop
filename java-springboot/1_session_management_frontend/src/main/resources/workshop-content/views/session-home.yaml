@@ -1,0 +1,182 @@
+schemaVersion: 1
+viewId: session-home
+route: /welcome
+pageType: stage-flow
+title: Distributed Session Management with Redis
+slot: instructions
+header:
+  showHubLink: true
+stages:
+  - stageId: problem
+    title: "STAGE 1: Problem - In-Memory Sessions"
+    sections:
+      - sectionId: stage-1
+        blocks:
+          - type: callout
+            tone: warning
+            title: Current State
+            body: Sessions are stored in-memory (not in Redis).
+          - type: markdown
+            body: "Let's see the problem with in-memory sessions. Complete each test to proceed:"
+          - type: stepList
+            listId: stage1-tests
+            variant: tests
+            items:
+              - itemId: test1
+                title: "Test 1: Note Your Session ID"
+                body: "Your current session ID is shown on the right: `{{sessionId}}`. This ID identifies your session in the server's memory."
+                actions:
+                  - id: markItemComplete
+                    label: I've noted my Session ID
+                    args:
+                      groupId: stage1-tests
+                      itemId: test1
+              - itemId: test2
+                title: "Test 2: Restart the Backend"
+                body: Restart the workshop backend without rebuilding. This simulates a server restart or deployment.
+                actions:
+                  - id: openHub
+                    label: Open Workshop Hub
+                  - id: markItemComplete
+                    label: I've restarted the backend
+                    args:
+                      groupId: stage1-tests
+                      itemId: test2
+              - itemId: test3
+                title: "Test 3: Refresh This Page"
+                body: Refresh this page. If you are logged out, sign in again and compare your new Session ID with the previous one.
+                supportingBlocks:
+                  - type: widget
+                    widgetId: session-home.session-comparison
+                actions:
+                  - id: markItemComplete
+                    label: I logged back in and have a new Session ID
+                    args:
+                      groupId: stage1-tests
+                      itemId: test3
+              - itemId: continue
+                title: "Test 4: Proceed to Stage 2"
+                body: You've experienced the problem with in-memory sessions. Now let's fix it using Redis.
+                actions:
+                  - id: setStage
+                    label: Show Me How to Fix This
+                    args:
+                      stageId: enable-redis
+  - stageId: enable-redis
+    title: "STAGE 2: Enable Redis Session Management"
+    sections:
+      - sectionId: stage-2
+        blocks:
+          - type: callout
+            tone: info
+            title: "Option 1: Use the In-Browser Code Editor"
+            body: Follow the guided path in the workshop editor.
+            actions:
+              - id: openEditor
+                label: Open Code Editor
+          - type: markdown
+            body: "**Option 2:** Edit the files in your IDE."
+          - type: stepList
+            listId: enable-redis-steps
+            variant: ordered
+            items:
+              - itemId: add-dependencies
+                title: "Step 1: Add Redis Dependencies"
+                body: "Open `build.gradle.kts` and uncomment `spring-boot-starter-data-redis` and `spring-session-data-redis`."
+              - itemId: configure-properties
+                title: "Step 2: Configure Application Properties"
+                body: "Open `application.properties`, change `spring.session.store-type=none` to `spring.session.store-type=redis`, and uncomment the 3 Redis session configuration lines."
+              - itemId: configure-security
+                title: "Step 3: Configure Spring Security"
+                body: "Open `SecurityConfig.java` and uncomment the `HttpSessionSecurityContextRepository` configuration (imports, bean, and filter chain config)."
+              - itemId: rebuild-backend
+                title: "Step 4: Restart and Verify"
+                body: Rebuild and restart the workshop backend, then come back to see the difference.
+                actions:
+                  - id: openHub
+                    label: Open Workshop Hub
+  - stageId: redis-enabled
+    title: "STAGE 3: Redis Session Management Enabled!"
+    sections:
+      - sectionId: stage-3-tests
+        blocks:
+          - type: callout
+            tone: success
+            body: Sessions are now stored in Redis (distributed storage).
+          - type: markdown
+            body: "Let's verify it works. Complete each test to proceed:"
+          - type: stepList
+            listId: stage3-tests
+            variant: tests
+            items:
+              - itemId: test1
+                title: "Test 1: Note Your Session ID"
+                body: "Note your Session ID on the right: `{{sessionId}}`. This ID is now stored in Redis, not in application memory."
+                actions:
+                  - id: markItemComplete
+                    label: I've noted my Session ID
+                    args:
+                      groupId: stage3-tests
+                      itemId: test1
+              - itemId: test2
+                title: "Test 2: Restart the Backend"
+                body: Restart the workshop backend again without rebuilding.
+                actions:
+                  - id: openHub
+                    label: Open Workshop Hub
+                  - id: markItemComplete
+                    label: I've restarted the backend
+                    args:
+                      groupId: stage3-tests
+                      itemId: test2
+              - itemId: test3
+                title: "Test 3: Still Logged In!"
+                body: Refresh this page and verify that you are still logged in with the same Session ID.
+                supportingBlocks:
+                  - type: widget
+                    widgetId: session-home.redis-session-comparison
+                actions:
+                  - id: markItemComplete
+                    label: I'm still logged in
+                    args:
+                      groupId: stage3-tests
+                      itemId: test3
+              - itemId: test4
+                title: "Test 4: View in Redis"
+                body: "Use Redis Insight and search for `spring:session` to see your session data stored in Redis."
+                actions:
+                  - id: openRedisInsight
+                    label: Open Redis Insight
+                  - id: markItemComplete
+                    label: I've seen my session in Redis
+                    args:
+                      groupId: stage3-tests
+                      itemId: test4
+              - itemId: test5
+                title: "Test 5: Separate Browser Session (Optional)"
+                body: Open the workshop in an incognito or private window, or use a different browser. You should see a different Session ID there while this browser stays logged in.
+                actions:
+                  - id: markItemComplete
+                    label: I've tested a second browser session
+                    args:
+                      groupId: stage3-tests
+                      itemId: test5
+      - sectionId: stage-3-completion
+        title: Workshop Complete!
+        blocks:
+          - type: markdown
+            body: |
+              You've successfully learned how to implement distributed session management with Redis.
+
+              #### What You Learned:
+              - Sessions persist across application restarts
+              - Multiple application instances can share sessions (horizontal scaling)
+              - Session data is stored in Redis, not in application memory
+              - Enables zero-downtime deployments and load balancing
+          - type: callout
+            tone: info
+            title: Want to try again?
+            body: Restore all files to their original state.
+            actions:
+              - id: restartLab
+                label: Restart Lab

@@ -10,6 +10,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -45,8 +46,26 @@ class AgentMemoryFrontendIntegrationTest {
             .andExpect(status().isBadGateway());
     }
 
+    @Test
+    void contentApiExposesWorkshopOwnedViews() throws Exception {
+        mockMvc.perform(get("/api/content/manifest"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workshopId").value("4_agent_memory"))
+            .andExpect(jsonPath("$.views", hasSize(6)));
+
+        mockMvc.perform(get("/api/content/views/memory-home"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("memory-home"))
+            .andExpect(jsonPath("$.pageType").value("stage-flow"));
+
+        mockMvc.perform(get("/api/content/views/memory-editor"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("memory-editor"))
+            .andExpect(jsonPath("$.pageType").value("editor"));
+    }
+
     @ParameterizedTest
-    @ValueSource(strings = {"/", "/challenges", "/demo", "/learn", "/editor"})
+    @ValueSource(strings = {"/", "/challenges", "/demo", "/learn", "/editor", "/lab"})
     void spaRoutesResolveToFrontend(String route) throws Exception {
         mockMvc.perform(get(route))
             .andExpect(status().isOk());

@@ -74,8 +74,7 @@ public class WorkshopManagerService {
         if ("redis".equals(serviceName)) {
             status.setUrl("redis://localhost:" + port);
         } else if ("redis-insight".equals(serviceName)) {
-            // Local mode: direct URL, Container mode: proxy URL
-            status.setUrl(localMode ? "http://localhost:" + port : "/workshop/redis-insight/");
+            status.setUrl("http://localhost:" + port);
         } else {
             status.setUrl("http://localhost:" + port);
         }

@@ -1,0 +1,305 @@
+schemaVersion: 1
+viewId: search-editor
+route: /editor
+pageType: editor
+title: Full-Text Search Workshop
+slot: instructions
+summary: Configure Redis OM Spring, enable the repository layer, and wire the search service for movie queries.
+sections:
+  - sectionId: editor-overview
+    blocks:
+      - type: callout
+        tone: info
+        body: Configure Redis OM Spring to enable full-text search on movie data.
+      - type: markdown
+        body: Click the action button next to each item to apply the guided change, or type the code manually if you prefer.
+  - sectionId: dependencies
+    title: Step 1 - Add Redis OM Dependencies
+    blocks:
+      - type: editorStepList
+        listId: dependencies
+        title: Step 1
+        description: Open the Gradle build file, restore the Redis OM dependencies, and save the result.
+        startAt: 1
+        progressGroup: editor
+        items:
+          - itemId: open-build-file
+            body: Open `build.gradle.kts`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: build.gradle.kts
+          - itemId: enable-gradle-dependencies
+            body: Uncomment the `redis-om-spring` implementation and annotation processor lines.
+            hint: Redis OM Spring provides repository support plus the search annotations used by this workshop.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.uncommentGradleDependencies
+          - itemId: save-build-file
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: redis-config
+    title: Step 2 - Configure Redis Connection
+    blocks:
+      - type: editorStepList
+        listId: redis-config
+        title: Step 2
+        description: Restore the Redis connection settings used by the backend service.
+        startAt: 4
+        progressGroup: editor
+        items:
+          - itemId: open-properties-file
+            body: Open `application.properties`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: application.properties
+          - itemId: enable-redis-properties
+            body: Uncomment the Redis host and port configuration.
+            hint: The workshop backend connects to Redis over the standard localhost settings.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.uncommentRedisConfig
+          - itemId: save-properties-file
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: movie-entity
+    title: Step 3 - Add Search Annotations to Movie
+    blocks:
+      - type: editorStepList
+        listId: movie-entity
+        title: Step 3
+        description: Convert the movie model into a Redis OM document with searchable and indexed fields.
+        startAt: 7
+        progressGroup: editor
+        items:
+          - itemId: open-movie-file
+            body: Open `Movie.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: Movie.java
+          - itemId: add-document-annotation
+            body: Add the `@Document` annotation to the class.
+            hint: "`@Document` stores the entity as JSON and tells Redis OM to manage its index."
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.addDocumentAnnotation
+          - itemId: add-id-annotation
+            body: Add the `@Id` annotation to the id field.
+            hint: This marks the primary key used to store and retrieve each document.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.addIdAnnotation
+          - itemId: add-searchable-annotations
+            body: Add `@Searchable` to `title` and `extract`.
+            hint: "`@Searchable` enables stemming and relevance-based full-text search on the field."
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.addSearchableAnnotations
+          - itemId: add-indexed-annotations
+            body: Add `@Indexed` to `year`, `cast`, and `genres`.
+            hint: "`@Indexed` enables exact filtering and sorting for discrete values."
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.addIndexedAnnotations
+          - itemId: save-movie-file
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: repositories
+    title: Step 4 - Enable Redis Document Repositories
+    blocks:
+      - type: editorStepList
+        listId: repositories
+        title: Step 4
+        description: Turn on Redis document repository support in the Spring Boot application.
+        startAt: 13
+        progressGroup: editor
+        items:
+          - itemId: open-application-class
+            body: Open `FullTextSearchApplication.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: FullTextSearchApplication.java
+          - itemId: enable-document-repositories
+            body: Re-enable `@EnableRedisDocumentRepositories`.
+            hint: This activates repository generation and automatic index creation at startup.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.enableRedisRepositories
+          - itemId: save-application-class
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: movie-repository
+    title: Step 5 - Extend RedisDocumentRepository
+    blocks:
+      - type: editorStepList
+        listId: movie-repository
+        title: Step 5
+        description: Convert the repository into a Redis OM document repository.
+        startAt: 16
+        progressGroup: editor
+        items:
+          - itemId: open-repository-file
+            body: Open `MovieRepository.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: MovieRepository.java
+          - itemId: extend-repository
+            body: Extend `RedisDocumentRepository<Movie, String>` and restore the repository annotation.
+            hint: The repository gives you CRUD operations plus the custom genre lookup used by the UI.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.extendRedisRepository
+          - itemId: save-repository-file
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: movie-service
+    title: Step 6 - Enable MovieService
+    blocks:
+      - type: editorStepList
+        listId: movie-service
+        title: Step 6
+        description: Re-enable movie loading so the application can populate Redis with indexed documents.
+        startAt: 19
+        progressGroup: editor
+        items:
+          - itemId: open-movie-service
+            body: Open `MovieService.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: MovieService.java
+          - itemId: inject-movie-repository
+            body: Restore the `MovieRepository` field and constructor injection.
+            hint: The service needs the repository to persist movie documents into Redis.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.enableMovieServiceRepository
+          - itemId: restore-load-and-save
+            body: Restore the `loadAndSaveMovies()` implementation.
+            hint: This reads the bundled movie JSON and writes it through Redis OM so indexes are created.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.enableLoadAndSaveMovies
+          - itemId: restore-is-data-loaded
+            body: Restore the `isDataLoaded()` implementation.
+            hint: This avoids reloading the movie set on every restart once the data is already present.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.enableIsDataLoaded
+          - itemId: save-movie-service
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: search-service
+    title: Step 7 - Enable SearchService
+    blocks:
+      - type: editorStepList
+        listId: search-service
+        title: Step 7
+        description: Re-enable the EntityStream-based query logic used by the search UI.
+        startAt: 24
+        progressGroup: editor
+        items:
+          - itemId: open-search-service
+            body: Open `SearchService.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: SearchService.java
+          - itemId: restore-search-dependencies
+            body: Restore the imports plus `EntityStream` and `MovieRepository` injection.
+            hint: "`Movie$` is the generated metamodel that backs the type-safe EntityStream filters."
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.enableSearchServiceDependencies
+          - itemId: restore-search-implementation
+            body: Restore the `searchMovies()` implementation.
+            hint: Use `.containing()` for full-text fields and `.eq()` for exact `@Indexed` filters.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.enableSearchMoviesImplementation
+          - itemId: restore-genre-query
+            body: Restore the `getAllGenres()` implementation.
+            hint: This uses the repository to gather the unique genres shown in the UI filter.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: search-editor.enableGetAllGenres
+          - itemId: save-search-service
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: restart-and-test
+    title: Step 8 - Restart and Test
+    blocks:
+      - type: stepList
+        listId: restart-and-test
+        variant: ordered
+        items:
+          - itemId: rebuild-application
+            title: Rebuild the App
+            body: Open the Workshop Hub and rebuild the backend service so the new search configuration is applied.
+            actions:
+              - id: openHub
+                label: Open Workshop Hub
+                args:
+                  mode: rebuildRestart
+                  service: backend
+          - itemId: return-to-search
+            title: Return to Search
+            body: Go back to the search page and validate the implementation with live queries.
+            actions:
+              - id: openRoute
+                label: Open Search Screen
+                args:
+                  route: /search

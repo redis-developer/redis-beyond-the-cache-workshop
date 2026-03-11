@@ -60,6 +60,32 @@ class DistributedLocksFrontendIntegrationTest {
             .andExpect(jsonPath("$.content").value(Matchers.containsString("lockManager.withLock(")));
     }
 
+    @Test
+    void contentDrivenViewsAreExposedForWorkshopThree() throws Exception {
+        mockMvc.perform(get("/api/content/manifest"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workshopId").value("3_distributed_locks"))
+            .andExpect(jsonPath("$.views", hasSize(3)));
+
+        mockMvc.perform(get("/api/content/views/locks-home"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("locks-home"))
+            .andExpect(jsonPath("$.pageType").value("stage-flow"))
+            .andExpect(jsonPath("$.stages", hasSize(2)));
+
+        mockMvc.perform(get("/api/content/views/locks-implement"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("locks-implement"))
+            .andExpect(jsonPath("$.pageType").value("narrative"))
+            .andExpect(jsonPath("$.sections", hasSize(3)));
+
+        mockMvc.perform(get("/api/content/views/locks-editor"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("locks-editor"))
+            .andExpect(jsonPath("$.pageType").value("editor"))
+            .andExpect(jsonPath("$.sections", hasSize(6)));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {
         "/",

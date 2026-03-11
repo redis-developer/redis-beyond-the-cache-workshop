@@ -1,0 +1,15 @@
+schemaVersion: 1
+workshopId: 2_full_text_search_frontend
+views:
+  - viewId: search-home
+    route: /
+    pageType: stage-flow
+    file: search-home.yaml
+  - viewId: search-editor
+    route: /editor
+    pageType: editor
+    file: search-editor.yaml
+  - viewId: search-demo
+    route: /search
+    pageType: stage-flow
+    file: search-demo.yaml

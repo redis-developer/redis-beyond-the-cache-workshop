@@ -6,381 +6,68 @@
     @file-loaded="onFileLoaded"
   >
     <template #instructions>
-      <div class="alert">
-        <strong>Your Task:</strong> Complete the three workshop files in order to wire raw AMS SDK calls, the Spring AI chat memory bridge, and the advisor chain used by the chat UI.
-      </div>
+      <div class="memory-editor-instructions">
+        <WorkshopContentRenderer
+          v-if="content"
+          :content="content"
+          :show-title="false"
+          :show-summary="true"
+          :show-stage-title="false"
+          :action-handlers="actionHandlers"
+          :widgets="widgets"
+          :widget-props="widgetProps"
+        />
 
-      <!-- Progress Tracker -->
-      <div class="progress-tracker">
-        <div class="progress-header" @click="progressExpanded = !progressExpanded">
-          <span class="progress-title">Progress</span>
-          <span class="progress-summary">{{ completedSteps }}/15 steps</span>
-          <span class="progress-toggle">{{ progressExpanded ? '-' : '+' }}</span>
+        <div v-else-if="loadingContent" class="content-status">
+          Loading workshop content...
         </div>
-        <div v-if="progressExpanded" class="progress-details">
-          <div class="progress-group">
-            <span class="progress-label">AgentMemoryService:</span>
-            <span class="progress-count" :class="{ complete: stepsCompleted.service >= 9 }">{{ stepsCompleted.service }}/9</span>
-          </div>
-          <div class="progress-group">
-            <span class="progress-label">ChatMemoryRepository:</span>
-            <span class="progress-count" :class="{ complete: stepsCompleted.repository >= 3 }">{{ stepsCompleted.repository }}/3</span>
-          </div>
-          <div class="progress-group">
-            <span class="progress-label">ChatService:</span>
-            <span class="progress-count" :class="{ complete: stepsCompleted.chat >= 3 }">{{ stepsCompleted.chat }}/3</span>
-          </div>
+
+        <div v-else class="content-status content-status--error">
+          {{ loadError }}
         </div>
-        <div class="progress-bar">
-          <div class="progress-fill" :style="{ width: (completedSteps / 15 * 100) + '%' }"></div>
-        </div>
-      </div>
-
-      <h3>Instructions:</h3>
-      <p class="note">Click the play button next to any step to automatically apply that change!</p>
-
-      <h4>Step 0: Initialize the SDK Client</h4>
-      <ol>
-        <li class="step-with-button">
-          <span class="step-content">Click on <code>AgentMemoryService.java</code> tab</span>
-          <div class="button-group">
-            <button class="play-btn" @click="loadFileStep('AgentMemoryService.java', 0)">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>MemoryAPIClient</code> initialization</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="The client is thread-safe with connection pooling. The namespace isolates your memories from other applications.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentClientInit">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 1: Implement Working Memory - GET</h4>
-      <ol start="4">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>getWorkingMemory()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Returns the full conversation history including any auto-generated summary if context exceeded the window.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentGetWorkingMemory">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 2: Implement Working Memory - PUT</h4>
-      <ol start="6">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>putWorkingMemory()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="PUT replaces the entire working memory. For appending messages, use appendMessagesToWorkingMemory() instead.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentPutWorkingMemory">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 3: Implement Working Memory - DELETE</h4>
-      <ol start="8">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>deleteWorkingMemory()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Immediately removes the session. For automatic cleanup, use TTL instead (set during PUT).">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentDeleteWorkingMemory">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 4: Implement Long-Term Memory - CREATE</h4>
-      <ol start="10">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>createLongTermMemory()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="AMS automatically generates vector embeddings for semantic search. The memory_type affects retrieval priority.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentCreateLongTermMemory">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 5: Implement Long-Term Memory - SEARCH</h4>
-      <ol start="12">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>searchLongTermMemory()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Semantic search finds memories by MEANING, not keywords. Text is converted to a vector and compared via cosine similarity.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentSearchLongTermMemory">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 6: Implement Long-Term Memory - GET</h4>
-      <ol start="14">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>getMemory()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Retrieves a specific memory by ID. Useful for updating or displaying memory details.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentGetMemory">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 7: Implement Long-Term Memory - DELETE</h4>
-      <ol start="16">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>deleteMemories()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Permanently removes memories. Consider using memory decay/forgetting policies for automatic lifecycle management.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentDeleteMemories">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 8: Implement Health Check</h4>
-      <ol start="18">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>healthCheck()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Returns server status and connected Redis info. Use for monitoring and readiness probes.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentHealthCheck">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h3>Part 2: Spring AI ChatMemoryRepository</h3>
-      <p class="note">Implement the bridge between Spring AI's ChatMemory and Agent Memory Server.</p>
-
-      <h4>Step 9: Implement Context Percentage</h4>
-      <ol start="20">
-        <li class="step-with-button">
-          <span class="step-content">Click on <code>AmsChatMemoryRepository.java</code> tab</span>
-          <div class="button-group">
-            <button class="play-btn" @click="loadFileStep('AmsChatMemoryRepository.java', 9)">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>getContextPercentage()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Returns 0.0-1.0 indicating how full the context window is. When >0.7, AMS may trigger summarization.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentGetContextPercentage">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 10: Implement Find By Conversation ID</h4>
-      <ol start="23">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>findByConversationId()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Spring AI calls this before each LLM request to load conversation history. Parses userId from conversationId for multi-user support.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentFindByConversationId">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 11: Implement Save All Messages</h4>
-      <ol start="25">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>saveAll()</code> implementation</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Called after each LLM response. Implements deduplication to avoid storing duplicate messages, and sets TTL on first message.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentSaveAll">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h3>Part 3: Spring AI Advisors</h3>
-      <p class="note">Advisors intercept chat requests to automatically handle memory loading and retrieval.</p>
-
-      <h4>Step 12: Pass Conversation ID to Advisors</h4>
-      <ol start="27">
-        <li class="step-with-button">
-          <span class="step-content">Click on <code>ChatService.java</code> tab</span>
-          <div class="button-group">
-            <button class="play-btn" @click="loadFileStep('ChatService.java', 12)">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Add <code>.advisors()</code> to pass conversationId</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Advisors need the conversationId to load/save the correct conversation. This passes it through the advisor chain.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentAdvisorParams">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 13: Add Working Memory Advisor</h4>
-      <ol start="30">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>MessageChatMemoryAdvisor</code> configuration</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Automatically loads conversation history before LLM calls and saves new messages after. No manual memory management needed.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentWorkingMemoryAdvisor">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4>Step 14: Add Long-Term Memory Advisor</h4>
-      <ol start="32">
-        <li class="step-with-button">
-          <span class="step-content">Uncomment the <code>LongTermMemoryAdvisor</code> configuration</span>
-          <div class="button-group">
-            <span class="tooltip-wrapper" data-tooltip="Takes user's message, searches long-term memory by meaning, and injects relevant memories into the system prompt.">
-              <span class="info-icon">i</span>
-            </span>
-            <button class="play-btn" @click="uncommentLongTermMemoryAdvisor">&#9654;</button>
-          </div>
-        </li>
-        <li class="step-with-button">
-          <span class="step-content">Click <strong>Save Changes</strong></span>
-          <div class="button-group">
-            <button class="play-btn" @click="saveFile">&#9654;</button>
-          </div>
-        </li>
-      </ol>
-
-      <h4 ref="testStep">Step 15: Restart and Test</h4>
-      <ol start="34">
-        <li>Go to the <a :href="workshopHubUrl" target="_blank" class="link">Workshop Hub</a> and rebuild the app</li>
-        <li><router-link to="/demo" class="link">Go to Demo</router-link> to test your implementation!</li>
-      </ol>
-
-      <div v-if="workshopComplete" class="completion-banner">
-        All steps completed! Restart the app to test your memory implementation.
-      </div>
-
-      <div class="reset-section">
-        <h4>Reset Workshop</h4>
-        <p>Want to start over? Reset all files to their original state.</p>
-        <button
-          @click="restartLab"
-          class="btn btn-warning"
-          :disabled="restartingLab"
-        >
-          {{ restartingLab ? 'Restoring...' : 'Reset Lab' }}
-        </button>
       </div>
     </template>
   </WorkshopEditorLayout>
 </template>
 
 <script>
-import { WorkshopEditorLayout, getBasePath, getWorkshopHubUrl } from '../../../../../workshop-frontend-shared/src/index.js';
+import {
+  WorkshopContentRenderer,
+  WorkshopEditorLayout,
+  getBasePath,
+  getWorkshopHubUrl
+} from '../../../../../workshop-frontend-shared/src/index.js';
+import MemoryEditorCompletionWidget from '../components/widgets/MemoryEditorCompletionWidget.vue';
+import MemoryEditorProgressWidget from '../components/widgets/MemoryEditorProgressWidget.vue';
+import { loadWorkshopContentView } from '../utils/workshopContent';
 
 const STORAGE_KEY = 'agentMemoryWorkshop';
+const OPEN_FILE_STEPS = {
+  'open-agent-memory-service': 0,
+  'open-chat-memory-repository': 9,
+  'open-chat-service': 12
+};
+const EDITOR_STEP_HANDLERS = {
+  'memory-editor.uncommentClientInit': 'uncommentClientInit',
+  'memory-editor.uncommentGetWorkingMemory': 'uncommentGetWorkingMemory',
+  'memory-editor.uncommentPutWorkingMemory': 'uncommentPutWorkingMemory',
+  'memory-editor.uncommentDeleteWorkingMemory': 'uncommentDeleteWorkingMemory',
+  'memory-editor.uncommentCreateLongTermMemory': 'uncommentCreateLongTermMemory',
+  'memory-editor.uncommentSearchLongTermMemory': 'uncommentSearchLongTermMemory',
+  'memory-editor.uncommentGetMemory': 'uncommentGetMemory',
+  'memory-editor.uncommentDeleteMemories': 'uncommentDeleteMemories',
+  'memory-editor.uncommentHealthCheck': 'uncommentHealthCheck',
+  'memory-editor.uncommentGetContextPercentage': 'uncommentGetContextPercentage',
+  'memory-editor.uncommentFindByConversationId': 'uncommentFindByConversationId',
+  'memory-editor.uncommentSaveAll': 'uncommentSaveAll',
+  'memory-editor.uncommentAdvisorParams': 'uncommentAdvisorParams',
+  'memory-editor.uncommentWorkingMemoryAdvisor': 'uncommentWorkingMemoryAdvisor',
+  'memory-editor.uncommentLongTermMemoryAdvisor': 'uncommentLongTermMemoryAdvisor'
+};
 
 export default {
   name: 'MemoryEditor',
-  components: { WorkshopEditorLayout },
+  components: { WorkshopContentRenderer, WorkshopEditorLayout },
   data() {
     return {
       files: ['AgentMemoryService.java', 'AmsChatMemoryRepository.java', 'ChatService.java'],
@@ -391,7 +78,10 @@ export default {
       fileContents: {},
       restartingLab: false,
       progressExpanded: false,
-      completedStepsSet: new Set()
+      completedStepsSet: new Set(),
+      content: null,
+      loadingContent: true,
+      loadError: ''
     };
   },
   async mounted() {
@@ -403,6 +93,7 @@ export default {
         this.completedStepsSet = new Set(data.completedSteps || []);
       } catch (e) { console.error('Failed to load saved progress', e); }
     }
+    await this.loadContent();
     await this.checkWorkshopCompletion();
   },
   computed: {
@@ -420,12 +111,61 @@ export default {
         repository: steps.filter(s => s >= 9 && s <= 11).length,
         chat: steps.filter(s => s >= 12 && s <= 14).length
       };
+    },
+    widgets() {
+      return {
+        'memory-editor.progress': MemoryEditorProgressWidget,
+        'memory-editor.completion-banner': MemoryEditorCompletionWidget
+      };
+    },
+    widgetProps() {
+      return {
+        'memory-editor.progress': {
+          completedSteps: this.completedSteps,
+          totalSteps: 15,
+          stepsCompleted: this.stepsCompleted,
+          expanded: this.progressExpanded,
+          toggle: this.toggleProgress
+        },
+        'memory-editor.completion-banner': {
+          visible: this.workshopComplete
+        }
+      };
+    },
+    actionHandlers() {
+      return {
+        applyEditorStep: ({ args }) => this.applyEditorStep(args?.stepId),
+        openFile: payload => this.handleOpenFileAction(payload),
+        openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
+        openRoute: ({ args }) => {
+          if (args?.route) {
+            this.$router.push(args.route);
+          }
+        },
+        restartLab: () => this.restartLab(),
+        saveFile: () => this.saveFile()
+      };
     }
   },
   methods: {
+    async loadContent() {
+      this.loadingContent = true;
+      this.loadError = '';
+
+      try {
+        this.content = await loadWorkshopContentView('memory-editor');
+      } catch (error) {
+        this.loadError = error.message || 'Failed to load workshop content.';
+      } finally {
+        this.loadingContent = false;
+      }
+    },
     onFileLoaded({ fileName, content }) {
       this.currentFile = fileName;
       this.fileContent = content;
+    },
+    toggleProgress() {
+      this.progressExpanded = !this.progressExpanded;
     },
     saveProgress(step) {
       this.currentStep = step;
@@ -474,10 +214,20 @@ export default {
       }
     },
     scrollToTestStep() {
-      const testStep = this.$el.querySelector('h4:last-of-type');
-      if (testStep) {
-        testStep.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      const finalSection = this.$el.querySelector('.memory-editor-instructions .content-section:last-of-type');
+      if (finalSection) {
+        finalSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
         this.$refs.layout.showStatus('Workshop complete! Restart the app and test your implementation.', 'success');
+      }
+    },
+    handleOpenFileAction({ args, item }) {
+      const step = item?.itemId ? OPEN_FILE_STEPS[item.itemId] : null;
+      return this.loadFileStep(args?.file, step ?? null);
+    },
+    applyEditorStep(stepId) {
+      const handlerName = EDITOR_STEP_HANDLERS[stepId];
+      if (handlerName && typeof this[handlerName] === 'function') {
+        this[handlerName]();
       }
     },
     async loadFileStep(fileName, step = null) {
@@ -877,6 +627,7 @@ export default {
           localStorage.removeItem(STORAGE_KEY);
           this.currentStep = 0;
           this.workshopComplete = false;
+          this.completedStepsSet = new Set();
           alert(`Lab reset! ${data.filesRestored} files restored.\n\nPlease go to the Workshop Hub and rebuild the app, then refresh this page to start from the beginning.`);
           // Reload current file to show restored content
           if (this.currentFile) {
@@ -897,6 +648,23 @@ export default {
 </script>
 
 <style scoped>
+.memory-editor-instructions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-4);
+}
+
+.content-status {
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-text);
+}
+
+.content-status--error {
+  background: rgba(239, 68, 68, 0.18);
+}
+
 /* Progress Tracker */
 .progress-tracker {
   background: #1a1a2e;

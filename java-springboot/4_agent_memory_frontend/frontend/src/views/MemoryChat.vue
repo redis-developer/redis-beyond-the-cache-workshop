@@ -7,229 +7,29 @@
           <h2><img src="@/assets/logo/small.png" alt="Redis Logo" width="28" height="28" class="logo-small" /> Test Your Memory</h2>
         </div>
         <div class="workshop-content">
-          <!-- API Key Setup -->
-          <div v-if="!apiKey" class="api-key-setup">
-            <h3>Setup Required</h3>
-            <p>Enter your OpenAI API key to test the AI chat with memory.</p>
-            <input v-model="tempApiKey" type="password" placeholder="sk-..." @keyup.enter="validateKey" />
-            <button @click="validateKey" class="btn btn-primary" :disabled="validating">
-              {{ validating ? 'Validating...' : 'Continue' }}
-            </button>
-            <p v-if="keyError" class="error">{{ keyError }}</p>
+          <div v-if="apiKey && testStep <= 8" class="test-progress">
+            <span class="progress-label">Progress:</span>
+            <span class="progress-value">{{ Math.max(testStep - 1, 0) }}/8 tests</span>
           </div>
 
-          <!-- Guided Tests -->
-          <template v-else>
-            <div class="test-progress">
-              <span class="progress-label">Progress:</span>
-              <span class="progress-value">{{ testStep > 8 ? 8 : testStep - 1 }}/8 tests</span>
-            </div>
+          <WorkshopContentRenderer
+            v-if="content"
+            :content="renderContent"
+            :active-stage-id="activeStageId"
+            :show-title="false"
+            :show-summary="activeStageId === 'setup' || activeStageId === 'complete'"
+            :action-handlers="actionHandlers"
+            :widgets="widgets"
+            :widget-props="widgetProps"
+          />
 
-            <!-- Test 1: Working Memory Basics -->
-            <div v-if="testStep === 1" class="test-step">
-              <h4>Test 1: Working Memory Basics</h4>
-              <p class="test-instructions">Send these messages in order:</p>
-              <ol class="test-actions">
-                <li>Send: <code>Hi, my name is Alice</code></li>
-                <li>Send: <code>What is my name?</code></li>
-              </ol>
-              <div class="observations">
-                <h5>What to observe:</h5>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t1_recall" /> AI correctly recalls "Alice"</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t1_session" /> Session Info bar shows 2+ messages</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t1_context" /> Context bar shows small % (1-5%)</label>
-              </div>
-              <p class="test-explanation">Working memory stores conversation history within a session. AMS automatically persists this to Redis.</p>
-              <button @click="completeStep(1)" class="btn btn-primary" :disabled="!canProceed(1)">Next Test</button>
-            </div>
+          <div v-else-if="loadingContent" class="content-status">
+            Loading guided demo content...
+          </div>
 
-            <!-- Test 2: Context Window Growth -->
-            <div v-else-if="testStep === 2" class="test-step">
-              <h4>Test 2: Context Window Growth</h4>
-              <p class="test-instructions">Continue the conversation with 4-5 more exchanges:</p>
-              <ol class="test-actions">
-                <li>Send: <code>I work as a software engineer</code></li>
-                <li>Send: <code>My favorite color is blue</code></li>
-                <li>Send: <code>Tell me everything you know about me</code></li>
-              </ol>
-              <div class="observations">
-                <h5>What to observe:</h5>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t2_growth" /> Context bar grows with each message</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t2_recall" /> AI remembers all details you shared</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t2_count" /> Message count increases in session info</label>
-              </div>
-              <p class="test-explanation">As conversation grows, context usage increases. At ~70%, AMS automatically summarizes older messages to stay within limits.</p>
-              <button @click="completeStep(2)" class="btn btn-primary" :disabled="!canProceed(2)">Next Test</button>
-            </div>
-
-            <!-- Test 3: Store Long-Term Memories -->
-            <div v-else-if="testStep === 3" class="test-step">
-              <h4>Test 3: Store Long-Term Memories</h4>
-              <p class="test-instructions">Click "Show Memories" and add these facts:</p>
-              <ol class="test-actions">
-                <li>Add: <code>Alice loves hiking in the mountains</code></li>
-                <li>Add: <code>Alice is vegetarian and enjoys cooking</code></li>
-              </ol>
-              <div class="observations">
-                <h5>What to observe:</h5>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t3_stored" /> Memories appear in "Stored" section</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t3_type" /> Memory type shows as SEMANTIC</label>
-              </div>
-              <p class="test-explanation">Long-term memories are stored with vector embeddings, enabling semantic search - finding memories by meaning, not just keywords.</p>
-              <button @click="completeStep(3)" class="btn btn-primary" :disabled="!canProceed(3)">Next Test</button>
-            </div>
-
-            <!-- Test 4: Semantic Search Demo -->
-            <div v-else-if="testStep === 4" class="test-step">
-              <h4>Test 4: Semantic Search</h4>
-              <p class="test-instructions">Test semantic matching (meaning, not keywords):</p>
-              <ol class="test-actions">
-                <li>Ensure "Use Long-Term Memory" is checked</li>
-                <li>Ask: <code>What outdoor activities do I enjoy?</code></li>
-              </ol>
-              <div class="observations">
-                <h5>What to observe:</h5>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t4_hiking" /> AI mentions hiking (semantic match!)</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t4_retrieved" /> "Retrieved This Turn" shows the hiking memory</label>
-              </div>
-              <p class="test-explanation">Notice: you asked about "outdoor activities" but the memory says "hiking". Semantic search found the match by understanding meaning!</p>
-              <button @click="completeStep(4)" class="btn btn-primary" :disabled="!canProceed(4)">Next Test</button>
-            </div>
-
-            <!-- Test 5: Clear Working Memory -->
-            <div v-else-if="testStep === 5" class="test-step">
-              <h4>Test 5: Clear Working Memory</h4>
-              <p class="test-instructions">Reset the session:</p>
-              <ol class="test-actions">
-                <li>Click <strong>Clear Chat</strong> button</li>
-                <li>Note: Keep "Show Memories" panel open</li>
-              </ol>
-              <div class="observations">
-                <h5>What to observe:</h5>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t5_cleared" /> Conversation messages are gone</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t5_context" /> Context bar resets (no percentage shown)</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t5_ltm" /> Long-term memories still visible in sidebar</label>
-              </div>
-              <p class="test-explanation">Working memory (session) is deleted, but long-term memories persist! This is the key difference between the two memory types.</p>
-              <button @click="completeStep(5)" class="btn btn-primary" :disabled="!canProceed(5)">Next Test</button>
-            </div>
-
-            <!-- Test 6: Cross-Session Persistence -->
-            <div v-else-if="testStep === 6" class="test-step">
-              <h4>Test 6: Cross-Session Persistence</h4>
-              <p class="test-instructions">In this fresh session, test long-term memory:</p>
-              <ol class="test-actions">
-                <li>Ensure "Use Long-Term Memory" is checked</li>
-                <li>Ask: <code>What kind of food do I prefer?</code></li>
-              </ol>
-              <div class="observations">
-                <h5>What to observe:</h5>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t6_vegetarian" /> AI knows you're vegetarian</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t6_cooking" /> AI may mention cooking</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t6_retrieved" /> Check "Retrieved This Turn" for matched memory</label>
-              </div>
-              <p class="test-explanation">Long-term memory persisted across sessions! The AI retrieved relevant facts from previous interactions.</p>
-              <button @click="completeStep(6)" class="btn btn-primary" :disabled="!canProceed(6)">Next Test</button>
-            </div>
-
-            <!-- Test 7: TTL and Session Lifecycle -->
-            <div v-else-if="testStep === 7" class="test-step">
-              <h4>Test 7: TTL and Session Lifecycle</h4>
-              <p class="test-instructions">Observe the session lifecycle:</p>
-              <ol class="test-actions">
-                <li>Look at the TTL countdown in the session info bar</li>
-                <li>Send a message and watch TTL behavior</li>
-              </ol>
-              <div class="observations">
-                <h5>What to observe:</h5>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t7_ttl" /> TTL shows countdown (starts at 30:00)</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t7_countdown" /> TTL counts down each second</label>
-              </div>
-              <p class="test-explanation">Working memory has a TTL (Time-To-Live). After 30 minutes of inactivity, the session automatically expires. This prevents stale data buildup.</p>
-              <button @click="completeStep(7)" class="btn btn-primary" :disabled="!canProceed(7)">Next Test</button>
-            </div>
-
-            <!-- Test 8: Redis Insight Exploration -->
-            <div v-else-if="testStep === 8" class="test-step insight-test">
-              <h4>Test 8: Redis Insight Exploration</h4>
-              <p class="test-instructions">Open <a :href="redisInsightUrl" target="_blank" class="link">Redis Insight</a> and explore the data structures:</p>
-
-              <div class="insight-guide">
-                <div class="insight-section">
-                  <h5>1. Working Memory</h5>
-                  <div class="key-pattern">
-                    <span class="pattern-label">Key:</span>
-                    <code>working_memory:workshop:session-default</code>
-                  </div>
-                  <ul class="field-list">
-                    <li><strong>messages</strong> - JSON array of conversation</li>
-                    <li><strong>summary</strong> - Auto-generated summary (if context exceeded)</li>
-                    <li><strong>tokens</strong> - Current token count</li>
-                  </ul>
-                  <div class="insight-action">
-                    <span class="action-icon">Try:</span> Right-click key and check TTL
-                  </div>
-                </div>
-
-                <div class="insight-section">
-                  <h5>2. Long-Term Memory</h5>
-                  <div class="key-pattern">
-                    <span class="pattern-label">Keys:</span>
-                    <code>long_term_memory:workshop:*</code>
-                  </div>
-                  <ul class="field-list">
-                    <li><strong>text</strong> - The stored memory</li>
-                    <li><strong>user_id</strong> - Owner (alice or bob)</li>
-                    <li><strong>memory_type</strong> - semantic/episodic/message</li>
-                    <li><strong>embedding</strong> - Vector (1536 dims)</li>
-                  </ul>
-                </div>
-
-                <div class="insight-section">
-                  <h5>3. CLI Commands</h5>
-                  <div class="cli-box">
-                    <code>KEYS working_memory:workshop:*</code>
-                    <code>HGETALL working_memory:workshop:session-default</code>
-                    <code>TTL working_memory:workshop:session-default</code>
-                    <code>FT.INFO idx:long_term_memory:workshop</code>
-                  </div>
-                </div>
-              </div>
-
-              <div class="observations">
-                <h5>Verify you found:</h5>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t8_working" /> Working memory key with messages array</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t8_ltm" /> Long-term memory with embedding field</label>
-                <label class="obs-item"><input type="checkbox" v-model="observations.t8_ttl" /> TTL value on working memory (default: 1800s)</label>
-              </div>
-              <button @click="completeStep(8)" class="btn btn-primary" :disabled="!canProceed(8)">Complete</button>
-            </div>
-
-            <!-- All Tests Complete -->
-            <div v-else class="test-complete">
-              <h4>All Tests Complete!</h4>
-              <div class="alert alert-success">You've mastered AI memory with Redis AMS!</div>
-              <h4>Key Takeaways</h4>
-              <ul class="takeaways">
-                <li><strong>Working Memory</strong> - Session-scoped, auto-summarizes, has TTL</li>
-                <li><strong>Long-Term Memory</strong> - Persistent, semantic search via vectors</li>
-                <li><strong>Context Management</strong> - AMS handles window limits automatically</li>
-                <li><strong>Cross-Session</strong> - Facts persist and retrieve across sessions</li>
-              </ul>
-              <h4>Want to Learn More?</h4>
-              <p class="learn-more-text">Dive deeper into memory types, lifecycle, summarization, and advanced features.</p>
-              <div class="button-row">
-                <router-link to="/learn" class="btn btn-primary">Reference Guide</router-link>
-                <button @click="restartTests" class="btn btn-secondary">Restart Tests</button>
-              </div>
-            </div>
-
-            <div class="nav-links">
-              <router-link to="/" class="nav-link">Back to Home</router-link>
-              <router-link to="/editor" class="nav-link">Code Editor</router-link>
-              <router-link to="/learn" class="nav-link">Reference Guide</router-link>
-            </div>
-          </template>
+          <div v-else class="content-status content-status--error">
+            {{ loadError }}
+          </div>
         </div>
       </div>
 
@@ -347,15 +147,100 @@
 </template>
 
 <script>
+import { WorkshopContentRenderer } from '../utils/components';
 import { getApiUrl, getRedisInsightUrl } from '../utils/basePath';
+import MemoryChatApiKeyWidget from '../components/widgets/MemoryChatApiKeyWidget.vue';
+import MemoryChatObservationWidget from '../components/widgets/MemoryChatObservationWidget.vue';
+import { loadWorkshopContentView } from '../utils/workshopContent';
 
 const STORAGE_KEY = 'agentMemoryWorkshop';
 
 export default {
   name: 'MemoryChat',
+  components: { WorkshopContentRenderer },
   computed: {
     redisInsightUrl() {
       return getRedisInsightUrl();
+    },
+    activeStageId() {
+      if (!this.apiKey) {
+        return 'setup';
+      }
+
+      return this.testStep > 8 ? 'complete' : `test-${this.testStep}`;
+    },
+    currentStage() {
+      return this.content?.stages?.find(stage => stage.stageId === this.activeStageId) || null;
+    },
+    currentObservationItems() {
+      const blocks = this.currentStage?.sections?.flatMap(section => section.blocks || []) || [];
+      const observationBlock = blocks.find(block => block.type === 'stepList' && String(block.listId || '').startsWith('observations-'));
+      return observationBlock?.items || [];
+    },
+    renderContent() {
+      if (!this.content) {
+        return null;
+      }
+
+      const clonedContent = JSON.parse(JSON.stringify(this.content));
+      const currentStage = clonedContent.stages?.find(stage => stage.stageId === this.activeStageId);
+
+      if (currentStage) {
+        currentStage.sections = (currentStage.sections || []).map(section => ({
+          ...section,
+          blocks: (section.blocks || []).filter(
+            block => !(block.type === 'stepList' && String(block.listId || '').startsWith('observations-'))
+          )
+        }));
+      }
+
+      return clonedContent;
+    },
+    canProceedCurrentTest() {
+      return this.apiKey && this.testStep <= 8 ? this.canProceed(this.testStep) : false;
+    },
+    currentAdvanceLabel() {
+      return this.testStep === 8 ? 'Complete' : 'Next Test';
+    },
+    widgets() {
+      return {
+        'memory-chat.api-key-setup': MemoryChatApiKeyWidget,
+        'memory-chat.observations': MemoryChatObservationWidget
+      };
+    },
+    widgetProps() {
+      return {
+        'memory-chat.api-key-setup': {
+          tempApiKey: this.tempApiKey,
+          validating: this.validating,
+          keyError: this.keyError,
+          updateTempApiKey: this.updateTempApiKey,
+          validateKey: this.validateKey
+        },
+        'memory-chat.observations': {
+          items: this.currentObservationItems,
+          observations: this.observations,
+          canProceed: this.canProceedCurrentTest,
+          completeLabel: this.currentAdvanceLabel,
+          toggleObservation: this.toggleObservation,
+          advance: this.advanceCurrentTest
+        }
+      };
+    },
+    actionHandlers() {
+      return {
+        openRedisInsight: () => window.open(this.redisInsightUrl, '_blank', 'noopener'),
+        openRoute: ({ args }) => {
+          if (args?.route) {
+            this.$router.push(args.route);
+          }
+        },
+        resetProgress: ({ args }) => {
+          if (args?.scope === 'chat-tests') {
+            this.restartTests();
+          }
+        }
+      };
     }
   },
   data() {
@@ -383,6 +268,9 @@ export default {
       ttlTimer: null,
       ttlRemaining: null,
       memoryPollTimer: null,
+      content: null,
+      loadingContent: true,
+      loadError: '',
       observations: {
         t1_recall: false, t1_session: false, t1_context: false,
         t2_growth: false, t2_recall: false, t2_count: false,
@@ -398,6 +286,7 @@ export default {
   mounted() {
     this.loadTestStep();
     this.loadObservations();
+    this.loadContent();
     this.startMemoryPolling();
   },
   beforeUnmount() {
@@ -405,6 +294,21 @@ export default {
     if (this.memoryPollTimer) clearInterval(this.memoryPollTimer);
   },
   methods: {
+    async loadContent() {
+      this.loadingContent = true;
+      this.loadError = '';
+
+      try {
+        this.content = await loadWorkshopContentView('memory-chat');
+      } catch (error) {
+        this.loadError = error.message || 'Failed to load guided demo content.';
+      } finally {
+        this.loadingContent = false;
+      }
+    },
+    updateTempApiKey(value) {
+      this.tempApiKey = value;
+    },
     loadTestStep() {
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
@@ -433,6 +337,15 @@ export default {
       const prefix = `t${step}_`;
       const checked = Object.keys(this.observations).filter(k => k.startsWith(prefix) && this.observations[k]).length;
       return checked >= 2;
+    },
+    toggleObservation(itemId, checked) {
+      this.observations[itemId] = checked;
+      this.saveTestStep();
+    },
+    advanceCurrentTest() {
+      if (this.testStep <= 8 && this.canProceed(this.testStep)) {
+        this.completeStep(this.testStep);
+      }
     },
     completeStep(step) { this.testStep = step + 1; this.saveTestStep(); },
     restartTests() {
@@ -587,8 +500,22 @@ export default {
 .workshop-content code { background: #2d2d2d; padding: 0.15rem 0.3rem; border-radius: var(--radius-sm); color: #ce9178; font-size: 0.8rem; }
 .workshop-content ul { padding-left: var(--spacing-5); margin-bottom: var(--spacing-3); }
 .workshop-content li { margin-bottom: var(--spacing-1); }
+.workshop-content :deep(.content-renderer-header__stage) { color: #4fc3f7; }
+.workshop-content :deep(.content-widget) { padding: 0; border: 0; background: transparent; }
+.workshop-content :deep(.content-section) { gap: var(--spacing-3); }
 .link { color: #569cd6; text-decoration: none; }
 .link:hover { text-decoration: underline; }
+
+.content-status {
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-text);
+}
+
+.content-status--error {
+  background: rgba(239, 68, 68, 0.18);
+}
 
 .api-key-setup { background: #252526; border-radius: var(--radius-md); padding: var(--spacing-4); }
 .api-key-setup input { width: 100%; padding: var(--spacing-2); margin: var(--spacing-3) 0; background: var(--color-dark-800); border: 1px solid var(--color-border); border-radius: var(--radius-md); color: var(--color-text); }

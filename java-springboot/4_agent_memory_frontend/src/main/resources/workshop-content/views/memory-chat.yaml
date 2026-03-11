@@ -1,0 +1,355 @@
+schemaVersion: 1
+viewId: memory-chat
+route: /demo
+pageType: stage-flow
+title: Test Your Memory
+slot: instructions
+summary: Use the guided chat to validate working memory, semantic retrieval, session TTL, and Redis Insight visibility.
+stages:
+  - stageId: setup
+    title: Setup Required
+    sections:
+      - sectionId: api-key
+        blocks:
+          - type: markdown
+            body: Enter your OpenAI API key to test the AI chat with memory.
+          - type: widget
+            widgetId: memory-chat.api-key-setup
+  - stageId: test-1
+    title: "Test 1: Working Memory Basics"
+    sections:
+      - sectionId: test-1-body
+        blocks:
+          - type: markdown
+            body: "Send these messages in order:"
+          - type: stepList
+            listId: test-1-actions
+            variant: ordered
+            items:
+              - itemId: send-alice
+                title: Send an Introduction
+                body: 'Send: `Hi, my name is Alice`'
+              - itemId: ask-name
+                title: Ask for Recall
+                body: 'Send: `What is my name?`'
+          - type: stepList
+            listId: observations-1
+            variant: checklist
+            items:
+              - itemId: t1_recall
+                title: Recall Works
+                body: AI correctly recalls `Alice`.
+              - itemId: t1_session
+                title: Session Count Increases
+                body: Session info shows `2+` messages.
+              - itemId: t1_context
+                title: Context Usage Stays Low
+                body: Context usage stays small for the first few turns.
+          - type: callout
+            tone: info
+            body: Working memory stores conversation history within a session and persists it to Redis through AMS.
+          - type: widget
+            widgetId: memory-chat.observations
+  - stageId: test-2
+    title: "Test 2: Context Window Growth"
+    sections:
+      - sectionId: test-2-body
+        blocks:
+          - type: markdown
+            body: "Continue the conversation with a few more exchanges:"
+          - type: stepList
+            listId: test-2-actions
+            variant: ordered
+            items:
+              - itemId: engineer
+                title: Add a Job Detail
+                body: 'Send: `I work as a software engineer`'
+              - itemId: blue
+                title: Add a Preference
+                body: 'Send: `My favorite color is blue`'
+              - itemId: everything
+                title: Ask for a Summary
+                body: 'Send: `Tell me everything you know about me`'
+          - type: stepList
+            listId: observations-2
+            variant: checklist
+            items:
+              - itemId: t2_growth
+                title: Context Bar Grows
+                body: Context usage grows as more messages are added.
+              - itemId: t2_recall
+                title: Details Are Remembered
+                body: The AI remembers the details you shared.
+              - itemId: t2_count
+                title: Message Count Climbs
+                body: Message count increases in the session info bar.
+          - type: callout
+            tone: info
+            body: As the conversation grows, context usage rises. Around the configured threshold, AMS summarizes older messages to stay inside the window.
+          - type: widget
+            widgetId: memory-chat.observations
+  - stageId: test-3
+    title: "Test 3: Store Long-Term Memories"
+    sections:
+      - sectionId: test-3-body
+        blocks:
+          - type: markdown
+            body: "Open the memory panel and add these facts:"
+          - type: stepList
+            listId: test-3-actions
+            variant: ordered
+            items:
+              - itemId: hiking
+                title: Add a Hobby
+                body: 'Add: `Alice loves hiking in the mountains`'
+              - itemId: vegetarian
+                title: Add a Food Preference
+                body: 'Add: `Alice is vegetarian and enjoys cooking`'
+          - type: stepList
+            listId: observations-3
+            variant: checklist
+            items:
+              - itemId: t3_stored
+                title: Memories Are Stored
+                body: Memories appear in the **Stored** section.
+              - itemId: t3_type
+                title: Memory Type Is Semantic
+                body: The memory type is shown as `SEMANTIC`.
+          - type: callout
+            tone: info
+            body: Long-term memories are vectorized for semantic search so future prompts can retrieve them by meaning.
+          - type: widget
+            widgetId: memory-chat.observations
+  - stageId: test-4
+    title: "Test 4: Semantic Search"
+    sections:
+      - sectionId: test-4-body
+        blocks:
+          - type: markdown
+            body: "Test semantic matching rather than keyword matching:"
+          - type: stepList
+            listId: test-4-actions
+            variant: ordered
+            items:
+              - itemId: enable-memory
+                title: Enable Retrieval
+                body: Ensure **Use Long-Term Memory** is enabled.
+              - itemId: ask-outdoors
+                title: Ask a Semantic Question
+                body: 'Ask: `What outdoor activities do I enjoy?`'
+          - type: stepList
+            listId: observations-4
+            variant: checklist
+            items:
+              - itemId: t4_hiking
+                title: Hiking Is Mentioned
+                body: The AI mentions hiking even though you did not ask with the exact same words.
+              - itemId: t4_retrieved
+                title: Retrieved Memory Is Visible
+                body: "**Retrieved This Turn** shows the hiking memory."
+          - type: callout
+            tone: success
+            body: Semantic search finds matches by meaning. "Outdoor activities" can retrieve "hiking" because the embeddings are close in vector space.
+          - type: widget
+            widgetId: memory-chat.observations
+  - stageId: test-5
+    title: "Test 5: Clear Working Memory"
+    sections:
+      - sectionId: test-5-body
+        blocks:
+          - type: markdown
+            body: "Reset the active session while keeping long-term memory intact:"
+          - type: stepList
+            listId: test-5-actions
+            variant: ordered
+            items:
+              - itemId: clear-chat
+                title: Clear the Session
+                body: Click **Clear Chat**.
+              - itemId: keep-panel
+                title: Keep the Memory Panel Open
+                body: Leave the memory panel open while you clear the session.
+          - type: stepList
+            listId: observations-5
+            variant: checklist
+            items:
+              - itemId: t5_cleared
+                title: Messages Are Gone
+                body: Conversation messages disappear.
+              - itemId: t5_context
+                title: Context Resets
+                body: The context indicator resets.
+              - itemId: t5_ltm
+                title: Long-Term Memory Remains
+                body: Long-term memories are still visible.
+          - type: callout
+            tone: info
+            body: Working memory is session-scoped and deletable. Long-term memory persists independently.
+          - type: widget
+            widgetId: memory-chat.observations
+  - stageId: test-6
+    title: "Test 6: Cross-Session Persistence"
+    sections:
+      - sectionId: test-6-body
+        blocks:
+          - type: markdown
+            body: "In the fresh session, verify that long-term memory still influences answers:"
+          - type: stepList
+            listId: test-6-actions
+            variant: ordered
+            items:
+              - itemId: enable-long-term
+                title: Keep Long-Term Memory Enabled
+                body: Ensure **Use Long-Term Memory** is enabled.
+              - itemId: ask-food
+                title: Ask About Preferences
+                body: 'Ask: `What kind of food do I prefer?`'
+          - type: stepList
+            listId: observations-6
+            variant: checklist
+            items:
+              - itemId: t6_vegetarian
+                title: Vegetarian Preference Returns
+                body: The AI knows that you are vegetarian.
+              - itemId: t6_cooking
+                title: Cooking Context Returns
+                body: The AI may mention cooking as related context.
+              - itemId: t6_retrieved
+                title: Retrieved Memory Is Shown
+                body: "**Retrieved This Turn** shows the matched long-term memory."
+          - type: callout
+            tone: success
+            body: Long-term memory persists across sessions, which is the key difference from working memory.
+          - type: widget
+            widgetId: memory-chat.observations
+  - stageId: test-7
+    title: "Test 7: TTL and Session Lifecycle"
+    sections:
+      - sectionId: test-7-body
+        blocks:
+          - type: markdown
+            body: Observe the session lifecycle information while you continue chatting.
+          - type: stepList
+            listId: test-7-actions
+            variant: ordered
+            items:
+              - itemId: inspect-ttl
+                title: Inspect the Countdown
+                body: Look at the TTL countdown in the session info bar.
+              - itemId: send-message
+                title: Send Another Message
+                body: Send another message and observe the countdown behavior.
+          - type: stepList
+            listId: observations-7
+            variant: checklist
+            items:
+              - itemId: t7_ttl
+                title: TTL Starts Around 30 Minutes
+                body: TTL starts around `30:00`.
+              - itemId: t7_countdown
+                title: TTL Counts Down
+                body: TTL counts down each second while the session is active.
+          - type: callout
+            tone: info
+            body: TTL prevents stale working memory from living forever and keeps idle sessions from accumulating in Redis.
+          - type: widget
+            widgetId: memory-chat.observations
+  - stageId: test-8
+    title: "Test 8: Redis Insight Exploration"
+    sections:
+      - sectionId: test-8-body
+        blocks:
+          - type: markdown
+            body: Open Redis Insight and inspect the working-memory and long-term-memory structures created during the demo.
+          - type: stepList
+            listId: test-8-actions
+            variant: ordered
+            items:
+              - itemId: open-insight
+                title: Launch Redis Insight
+                body: Open Redis Insight for the workshop environment.
+                actions:
+                  - id: openRedisInsight
+                    label: Open Redis Insight
+              - itemId: inspect-working-memory
+                title: Inspect Working Memory
+                body: Inspect the working memory key and check its TTL.
+              - itemId: inspect-long-term
+                title: Inspect Long-Term Memory
+                body: Inspect the long-term memory records and their embedding fields.
+          - type: codeSnippet
+            language: text
+            title: Useful CLI Commands
+            code: |
+              KEYS working_memory:workshop:*
+              HGETALL working_memory:workshop:session-default
+              TTL working_memory:workshop:session-default
+              FT.INFO idx:long_term_memory:workshop
+          - type: stepList
+            listId: observations-8
+            variant: checklist
+            items:
+              - itemId: t8_working
+                title: Working Memory Key Found
+                body: You found a working memory key with stored messages.
+              - itemId: t8_ltm
+                title: Long-Term Records Found
+                body: You found long-term memory records with embedding data.
+              - itemId: t8_ttl
+                title: TTL Confirmed
+                body: You confirmed the working-memory TTL value.
+          - type: callout
+            tone: info
+            body: Redis Insight makes it easy to connect the workshop behavior back to the actual data structures stored in Redis.
+          - type: widget
+            widgetId: memory-chat.observations
+  - stageId: complete
+    title: All Tests Complete
+    sections:
+      - sectionId: completion
+        blocks:
+          - type: callout
+            tone: success
+            body: You have worked through the core memory patterns in AMS and seen the data show up in Redis.
+          - type: stepList
+            listId: chat-takeaways
+            variant: ordered
+            items:
+              - itemId: takeaway-working
+                title: Working Memory
+                body: Session-scoped conversation context with summarization and TTL.
+              - itemId: takeaway-long-term
+                title: Long-Term Memory
+                body: Persistent facts retrieved through semantic search.
+              - itemId: takeaway-context
+                title: Context Management
+                body: AMS keeps prompts within the model window automatically.
+              - itemId: takeaway-cross-session
+                title: Cross-Session Recall
+                body: Relevant facts survive into future sessions and requests.
+          - type: callout
+            tone: info
+            title: Continue Exploring
+            body: Open another workshop route or rerun the tests from the beginning.
+            actions:
+              - id: openRoute
+                label: Reference Guide
+                args:
+                  route: /learn
+              - id: openRoute
+                label: Code Editor
+                args:
+                  route: /editor
+              - id: openRoute
+                label: Back to Home
+                args:
+                  route: /
+          - type: callout
+            tone: info
+            title: Run the Guided Tests Again
+            body: Clear the saved chat-test progress and restart the guided flow.
+            actions:
+              - id: resetProgress
+                label: Restart Tests
+                args:
+                  scope: chat-tests

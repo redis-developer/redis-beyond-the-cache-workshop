@@ -1,0 +1,104 @@
+schemaVersion: 1
+viewId: locks-implement
+route: /reentrant/implement
+pageType: narrative
+title: Implement the Distributed Lock
+slot: instructions
+summary: Follow the Redisson implementation path and verify the lock before moving to the demo.
+header:
+  showHubLink: true
+sections:
+  - sectionId: implementation-options
+    blocks:
+      - type: callout
+        tone: info
+        title: "Option 1: Use the In-Browser Code Editor"
+        body: Use the guided editor if you want file-open, auto-apply, and save actions inside the browser.
+        actions:
+          - id: openEditor
+            label: Open Code Editor
+      - type: markdown
+        body: |
+          **Option 2:** edit the files in your IDE. Follow the same learner path shown in the workshop UI:
+          update `build.gradle.kts`, then `application.properties`, then `LockManager.java`, review
+          `PurchaseService.java`, rebuild from the Workshop Hub, and validate in the demo.
+  - sectionId: implementation-steps
+    title: Guided Path
+    blocks:
+      - type: stepList
+        listId: lock-implementation
+        variant: ordered
+        items:
+          - itemId: add-dependencies
+            title: "Step 1: Add Dependencies"
+            body: |
+              Open `build.gradle.kts` and uncomment the Redis and Redisson dependencies.
+
+              - `spring-boot-starter-data-redis` connects Spring Boot to Redis.
+              - `redisson-spring-boot-starter` provides `RLock` and other distributed objects.
+            supportingBlocks:
+              - type: codeSnippet
+                language: kotlin
+                code: |
+                  implementation("org.springframework.boot:spring-boot-starter-data-redis")
+                  implementation("org.redisson:redisson-spring-boot-starter:3.27.2")
+          - itemId: enable-redisson
+            title: "Step 2: Enable Redisson in Configuration"
+            body: Open `application.properties` and change the lock mode to `redisson`.
+            supportingBlocks:
+              - type: codeSnippet
+                language: properties
+                code: |
+                  workshop.lock.mode=redisson
+          - itemId: implement-lock
+            title: "Step 3: Implement the Lock in LockManager.java"
+            body: Restore the Redisson import, field wiring, `isEnabled()`, and the `withLock()` implementation.
+            supportingBlocks:
+              - type: codeSnippet
+                language: java
+                title: "Core withLock() shape"
+                code: |
+                  RLock lock = redissonClient.getLock(lockKey);
+                  boolean acquired = false;
+                  try {
+                      acquired = lock.tryLock(waitTime.toMillis(), leaseTime.toMillis(), TimeUnit.MILLISECONDS);
+                      if (!acquired) {
+                          return onBusy.get();
+                      }
+                      return onAcquired.get();
+                  } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                      return onBusy.get();
+                  } finally {
+                      if (acquired && lock.isHeldByCurrentThread()) {
+                          lock.unlock();
+                      }
+                  }
+          - itemId: review-usage
+            title: "Step 4: See How Your Lock Gets Used"
+            body: Open `PurchaseService.java` and inspect the `purchase()` method to see how `withLock()` protects the
+              read-modify-write flow.
+            supportingBlocks:
+              - type: codeSnippet
+                language: java
+                code: |
+                  lockManager.withLock(
+                      LOCK_KEY,
+                      () -> purchaseWithoutLock(modeLabel),
+                      () -> new PurchaseResult(false, ...)
+                  );
+          - itemId: rebuild-service
+            title: "Step 5: Rebuild and Restart"
+            body: Rebuild and restart the distributed locks service from the Workshop Hub before validating the result.
+            actions:
+              - id: openHub
+                label: Open Workshop Hub
+  - sectionId: verification
+    title: Verify Your Implementation
+    body: After rebuilding, make sure both the configuration and the lock code are in place before opening the demo.
+    blocks:
+      - type: widget
+        widgetId: locks-implement.status
+      - type: callout
+        tone: warning
+        body: Forgetting `unlock()` leaves the lock held until `leaseTime` expires and blocks other workers.

@@ -1,0 +1,248 @@
+schemaVersion: 1
+viewId: memory-home
+route: /
+pageType: stage-flow
+title: Agent Memory Workshop
+slot: instructions
+summary: Understand why LLMs need memory, how Agent Memory Server separates working and long-term memory, and what you will build in this workshop.
+header:
+  showHubLink: true
+  stageNav:
+    clickable: true
+    steps:
+      - stageId: problem
+        label: The Problem
+      - stageId: solution
+        label: The Solution
+      - stageId: working-memory
+        label: Working Memory
+      - stageId: long-term-memory
+        label: Long-Term Memory
+stages:
+  - stageId: problem
+    title: "The Problem: LLMs Are Stateless"
+    sections:
+      - sectionId: why-memory
+        blocks:
+          - type: markdown
+            body: Before we solve anything, understand **why AI agents need memory** in the first place.
+          - type: callout
+            tone: info
+            title: How LLMs Actually Work
+            body: Large Language Models such as GPT-4, Claude, or Llama behave like **stateless functions**. Every request is independent unless you explicitly send prior context back in the prompt.
+          - type: codeSnippet
+            language: text
+            title: Each Call Is Independent
+            code: |
+              response1 = llm.complete("My name is Alice")
+              # "Nice to meet you, Alice!"
+
+              response2 = llm.complete("What's my name?")
+              # "I don't know your name."
+          - type: callout
+            tone: warning
+            title: The Technical Reality
+            body: |
+              - **No persistent state:** LLMs do not store information between API calls.
+              - **Context window only:** they remember only what is inside the current prompt.
+              - **Token limits:** context windows are bounded.
+              - **Cost scales with context:** larger prompts cost more.
+          - type: callout
+            tone: warning
+            title: "The Naive Solution: Pass Everything"
+            body: The simplest approach is to resend the full conversation history with every request.
+          - type: codeSnippet
+            language: json
+            title: Conversation History Keeps Growing
+            code: |
+              [
+                {"role": "user", "content": "My name is Alice"},
+                {"role": "assistant", "content": "Nice to meet you!"},
+                {"role": "user", "content": "I work at TechCorp"},
+                {"role": "assistant", "content": "Interesting!"},
+                {"role": "user", "content": "What's my name?"}
+              ]
+          - type: callout
+            tone: error
+            title: Why This Breaks Down
+            body: |
+              - token limits get exceeded
+              - costs increase every turn
+              - irrelevant history dilutes the prompt
+              - nothing persists across separate sessions
+          - type: stepList
+            listId: memory-needs
+            variant: ordered
+            items:
+              - itemId: session-context
+                title: Session Context
+                body: Remember the current conversation efficiently.
+              - itemId: cross-session
+                title: Cross-Session Memory
+                body: Preserve facts and preferences across future conversations.
+              - itemId: retrieval
+                title: Intelligent Retrieval
+                body: Fetch only relevant memories instead of replaying everything.
+              - itemId: scale
+                title: Scalability
+                body: Support large numbers of users and conversations.
+  - stageId: solution
+    title: Introducing Agent Memory Server
+    sections:
+      - sectionId: ams-overview
+        blocks:
+          - type: markdown
+            body: |
+              **Agent Memory Server (AMS)** is an open-source memory layer built on Redis that gives your AI agents the ability to remember.
+
+              It sits between your application and Redis and exposes a REST API for storing, retrieving, and searching memory.
+          - type: stepList
+            listId: memory-tiers
+            variant: ordered
+            items:
+              - itemId: working-tier
+                title: Working Memory
+                body: Short-term, session-scoped context. Think of it as the agent's scratchpad during one conversation.
+              - itemId: long-term-tier
+                title: Long-Term Memory
+                body: Persistent facts and preferences that survive across sessions.
+          - type: callout
+            tone: success
+            title: Why AMS?
+            body: |
+              - **Built on Redis:** low-latency reads and native vector search
+              - **Handles the hard parts:** extraction, deduplication, and semantic retrieval
+              - **Production ready:** user isolation, namespaces, and authentication
+              - **Simple API:** works with any language or framework
+  - stageId: working-memory
+    title: "Working Memory: Session Context"
+    sections:
+      - sectionId: working-memory-sections
+        blocks:
+          - type: markdown
+            body: Working memory solves the **session context problem**. It stores the active conversation and manages context size through summarization.
+          - type: callout
+            tone: info
+            title: What Working Memory Stores
+            body: |
+              - a `sessionId`
+              - conversation messages
+              - optional metadata and system context
+              - an auto-generated summary when the conversation grows too large
+          - type: callout
+            tone: info
+            title: Key Features
+            body: |
+              - efficient storage outside the LLM
+              - automatic summarization when context usage gets too high
+              - TTL support for expiring inactive sessions
+              - user and session isolation
+          - type: stepList
+            listId: summarization-flow
+            variant: ordered
+            items:
+              - itemId: context-builds
+                title: Context Fills Up
+                body: Context fills up as messages accumulate.
+              - itemId: threshold
+                title: Threshold Reached
+                body: AMS detects that usage crossed the configured threshold.
+              - itemId: summarize
+                title: Older Turns Summarized
+                body: Older messages are summarized into compact context.
+              - itemId: continue
+                title: Conversation Continues
+                body: New messages continue with freed capacity in the prompt window.
+          - type: codeSnippet
+            language: text
+            title: How It Works
+            code: |
+              # 1. Start a conversation
+              PUT /v1/working-memory/chat_alice_123
+
+              # 2. Store messages in working memory
+              Body: {
+                "session_id": "chat_alice_123",
+                "user_id": "alice",
+                "messages": [
+                  {"role": "user", "content": "Hi, I'm Alice from TechCorp"},
+                  {"role": "assistant", "content": "Hello Alice! How can I help?"}
+                ]
+              }
+
+              # 3. Retrieve context later
+              GET /v1/working-memory/chat_alice_123
+          - type: callout
+            tone: info
+            title: Key Insight
+            body: Working memory is **session-scoped**. A brand-new conversation gets a fresh working memory, which is why you also need long-term memory.
+  - stageId: long-term-memory
+    title: "Long-Term Memory: Persistent Knowledge"
+    sections:
+      - sectionId: long-term-overview
+        blocks:
+          - type: markdown
+            body: Long-term memory solves the **cross-session knowledge problem**. It stores facts, preferences, and important information that should outlive a single conversation.
+          - type: stepList
+            listId: memory-types
+            variant: ordered
+            items:
+              - itemId: semantic
+                title: Semantic
+                body: Facts, preferences, and general knowledge about the user.
+              - itemId: episodic
+                title: Episodic
+                body: Events with time context such as appointments, meetings, and deadlines.
+              - itemId: message
+                title: Message
+                body: Verbatim statements that should be preserved exactly as written.
+          - type: callout
+            tone: info
+            title: Workshop Scope
+            body: In this workshop you use `SEMANTIC` memory for simplicity, but the same patterns apply to all three types.
+          - type: callout
+            tone: success
+            title: Why Long-Term Memory Matters
+            body: |
+              - **Persistence:** information survives across sessions and devices
+              - **Semantic search:** retrieval happens by meaning, not exact keywords
+              - **Personalization:** the agent remembers user preferences
+              - **Continuous learning:** every interaction can improve future responses
+          - type: codeSnippet
+            language: json
+            title: How Semantic Search Works
+            code: |
+              POST /v1/long-term-memory/
+              {
+                "memories": [{
+                  "text": "Alice prefers video calls over phone calls",
+                  "memory_type": "semantic",
+                  "user_id": "alice"
+                }]
+              }
+
+              POST /v1/long-term-memory/search
+              {
+                "text": "how does the user like to communicate?",
+                "user_id": {"eq": "alice"},
+                "limit": 5
+              }
+          - type: stepList
+            listId: two-tier-summary
+            variant: ordered
+            items:
+              - itemId: working-summary
+                title: Working Memory
+                body: Session-scoped conversation context with summarization and TTL.
+              - itemId: long-term-summary
+                title: Long-Term Memory
+                body: User-scoped facts and preferences retrieved through semantic search.
+          - type: callout
+            tone: success
+            title: Ready for the Next Page?
+            body: Continue to the challenges page to see why building memory correctly is hard and why Redis fits the problem so well.
+            actions:
+              - id: openRoute
+                label: "Next: Understanding the Challenges"
+                args:
+                  route: /challenges

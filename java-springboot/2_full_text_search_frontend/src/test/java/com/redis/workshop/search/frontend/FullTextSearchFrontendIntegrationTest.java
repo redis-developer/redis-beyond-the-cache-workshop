@@ -70,6 +70,39 @@ class FullTextSearchFrontendIntegrationTest {
             .andExpect(jsonPath("$.content", containsString("private String extract;")));
     }
 
+    @Test
+    void contentManifestIsExposedByFrontendModule() throws Exception {
+        mockMvc.perform(get("/api/content/manifest"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workshopId").value("2_full_text_search_frontend"))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("search-home")))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("search-editor")))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("search-demo")));
+    }
+
+    @Test
+    void contentViewsAreServedFromPackagedWorkshopContentFiles() throws Exception {
+        mockMvc.perform(get("/api/content/views/search-home"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("search-home"))
+            .andExpect(jsonPath("$.pageType").value("stage-flow"))
+            .andExpect(jsonPath("$.stages[*].stageId", hasItem("build")))
+            .andExpect(jsonPath("$.header.stageNav.steps[*].label", hasItem("Test")));
+
+        mockMvc.perform(get("/api/content/views/search-editor"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("search-editor"))
+            .andExpect(jsonPath("$.pageType").value("editor"))
+            .andExpect(jsonPath("$.sections[*].sectionId", hasItem("search-service")));
+
+        mockMvc.perform(get("/api/content/views/search-demo"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("search-demo"))
+            .andExpect(jsonPath("$.pageType").value("stage-flow"))
+            .andExpect(jsonPath("$.stages[*].stageId", hasItem("redis-insight")))
+            .andExpect(jsonPath("$.stages[*].stageId", hasItem("complete")));
+    }
+
     @ParameterizedTest
     @ValueSource(strings = {"/", "/search", "/editor"})
     void spaRoutesForwardToIndexHtml(String route) throws Exception {

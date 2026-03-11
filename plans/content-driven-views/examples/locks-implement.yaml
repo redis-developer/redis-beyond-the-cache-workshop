@@ -1,0 +1,105 @@
+schemaVersion: 1
+viewId: locks-implement
+route: /reentrant/implement
+pageType: narrative
+title: Implement the Distributed Lock
+slot: instructions
+summary: Guide the learner through the Redisson lock implementation and verification flow.
+header:
+  showHubLink: true
+sections:
+  - sectionId: editor-option
+    blocks:
+      - type: callout
+        tone: info
+        title: Option 1
+        body: Use the in-browser editor for the guided path.
+        actions:
+          - id: openEditor
+            label: Open Code Editor
+  - sectionId: ide-path
+    body: "**Option 2:** edit the files in your IDE and follow the same sequence shown in the workshop."
+    blocks:
+      - type: stepList
+        listId: lock-implementation
+        variant: ordered
+        items:
+          - itemId: add-dependencies
+            title: "Step 1: Add Dependencies"
+            body: Uncomment the Redis and Redisson dependencies in `build.gradle.kts`.
+            supportingBlocks:
+              - type: codeSnippet
+                language: kotlin
+                code: |
+                  implementation("org.springframework.boot:spring-boot-starter-data-redis")
+                  implementation("org.redisson:redisson-spring-boot-starter:3.27.2")
+          - itemId: enable-redisson
+            title: "Step 2: Enable Redisson in Configuration"
+            body: Change `workshop.lock.mode=none` to `workshop.lock.mode=redisson` in `application.properties`.
+            supportingBlocks:
+              - type: codeSnippet
+                language: properties
+                code: |
+                  workshop.lock.mode=redisson
+          - itemId: implement-lock
+            title: "Step 3: Implement the Lock in LockManager.java"
+            body: Restore the Redisson imports, field wiring, `isEnabled()`, and `withLock()` implementation.
+            supportingBlocks:
+              - type: codeSnippet
+                language: java
+                title: Core `withLock()` Shape
+                code: |
+                  RLock lock = redissonClient.getLock(lockKey);
+                  boolean acquired = false;
+                  try {
+                      acquired = lock.tryLock(waitTime.toMillis(), leaseTime.toMillis(), TimeUnit.MILLISECONDS);
+                      if (!acquired) {
+                          return onBusy.get();
+                      }
+                      return onAcquired.get();
+                  } catch (InterruptedException e) {
+                      Thread.currentThread().interrupt();
+                      return onBusy.get();
+                  } finally {
+                      if (acquired && lock.isHeldByCurrentThread()) {
+                          lock.unlock();
+                      }
+                  }
+          - itemId: review-usage
+            title: "Step 4: See How Your Lock Gets Used"
+            body: Load the read-only `PurchaseService.java` reference to see how `withLock()` protects the critical section.
+            actions:
+              - id: openReference
+                label: Show PurchaseService.java
+                args:
+                  referenceId: locks-implement.purchase-service-review
+          - itemId: rebuild-and-verify
+            title: "Step 5: Rebuild and Restart"
+            body: Rebuild the distributed locks service, then verify that both configuration and code are in place.
+            actions:
+              - id: openHub
+                label: Rebuild and Restart
+                args:
+                  mode: rebuildRestart
+                  service: backend
+              - id: runCheck
+                label: Check Lock Status
+                args:
+                  checkId: locks-implement.reentrant-status
+      - type: widget
+        widgetId: locks-implement.reentrant-status
+      - type: callout
+        tone: warning
+        body: Forgetting `unlock()` leaves the lock held until `leaseTime` expires and blocks other workers.
+      - type: stepList
+        listId: next-actions
+        variant: ordered
+        items:
+          - itemId: test-demo
+            title: Test Your Implementation
+            body: Move to the demo once the lock status check reports that configuration and code are both ready.
+            actions:
+              - id: openRoute
+                label: Go to Demo
+                args:
+                  route: /reentrant/demo

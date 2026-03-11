@@ -62,6 +62,25 @@ class SessionManagementFrontendIntegrationTest {
     }
 
     @Test
+    void sharedContentApiIsExposedInFrontendModule() throws Exception {
+        mockMvc.perform(get("/api/content/manifest"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workshopId").value("1_session_management"))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("session-home")))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("session-editor")));
+
+        mockMvc.perform(get("/api/content/views/session-home"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pageType").value("stage-flow"))
+            .andExpect(jsonPath("$.stages[0].sections[0].blocks[2].listId").value("stage1-tests"));
+
+        mockMvc.perform(get("/api/content/views/session-editor"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pageType").value("editor"))
+            .andExpect(jsonPath("$.sections[1].blocks[0].type").value("editorStepList"));
+    }
+
+    @Test
     void loginPostIsHandledByAuthProxyInFrontendModule() throws Exception {
         mockMvc.perform(post("/login").param("username", "user").param("password", "password"))
             .andExpect(status().isBadGateway());

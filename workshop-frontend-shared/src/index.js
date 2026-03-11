@@ -13,6 +13,14 @@ export {
   getRedisInsightUrl
 } from './utils/basePath.js';
 
+export {
+  bindContentAction,
+  createContentRenderModel,
+  getStageNavItems
+} from './content-renderer/renderModel.js';
+
+export { renderMarkdown } from './content-renderer/markdown.js';
+
 // Components - Editor
 export { default as CodeEditor } from './components/CodeEditor.vue';
 export { default as WorkshopEditorLayout } from './components/WorkshopEditorLayout.vue';
@@ -23,5 +31,6 @@ export { default as WorkshopStageNav } from './components/WorkshopStageNav.vue';
 export { default as WorkshopProgressIndicator } from './components/WorkshopProgressIndicator.vue';
 export { default as WorkshopHubLink } from './components/WorkshopHubLink.vue';
 export { default as WorkshopHeader } from './components/WorkshopHeader.vue';
+export { default as WorkshopContentRenderer } from './components/WorkshopContentRenderer.vue';
 
 export default {};

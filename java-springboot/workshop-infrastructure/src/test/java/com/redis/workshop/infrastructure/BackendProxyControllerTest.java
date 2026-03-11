@@ -102,6 +102,14 @@ class BackendProxyControllerTest {
         verifyNoInteractions(httpClient);
     }
 
+    @Test
+    void doesNotProxySharedContentEndpoints() throws Exception {
+        mockMvc.perform(get("/api/content/manifest"))
+            .andExpect(status().isNotFound());
+
+        verifyNoInteractions(httpClient);
+    }
+
     @SuppressWarnings("unchecked")
     private HttpResponse<byte[]> mockBackendResponse(int statusCode, byte[] body, Map<String, List<String>> headers) {
         HttpResponse<byte[]> response = mock(HttpResponse.class);

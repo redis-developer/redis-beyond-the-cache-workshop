@@ -1,0 +1,93 @@
+schemaVersion: 1
+viewId: memory-lab
+route: /lab
+pageType: stage-flow
+title: Agent Memory Lab
+slot: instructions
+summary: Use guided exercises to verify the environment, store working memory, search long-term memory, and build enriched context for an LLM.
+header:
+  showHubLink: true
+  stageNav:
+    clickable: true
+    steps:
+      - stageId: setup
+        label: Setup
+      - stageId: working-memory
+        label: Working Memory
+      - stageId: long-term-memory
+        label: Long-Term Memory
+      - stageId: context
+        label: Test
+stages:
+  - stageId: setup
+    title: Lab Setup
+    sections:
+      - sectionId: setup-checks
+        blocks:
+          - type: markdown
+            body: Verify that the workshop services are running before you start exercising the APIs.
+          - type: widget
+            widgetId: memory-lab.setup
+          - type: callout
+            tone: info
+            title: "Integration Pattern: Code-Driven"
+            body: In this lab you explicitly control when to store and retrieve memories from Java code. That gives you predictable behavior and full control over the memory workflow.
+  - stageId: working-memory
+    title: "Exercise 1: Working Memory"
+    sections:
+      - sectionId: working-memory-lab
+        blocks:
+          - type: markdown
+            body: Store and retrieve a conversation session. Create a working memory entry with user and assistant messages, then load it back.
+          - type: widget
+            widgetId: memory-lab.working-memory
+          - type: codeSnippet
+            language: java
+            title: Java Code Reference
+            code: |
+              WorkingMemory memory = new WorkingMemory();
+              memory.setSessionId(sessionId);
+              memory.setUserId(userId);
+              memory.setMessages(List.of(
+                  new MemoryMessage("user", userMessage),
+                  new MemoryMessage("assistant", assistantMessage)
+              ));
+
+              agentMemoryService.putWorkingMemory(sessionId, memory).block();
+  - stageId: long-term-memory
+    title: "Exercise 2: Long-Term Memory"
+    sections:
+      - sectionId: long-term-lab
+        blocks:
+          - type: markdown
+            body: Store a user preference and then search for it with different phrasing to see semantic retrieval in action.
+          - type: widget
+            widgetId: memory-lab.long-term-memory
+          - type: callout
+            tone: success
+            title: Semantic Search Magic
+            body: If the search finds "prefers video calls" when you ask "how does the user like to communicate?", you are seeing vector similarity rather than keyword matching.
+  - stageId: context
+    title: Putting It All Together
+    sections:
+      - sectionId: context-builder
+        blocks:
+          - type: markdown
+            body: Build enriched context by combining the active conversation from working memory with relevant long-term memories for a new user request.
+          - type: widget
+            widgetId: memory-lab.context-builder
+          - type: callout
+            tone: success
+            title: Congratulations!
+            body: |
+              You now understand the code-driven memory pattern. Your agent can:
+
+              - store conversation context in working memory
+              - persist durable facts to long-term memory
+              - search memory by meaning with semantic search
+              - build better prompts with retrieved context
+            actions:
+              - id: openRoute
+                label: Explore More Resources
+                args:
+                  route: /learn

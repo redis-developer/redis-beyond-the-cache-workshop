@@ -1,0 +1,15 @@
+schemaVersion: 1
+workshopId: 3_distributed_locks
+views:
+  - viewId: locks-home
+    route: /
+    pageType: stage-flow
+    file: views/locks-home.yaml
+  - viewId: locks-implement
+    route: /reentrant/implement
+    pageType: narrative
+    file: views/locks-implement.yaml
+  - viewId: locks-editor
+    route: /reentrant/editor
+    pageType: editor
+    file: views/locks-editor.yaml

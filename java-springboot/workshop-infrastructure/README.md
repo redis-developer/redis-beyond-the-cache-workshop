@@ -32,6 +32,17 @@ Generic Spring MVC controller that provides:
 - `/api/editor/file/{fileName}` - Save file content (POST)
 - `/api/editor/restore` - Restore all files to original state (POST)
 
+### `WorkshopContentController.java` (Controller)
+Generic Spring MVC controller that provides:
+- `/api/content/manifest` - Load the content manifest for the current workshop frontend
+- `/api/content/views/{viewId}` - Load one content view document as JSON
+
+### `WorkshopContentLoader.java` (Loader)
+Shared loader that:
+- resolves `src/main/resources/workshop-content/manifest.yaml` from the configured workshop source path when available
+- falls back to packaged `classpath:workshop-content/manifest.yaml`
+- validates content files against the shared content-driven views contract
+
 ### `editor.html` (Template)
 Thymeleaf template with:
 - Full-screen split-pane layout
@@ -126,6 +137,28 @@ The infrastructure automatically:
 - Injects it into the `EditorController`
 - Provides full editor functionality
 - Handles file reading, writing, and restoration
+
+## Shared Content Delivery
+
+Workshop frontends can place content resources at:
+
+```text
+src/main/resources/workshop-content/
+  manifest.yaml
+  views/
+    <view-id>.yaml
+```
+
+The shared runtime will look for content in that location without any workshop-specific controller code.
+
+Runtime API:
+- `GET /api/content/manifest`
+- `GET /api/content/views/{viewId}`
+
+Failure behavior:
+- Missing content manifest returns `404` with `WORKSHOP_CONTENT_NOT_FOUND`
+- Missing `viewId` in the manifest returns `404` with `WORKSHOP_CONTENT_VIEW_NOT_FOUND`
+- Malformed manifest or view files return `500` with `WORKSHOP_CONTENT_INVALID`
 
 ## 📋 Supported Languages
 

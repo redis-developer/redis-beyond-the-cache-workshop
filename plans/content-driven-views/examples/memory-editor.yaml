@@ -1,0 +1,365 @@
+schemaVersion: 1
+viewId: memory-editor
+route: /editor
+pageType: editor
+title: Agent Memory Workshop
+slot: instructions
+summary: Complete the three workshop files to wire AMS SDK calls, the Spring AI bridge, and the advisor chain.
+sections:
+  - sectionId: overview
+    blocks:
+      - type: callout
+        tone: info
+        body: Complete the workshop files in order to wire raw AMS SDK calls, the Spring AI chat memory bridge, and the advisor chain used by the chat UI.
+      - type: widget
+        widgetId: memory-editor.progress
+      - type: markdown
+        body: Click the play button next to a step to auto-apply that change, or type the code manually if you prefer.
+  - sectionId: service-steps
+    title: Part 1 - AgentMemoryService
+    blocks:
+      - type: editorStepList
+        listId: sdk-client
+        title: "Step 0: Initialize the SDK Client"
+        startAt: 1
+        progressGroup: service
+        items:
+          - itemId: open-agent-memory-service
+            body: Open `AgentMemoryService.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: AgentMemoryService.java
+          - itemId: uncomment-client-init
+            body: Uncomment the `MemoryAPIClient` initialization.
+            hint: The client is thread-safe and the namespace isolates workshop data.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentClientInit
+          - itemId: save-client-init
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: working-memory-get
+        title: "Step 1: Implement Working Memory - GET"
+        startAt: 4
+        progressGroup: service
+        items:
+          - itemId: uncomment-get-working-memory
+            body: Uncomment the `getWorkingMemory()` implementation.
+            hint: This returns full conversation history plus any auto-generated summary.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentGetWorkingMemory
+          - itemId: save-get-working-memory
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: working-memory-put
+        title: "Step 2: Implement Working Memory - PUT"
+        startAt: 6
+        progressGroup: service
+        items:
+          - itemId: uncomment-put-working-memory
+            body: Uncomment the `putWorkingMemory()` implementation.
+            hint: "`PUT` replaces the entire working memory; append flows use a different call."
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentPutWorkingMemory
+          - itemId: save-put-working-memory
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: working-memory-delete
+        title: "Step 3: Implement Working Memory - DELETE"
+        startAt: 8
+        progressGroup: service
+        items:
+          - itemId: uncomment-delete-working-memory
+            body: Uncomment the `deleteWorkingMemory()` implementation.
+            hint: Delete removes the session immediately; TTL is the automatic cleanup path.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentDeleteWorkingMemory
+          - itemId: save-delete-working-memory
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: long-term-create
+        title: "Step 4: Implement Long-Term Memory - CREATE"
+        startAt: 10
+        progressGroup: service
+        items:
+          - itemId: uncomment-create-memory
+            body: Uncomment the `createLongTermMemory()` implementation.
+            hint: AMS generates vector embeddings automatically for semantic retrieval.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentCreateLongTermMemory
+          - itemId: save-create-memory
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: long-term-search
+        title: "Step 5: Implement Long-Term Memory - SEARCH"
+        startAt: 12
+        progressGroup: service
+        items:
+          - itemId: uncomment-search-memory
+            body: Uncomment the `searchLongTermMemory()` implementation.
+            hint: Semantic search finds memories by meaning rather than exact keywords.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentSearchLongTermMemory
+          - itemId: save-search-memory
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: long-term-get
+        title: "Step 6: Implement Long-Term Memory - GET"
+        startAt: 14
+        progressGroup: service
+        items:
+          - itemId: uncomment-get-memory
+            body: Uncomment the `getMemory()` implementation.
+            hint: This retrieves a specific memory by id for inspection or update flows.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentGetMemory
+          - itemId: save-get-memory
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: long-term-delete
+        title: "Step 7: Implement Long-Term Memory - DELETE"
+        startAt: 16
+        progressGroup: service
+        items:
+          - itemId: uncomment-delete-memories
+            body: Uncomment the `deleteMemories()` implementation.
+            hint: Deleting memories is permanent; automatic forgetting policies are a separate concern.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentDeleteMemories
+          - itemId: save-delete-memories
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: health-check
+        title: "Step 8: Implement Health Check"
+        startAt: 18
+        progressGroup: service
+        items:
+          - itemId: uncomment-health-check
+            body: Uncomment the `healthCheck()` implementation.
+            hint: Use this for readiness and to inspect the connected Redis target.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentHealthCheck
+          - itemId: save-health-check
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: repository-steps
+    title: Part 2 - Spring AI ChatMemoryRepository
+    blocks:
+      - type: editorStepList
+        listId: context-percentage
+        title: "Step 9: Implement Context Percentage"
+        startAt: 20
+        progressGroup: repository
+        items:
+          - itemId: open-chat-memory-repository
+            body: Open `AmsChatMemoryRepository.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: AmsChatMemoryRepository.java
+          - itemId: uncomment-context-percentage
+            body: Uncomment the `getContextPercentage()` implementation.
+            hint: AMS can summarize old messages when context usage becomes too high.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentGetContextPercentage
+          - itemId: save-context-percentage
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: find-conversation
+        title: "Step 10: Implement Find By Conversation ID"
+        startAt: 23
+        progressGroup: repository
+        items:
+          - itemId: uncomment-find-by-conversation
+            body: Uncomment the `findByConversationId()` implementation.
+            hint: Spring AI calls this before each model request to load prior messages.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentFindByConversationId
+          - itemId: save-find-by-conversation
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: save-all-messages
+        title: "Step 11: Implement Save All Messages"
+        startAt: 25
+        progressGroup: repository
+        items:
+          - itemId: uncomment-save-all
+            body: Uncomment the `saveAll()` implementation.
+            hint: The bridge deduplicates messages and applies TTL when a conversation starts.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentSaveAll
+          - itemId: save-save-all
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: advisor-steps
+    title: Part 3 - Spring AI Advisors
+    blocks:
+      - type: editorStepList
+        listId: advisor-params
+        title: "Step 12: Pass Conversation ID to Advisors"
+        startAt: 27
+        progressGroup: chat
+        items:
+          - itemId: open-chat-service
+            body: Open `ChatService.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: ChatService.java
+          - itemId: uncomment-advisor-params
+            body: Add `.advisors()` so the conversation id flows through the advisor chain.
+            hint: Advisors need the conversation id to load and persist the correct conversation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentAdvisorParams
+          - itemId: save-advisor-params
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: working-memory-advisor
+        title: "Step 13: Add Working Memory Advisor"
+        startAt: 30
+        progressGroup: chat
+        items:
+          - itemId: uncomment-working-memory-advisor
+            body: Uncomment the `MessageChatMemoryAdvisor` configuration.
+            hint: This loads prior conversation history before the model call and stores new messages after it.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentWorkingMemoryAdvisor
+          - itemId: save-working-memory-advisor
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: long-term-memory-advisor
+        title: "Step 14: Add Long-Term Memory Advisor"
+        startAt: 32
+        progressGroup: chat
+        items:
+          - itemId: uncomment-long-term-memory-advisor
+            body: Uncomment the `LongTermMemoryAdvisor` configuration.
+            hint: This injects semantically relevant long-term memories into the system prompt.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: memory-editor.uncommentLongTermMemoryAdvisor
+          - itemId: save-long-term-memory-advisor
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: test-and-reset
+    title: Step 15 - Restart and Test
+    blocks:
+      - type: stepList
+        listId: restart-and-test
+        variant: ordered
+        items:
+          - itemId: rebuild-app
+            title: Rebuild the App
+            body: Rebuild the workshop application after all editor steps are complete.
+            actions:
+              - id: openHub
+                label: Rebuild and Restart
+                args:
+                  mode: rebuildRestart
+                  service: backend
+          - itemId: go-to-demo
+            title: Go to Demo
+            body: Open the demo route to test the full memory workflow.
+            actions:
+              - id: openRoute
+                label: Go to Demo
+                args:
+                  route: /demo
+      - type: widget
+        widgetId: memory-editor.completion-banner
+      - type: callout
+        tone: info
+        title: Reset Workshop
+        body: Restore all files to their original state if you want to repeat the exercise.
+        actions:
+          - id: restartLab
+            label: Reset Lab

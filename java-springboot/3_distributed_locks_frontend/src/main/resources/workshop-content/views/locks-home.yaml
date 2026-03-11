@@ -1,0 +1,81 @@
+schemaVersion: 1
+viewId: locks-home
+route: /
+pageType: stage-flow
+title: Distributed Locks Workshop
+slot: instructions
+header:
+  showHubLink: true
+  stageNav:
+    clickable: true
+    steps:
+      - stageId: problem
+        label: Problem
+      - stageId: solution
+        label: Solution
+stages:
+  - stageId: problem
+    title: "The Problem: Race Conditions"
+    sections:
+      - sectionId: problem-overview
+        body: Before we fix anything, let's **see the problem** with our own eyes.
+        blocks:
+          - type: stepList
+            listId: problem-stage
+            variant: ordered
+            items:
+              - itemId: concurrent-workers
+                title: "Experiment: Run 5 Concurrent Workers"
+                body: |
+                  Imagine a scheduled job that should run **exactly once** per minute, like sending a daily report
+                  or processing a payment batch. What happens when 5 app instances all try to run it at the same time?
+                supportingBlocks:
+                  - type: widget
+                    widgetId: locks-home.problem-demo
+              - itemId: no-coordination
+                title: Why does this happen?
+                body: |
+                  Each application instance has no idea what the others are doing. They all check "should I run?"
+                  at the same time, all see "yes", and all execute. **There is no coordination.**
+              - itemId: distributed-locks
+                title: "The Solution: Distributed Locks"
+                body: |
+                  A **distributed lock** is a shared flag that every instance can see. The first worker to grab it
+                  wins; the others wait or skip.
+
+                  Redis is a strong fit because:
+
+                  - **Centralized:** all app instances connect to the same Redis
+                  - **Fast:** lock operations complete quickly
+                  - **Safe:** Redis operations are atomic
+                  - **TTL:** locks can expire automatically if a process crashes
+          - type: callout
+            tone: info
+            title: Ready for the next step?
+            body: Move to the lock type hub to see where a reentrant lock fits and start the guided exercise.
+            actions:
+              - id: setStage
+                label: Show Lock Types
+                args:
+                  stageId: solution
+  - stageId: solution
+    title: Distributed Locks Workshop
+    sections:
+      - sectionId: solution-overview
+        body: Learn different lock types with hands-on exercises.
+        blocks:
+          - type: callout
+            tone: info
+            title: What is Redisson?
+            body: |
+              **Redisson** is a Redis client for Java that provides high-level distributed objects. Instead of
+              implementing locks yourself with raw Redis commands, it gives you ready-made primitives such as
+              `RLock`, `RSemaphore`, and `RReadWriteLock`.
+
+              These implementations come with operational safeguards like lease expiry and safe unlock handling.
+      - sectionId: lock-types
+        title: Choose a Lock Type
+        body: Start with Reentrant Lock if you're new to distributed locks.
+        blocks:
+          - type: widget
+            widgetId: locks-home.hub

@@ -1,0 +1,161 @@
+schemaVersion: 1
+viewId: search-demo
+route: /search
+pageType: stage-flow
+title: Test Your Search
+slot: instructions
+summary: Run a sequence of searches to validate title search, full-text matching, filters, and the generated index.
+stages:
+  - stageId: title-search
+    title: Test 1 - Basic Title Search
+    sections:
+      - sectionId: title-search
+        blocks:
+          - type: markdown
+            body: Type `matrix` in the **Title** field and click **Search**.
+          - type: callout
+            tone: info
+            title: Observe
+            body: Look at the search time in the results header. Redis Query Engine should respond in just a few milliseconds.
+            actions:
+              - id: setStage
+                label: Completed - Next Test
+                args:
+                  stageId: description-search
+  - stageId: description-search
+    title: Test 2 - Full-Text Description Search
+    sections:
+      - sectionId: description-search
+        blocks:
+          - type: markdown
+            body: Clear the title field. Type `space adventure` in the **Description** field and search again.
+          - type: callout
+            tone: info
+            title: Observe
+            body: Full-text search can match words in the description even when they are not adjacent. That is the effect of the `@Searchable` fields on the movie document.
+            actions:
+              - id: setStage
+                label: Completed - Next Test
+                args:
+                  stageId: fuzzy-match
+  - stageId: fuzzy-match
+    title: Test 3 - Fuzzy Text Matching
+    sections:
+      - sectionId: fuzzy-match
+        blocks:
+          - type: markdown
+            body: Clear all fields. Type `Marty discovers his friend was trapped in 1885` in the **Description** field.
+          - type: callout
+            tone: info
+            title: Observe
+            body: The result matches a longer description even though your search text is not an exact substring. Tokenization and full-text matching handle the extra words.
+            actions:
+              - id: setStage
+                label: Completed - Next Test
+                args:
+                  stageId: combined-filters
+  - stageId: combined-filters
+    title: Test 4 - Combined Filters
+    sections:
+      - sectionId: combined-filters
+        blocks:
+          - type: markdown
+            body: Select a **Genre** such as `Sci-Fi` and enter a **Year** such as `1999`.
+          - type: callout
+            tone: info
+            title: Observe
+            body: Multiple filters combine with AND logic. `@Indexed` fields handle exact filtering while `@Searchable` fields continue to support text queries.
+            actions:
+              - id: setStage
+                label: Completed - Next Test
+                args:
+                  stageId: actor-search
+  - stageId: actor-search
+    title: Test 5 - Actor Search
+    sections:
+      - sectionId: actor-search
+        blocks:
+          - type: markdown
+            body: Clear all fields. Type an actor name such as `Keanu Reeves` in the **Actor** field.
+          - type: callout
+            tone: info
+            title: Observe
+            body: The cast field is `@Indexed`, so Redis can efficiently filter on array elements stored inside each JSON document.
+            actions:
+              - id: setStage
+                label: Completed - Next Test
+                args:
+                  stageId: redis-insight
+  - stageId: redis-insight
+    title: Test 6 - Explore the Index in Redis Insight
+    sections:
+      - sectionId: redis-insight
+        blocks:
+          - type: markdown
+            body: Open Redis Insight, go to **Workbench**, and run `FT.INFO "com.redis.workshop.search.domain.MovieIdx"`.
+          - type: stepList
+            listId: redis-insight-checks
+            variant: ordered
+            items:
+              - itemId: text-fields
+                title: TEXT Fields
+                body: Confirm that `title` and `extract` are indexed for full-text search.
+              - itemId: numeric-fields
+                title: NUMERIC Field
+                body: Confirm that `year` is indexed for range queries and sorting.
+              - itemId: tag-fields
+                title: TAG Fields
+                body: Confirm that `cast`, `genres`, and `id` are indexed for exact matching.
+              - itemId: index-metadata
+                title: Index Metadata
+                body: Review the document count and term statistics at the bottom of the command output.
+          - type: callout
+            tone: info
+            title: Ready to finish?
+            body: Open Redis Insight if you have not already, then complete the final stage.
+            actions:
+              - id: openRedisInsight
+                label: Open Redis Insight
+              - id: setStage
+                label: Completed - Finish
+                args:
+                  stageId: complete
+  - stageId: complete
+    title: All Tests Complete
+    sections:
+      - sectionId: completion
+        blocks:
+          - type: callout
+            tone: success
+            body: You've explored the main Redis Query Engine behaviors behind this movie search application.
+          - type: stepList
+            listId: key-takeaways
+            variant: ordered
+            items:
+              - itemId: searchable
+                title: "`@Searchable`"
+                body: Enables stemming and relevance-based full-text search.
+              - itemId: indexed
+                title: "`@Indexed`"
+                body: Enables exact filtering and sorting on the field.
+              - itemId: entity-stream
+                title: EntityStream
+                body: Builds server-side Redis queries instead of filtering in memory.
+              - itemId: performance
+                title: Millisecond Response Times
+                body: Redis can search the indexed movie set quickly even as the data grows.
+          - type: callout
+            tone: info
+            title: Want to try again?
+            body: Reset the guided tests, restore the workshop files, or jump back to another screen.
+            actions:
+              - id: resetProgress
+                label: Restart Tests
+              - id: restartLab
+                label: Restart Lab
+              - id: openRoute
+                label: Back to Workshop Home
+                args:
+                  route: /
+              - id: openEditor
+                label: Open Code Editor

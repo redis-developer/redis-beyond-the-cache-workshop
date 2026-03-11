@@ -1,0 +1,279 @@
+schemaVersion: 1
+viewId: memory-learn
+route: /learn
+pageType: narrative
+title: AMS Reference Guide
+slot: instructions
+summary: Use this guide as a compact reference for memory types, summarization, semantic search, TTL, deduplication, and the Java SDK used in the workshop.
+sections:
+  - sectionId: guide-overview
+    title: What This Guide Covers
+    blocks:
+      - type: markdown
+        body: |
+          This page covers:
+
+          - architecture overview
+          - memory types and lifecycle
+          - summarization and semantic search
+          - TTL, deduplication, and integration patterns
+          - advanced AMS capabilities and Java SDK examples
+  - sectionId: architecture
+    title: Architecture Overview
+    blocks:
+      - type: markdown
+        body: AMS acts as middleware between your application and Redis.
+      - type: stepList
+        listId: architecture-features
+        variant: ordered
+        items:
+          - itemId: embeddings
+            title: Embedding Generation
+            body: Convert text into vectors automatically for semantic retrieval.
+          - itemId: search
+            title: Semantic Search
+            body: Use Redis Vector Search to find relevant memories by meaning.
+          - itemId: context
+            title: Context Management
+            body: Track token usage and trigger summarization when needed.
+          - itemId: lifecycle
+            title: Memory Lifecycle
+            body: Manage TTL, deduplication, and cleanup behavior.
+  - sectionId: memory-types
+    title: Memory Types Deep Dive
+    blocks:
+      - type: stepList
+        listId: memory-type-details
+        variant: ordered
+        items:
+          - itemId: semantic-memory
+            title: Semantic Memory
+            body: |
+              Timeless facts and preferences about a user.
+
+              Examples:
+
+              - "User prefers dark mode"
+              - "Alice is a software engineer"
+              - "User is vegetarian"
+          - itemId: episodic-memory
+            title: Episodic Memory
+            body: |
+              Events with temporal context.
+
+              Examples:
+
+              - "User has a meeting on March 15 at 2pm"
+              - "User went hiking last weekend"
+              - "Anniversary is July 20"
+          - itemId: message-memory
+            title: Message Memory
+            body: |
+              Verbatim statements worth preserving exactly.
+
+              Examples:
+
+              - "Remember: My WiFi password is Guest2024"
+              - "Note: Mom's phone is 555-1234"
+              - "Save this: Project deadline is Friday"
+  - sectionId: lifecycle
+    title: Working Memory Lifecycle
+    blocks:
+      - type: stepList
+        listId: working-memory-lifecycle
+        variant: ordered
+        items:
+          - itemId: created
+            title: Session Created
+            body: A new session begins when the first message is stored.
+          - itemId: accumulate
+            title: Messages Accumulate
+            body: User and assistant exchanges increase context usage.
+          - itemId: threshold
+            title: Context Threshold
+            body: Around 70% of the available window, summarization becomes likely.
+          - itemId: summarize
+            title: Summarization
+            body: Older messages compress into a summary while recent turns stay intact.
+          - itemId: continue
+            title: Continue or Expire
+            body: The session continues with the summary, or expires after inactivity.
+  - sectionId: summarization
+    title: Summarization Explained
+    blocks:
+      - type: stepList
+        listId: summarization-details
+        variant: ordered
+        items:
+          - itemId: trigger
+            title: When It Triggers
+            body: The default threshold is around `0.7` of the model context window.
+          - itemId: summarized-content
+            title: What Gets Summarized
+            body: Older messages compress into a summary while recent messages remain verbatim.
+          - itemId: storage
+            title: How It Is Stored
+            body: AMS stores the summary as context alongside the recent messages.
+          - itemId: impact
+            title: Response Impact
+            body: The model sees summary plus recent messages, preserving continuity while respecting token limits.
+  - sectionId: semantic-search
+    title: Semantic Search Flow
+    blocks:
+      - type: stepList
+        listId: semantic-search-flow
+        variant: ordered
+        items:
+          - itemId: user-message
+            title: User Message
+            body: The user asks for something like `What outdoor activities do I enjoy?`
+          - itemId: vectorize
+            title: Convert to Vector
+            body: AMS generates an embedding for the query.
+          - itemId: query
+            title: Redis Vector Search
+            body: Redis finds the nearest matching memories and applies user filters.
+          - itemId: matches
+            title: Return Matches
+            body: A memory like `Alice loves hiking in the mountains` can match by meaning.
+          - itemId: inject
+            title: Inject into the Prompt
+            body: Relevant memories join the system prompt for the next LLM call.
+  - sectionId: ttl
+    title: TTL and Expiration
+    blocks:
+      - type: callout
+        tone: info
+        title: Why TTL Matters
+        body: TTL automatically cleans up inactive sessions so stale working memory does not accumulate forever.
+      - type: stepList
+        listId: ttl-settings
+        variant: ordered
+        items:
+          - itemId: ttl-seconds
+            title: "`ttl_seconds`"
+            body: Defaults to `1800` seconds, or 30 minutes of inactivity.
+          - itemId: last-accessed
+            title: "`last_accessed`"
+            body: Updated on each read and write so active conversations stay alive.
+  - sectionId: deduplication
+    title: Deduplication
+    blocks:
+      - type: callout
+        tone: info
+        title: Why Deduplication Matters
+        body: Retries, streaming responses, and repeated saves can otherwise create duplicate memory records.
+      - type: stepList
+        listId: deduplication-types
+        variant: ordered
+        items:
+          - itemId: working-memory-dedup
+            title: Working Memory
+            body: Messages are deduplicated by role and content so duplicates do not pile up.
+          - itemId: long-term-dedup
+            title: Long-Term Memory
+            body: Stored memories are hashed and compared before insert.
+  - sectionId: integration-patterns
+    title: Integration Patterns
+    blocks:
+      - type: stepList
+        listId: integration-pattern-details
+        variant: ordered
+        items:
+          - itemId: code-driven-pattern
+            title: Code-Driven
+            body: Your application explicitly calls AMS APIs to store and retrieve memory. This is the workshop pattern.
+          - itemId: llm-driven-pattern
+            title: LLM-Driven
+            body: The model invokes tools or functions to decide when memory should be used.
+          - itemId: background-pattern
+            title: Background Extraction
+            body: AMS extracts memory asynchronously with minimal application code.
+  - sectionId: advanced
+    title: Advanced Features
+    blocks:
+      - type: stepList
+        listId: advanced-features
+        variant: ordered
+        items:
+          - itemId: decay
+            title: Memory Decay
+            body: Use recency weighting to favor fresh information during retrieval.
+          - itemId: forgetting
+            title: Forgetting Policies
+            body: Remove memories automatically based on time, count, or relevance rules.
+          - itemId: extraction
+            title: Topic and Entity Extraction
+            body: Extract structured filters such as named entities or topics from memory records.
+          - itemId: summary-views
+            title: Summary Views
+            body: Build aggregated summaries grouped by user, session, or custom fields.
+  - sectionId: java-sdk
+    title: Java SDK Reference
+    blocks:
+      - type: codeSnippet
+        language: kotlin
+        title: Installation
+        code: |
+          // build.gradle.kts
+          implementation("com.redis:agent-memory-client-java:0.1.0")
+      - type: codeSnippet
+        language: java
+        title: Client Initialization
+        code: |
+          MemoryAPIClient client = MemoryAPIClient.builder("http://localhost:8000")
+              .defaultNamespace("my-app")
+              .timeout(30.0)
+              .build();
+      - type: codeSnippet
+        language: java
+        title: Working Memory Operations
+        code: |
+          WorkingMemoryResponse memory = client.workingMemory()
+              .getWorkingMemory(sessionId, userId, namespace, "gpt-4o-mini", null);
+
+          client.workingMemory().appendMessagesToWorkingMemory(
+              sessionId, messages, namespace, "gpt-4o-mini", null, userId);
+
+          client.workingMemory().deleteWorkingMemory(sessionId, userId, namespace);
+      - type: codeSnippet
+        language: java
+        title: Long-Term Memory Operations
+        code: |
+          MemoryRecord record = MemoryRecord.builder()
+              .text("User prefers dark mode")
+              .userId(userId)
+              .memoryType(MemoryType.SEMANTIC)
+              .build();
+
+          client.longTermMemory().createLongTermMemories(List.of(record));
+
+          SearchRequest request = SearchRequest.builder()
+              .text("user preferences")
+              .userId(userId)
+              .limit(5)
+              .build();
+
+          client.longTermMemory().searchLongTermMemories(request);
+  - sectionId: resources
+    title: Resources
+    blocks:
+      - type: markdown
+        body: |
+          - [Official AMS Documentation](https://redis.github.io/agent-memory-server/)
+          - [Agent Memory Server GitHub Repository](https://github.com/redis/agent-memory-server)
+          - [Java SDK Guide](https://redis.github.io/agent-memory-server/api/sdks/java-sdk/)
+          - [Redis Vector Search Documentation](https://redis.io/docs/latest/develop/interact/search-and-query/query/vector-search/)
+      - type: callout
+        tone: info
+        title: Continue Exploring
+        body: Return to the workshop home page or go straight to the guided chat demo.
+        actions:
+          - id: openRoute
+            label: Back to Home
+            args:
+              route: /
+          - id: openRoute
+            label: Try the Demo
+            args:
+              route: /demo

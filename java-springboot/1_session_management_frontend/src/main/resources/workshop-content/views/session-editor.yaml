@@ -1,0 +1,139 @@
+schemaVersion: 1
+viewId: session-editor
+route: /editor
+pageType: editor
+title: "Stage 2: Enable Redis"
+slot: instructions
+sections:
+  - sectionId: overview
+    blocks:
+      - type: callout
+        tone: info
+        title: Your Task
+        body: Uncomment the necessary code to enable Redis session management.
+      - type: markdown
+        body: Work through the steps in order. Use the action buttons to open files, apply the workshop changes, and save your edits.
+  - sectionId: dependencies
+    title: "Step 1: Add Redis Dependencies"
+    blocks:
+      - type: editorStepList
+        listId: add-redis-dependencies
+        title: "Update `build.gradle.kts`"
+        startAt: 1
+        progressGroup: dependencies
+        items:
+          - itemId: open-build-file
+            body: "Open `build.gradle.kts`."
+            hint: Opens the Gradle build file where dependencies are managed.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: build.gradle.kts
+          - itemId: uncomment-redis-dependencies
+            body: "Uncomment the Redis dependencies: `spring-boot-starter-data-redis` and `spring-session-data-redis`."
+            hint: These libraries provide Redis connectivity and Spring Session integration.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: session-editor.uncommentGradleDependencies
+          - itemId: save-build-file
+            body: Save the file.
+            hint: Persist the dependency changes before moving to the next file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: properties
+    title: "Step 2: Configure Application Properties"
+    blocks:
+      - type: editorStepList
+        listId: configure-application-properties
+        title: "Update `application.properties`"
+        startAt: 4
+        progressGroup: properties
+        items:
+          - itemId: open-properties-file
+            body: "Open `application.properties`."
+            hint: This is the Spring Boot configuration file for the workshop frontend.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: application.properties
+          - itemId: change-store-type
+            body: "Change `spring.session.store-type=none` to `spring.session.store-type=redis`."
+            hint: This tells Spring Session to store sessions in Redis instead of memory.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: session-editor.changeStoreType
+          - itemId: uncomment-redis-config
+            body: Uncomment the 3 Redis session configuration lines below it.
+            hint: These settings define the Redis namespace, flush mode, and repository type.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: session-editor.uncommentRedisConfig
+          - itemId: save-properties-file
+            body: Save the file.
+            hint: Persist the Spring configuration changes before moving on.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: security
+    title: "Step 3: Configure Spring Security"
+    blocks:
+      - type: editorStepList
+        listId: configure-spring-security
+        title: "Update `SecurityConfig.java`"
+        startAt: 8
+        progressGroup: security
+        items:
+          - itemId: open-security-file
+            body: "Open `SecurityConfig.java`."
+            hint: This file controls authentication and session persistence behavior.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: SecurityConfig.java
+          - itemId: uncomment-security-config
+            body: "Uncomment the `HttpSessionSecurityContextRepository` configuration (imports, bean, and filter chain config)."
+            hint: This re-enables Spring Security's session-backed security context handling.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: session-editor.uncommentSecurityConfig
+          - itemId: save-security-file
+            body: Save the file.
+            hint: Persist the security configuration changes.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: verify
+    title: "Step 4: Restart and Verify"
+    blocks:
+      - type: editorStepList
+        listId: restart-and-verify
+        title: Finish the workshop
+        startAt: 11
+        progressGroup: verify
+        items:
+          - itemId: rebuild-backend
+            body: Go to the Workshop Hub and rebuild and restart the workshop backend.
+            hint: Rebuilding is required because the Gradle dependencies changed.
+            action:
+              id: openHub
+              label: Open Workshop Hub
+          - itemId: return-to-workshop
+            body: Return to the workshop and verify the new session behavior.
+            hint: After the backend is up again, continue at the main workshop page.
+            action:
+              id: openRoute
+              label: Return to Workshop
+              args:
+                route: /welcome

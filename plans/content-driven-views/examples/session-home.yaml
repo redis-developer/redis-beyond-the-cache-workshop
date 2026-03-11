@@ -1,0 +1,182 @@
+schemaVersion: 1
+viewId: session-home
+route: /welcome
+pageType: stage-flow
+title: Session Management
+slot: instructions
+summary: Learn why in-memory sessions fail and how Redis fixes the problem.
+dataRequirements:
+  - sessionId
+  - previousSessionId
+  - sessionIdChanged
+header:
+  showHubLink: true
+stages:
+  - stageId: problem
+    title: "STAGE 1: Problem - In-Memory Sessions"
+    sections:
+      - sectionId: stage-1
+        blocks:
+          - type: callout
+            tone: warning
+            title: Current State
+            body: Sessions are stored in-memory and are **not** persisted in Redis.
+          - type: markdown
+            body: Complete each test to experience the failure mode before enabling Redis-backed sessions.
+          - type: stepList
+            listId: stage1-tests
+            variant: tests
+            items:
+              - itemId: note-session-id
+                title: "Test 1: Note Your Session ID"
+                body: "Your current session id is shown on the right: `{{sessionId}}`."
+                actions:
+                  - id: markItemComplete
+                    label: I've noted my Session ID
+                    args:
+                      groupId: stage1-tests
+                      itemId: note-session-id
+              - itemId: restart-backend
+                title: "Test 2: Restart the Backend"
+                body: Restart the workshop backend without rebuilding to simulate a deployment or process restart.
+                actions:
+                  - id: openHub
+                    label: Open Workshop Hub
+                    args:
+                      mode: restart
+                      service: backend
+                  - id: markItemComplete
+                    label: I've restarted the backend
+                    args:
+                      groupId: stage1-tests
+                      itemId: restart-backend
+              - itemId: confirm-session-loss
+                title: "Test 3: Refresh This Page"
+                body: Refresh, log in again if needed, and confirm that the new session id differs from the old one.
+                supportingBlocks:
+                  - type: widget
+                    widgetId: session-home.session-comparison
+                actions:
+                  - id: markItemComplete
+                    label: I logged back in and have a new Session ID
+                    args:
+                      groupId: stage1-tests
+                      itemId: confirm-session-loss
+              - itemId: proceed-to-fix
+                title: "Test 4: Proceed to Stage 2"
+                body: You have seen the failure mode. Move on to enabling Redis session management.
+                actions:
+                  - id: setStage
+                    label: Show Me How to Fix This
+                    args:
+                      stageId: enable-redis
+  - stageId: enable-redis
+    title: "STAGE 2: Enable Redis Session Management"
+    sections:
+      - sectionId: stage-2
+        blocks:
+          - type: callout
+            tone: info
+            title: Option 1
+            body: Use the in-browser code editor for the guided path.
+            actions:
+              - id: openEditor
+                label: Open Code Editor
+          - type: markdown
+            body: "**Option 2:** edit the files in your IDE and rebuild the backend when you are done."
+          - type: stepList
+            listId: enable-redis-steps
+            variant: ordered
+            items:
+              - itemId: add-dependencies
+                title: "Step 1: Add Redis Dependencies"
+                body: Uncomment `spring-boot-starter-data-redis` and `spring-session-data-redis` in `build.gradle.kts`.
+              - itemId: configure-properties
+                title: "Step 2: Configure Application Properties"
+                body: Change `spring.session.store-type=none` to `spring.session.store-type=redis` and restore the Redis session settings.
+              - itemId: configure-security
+                title: "Step 3: Configure Spring Security"
+                body: Re-enable `HttpSessionSecurityContextRepository` in `SecurityConfig.java`.
+              - itemId: rebuild-backend
+                title: "Step 4: Restart and Verify"
+                body: Rebuild and restart the backend, then return to the workshop to verify the new behavior.
+                actions:
+                  - id: openHub
+                    label: Rebuild and Restart
+                    args:
+                      mode: rebuildRestart
+                      service: backend
+  - stageId: redis-enabled
+    title: "STAGE 3: Redis Session Management Enabled!"
+    sections:
+      - sectionId: stage-3
+        blocks:
+          - type: callout
+            tone: success
+            body: Sessions are now stored in Redis and can survive backend restarts.
+          - type: stepList
+            listId: stage3-tests
+            variant: tests
+            items:
+              - itemId: note-redis-session-id
+                title: "Test 1: Note Your Session ID"
+                body: Confirm that the current session id `{{sessionId}}` is now stored in Redis-backed session state.
+                actions:
+                  - id: markItemComplete
+                    label: I've noted my Session ID
+                    args:
+                      groupId: stage3-tests
+                      itemId: note-redis-session-id
+              - itemId: restart-backend-again
+                title: "Test 2: Restart the Backend"
+                body: Restart the backend again without rebuilding.
+                actions:
+                  - id: openHub
+                    label: Open Workshop Hub
+                    args:
+                      mode: restart
+                      service: backend
+                  - id: markItemComplete
+                    label: I've restarted the backend
+                    args:
+                      groupId: stage3-tests
+                      itemId: restart-backend-again
+              - itemId: confirm-persistence
+                title: "Test 3: Still Logged In!"
+                body: Refresh and verify that your session still exists after the restart.
+                supportingBlocks:
+                  - type: widget
+                    widgetId: session-home.redis-session-comparison
+                actions:
+                  - id: markItemComplete
+                    label: I'm still logged in
+                    args:
+                      groupId: stage3-tests
+                      itemId: confirm-persistence
+              - itemId: inspect-redis
+                title: "Test 4: View in Redis"
+                body: Inspect Redis data and search for `spring:session`.
+                actions:
+                  - id: openRedisInsight
+                    label: Open Redis Insight
+                  - id: markItemComplete
+                    label: I've seen my session in Redis
+                    args:
+                      groupId: stage3-tests
+                      itemId: inspect-redis
+              - itemId: optional-second-browser
+                title: "Test 5: Separate Browser Session (Optional)"
+                body: Verify that a private or incognito window receives its own distinct session.
+                actions:
+                  - id: markItemComplete
+                    label: I've tested a second browser session
+                    args:
+                      groupId: stage3-tests
+                      itemId: optional-second-browser
+          - type: callout
+            tone: info
+            title: Want to try again?
+            body: Restore the workshop files to their starting state.
+            actions:
+              - id: restartLab
+                label: Restart Lab

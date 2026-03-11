@@ -1,0 +1,141 @@
+schemaVersion: 1
+viewId: locks-editor
+route: /reentrant/editor
+pageType: editor
+title: Implement the Reentrant Lock
+slot: instructions
+summary: Work through the workshop files in order, then review the read-only `PurchaseService.java` reference and test the result.
+sections:
+  - sectionId: overview
+    blocks:
+      - type: callout
+        tone: info
+        body: Follow the workshop path `/reentrant` -> `/reentrant/implement` -> `/reentrant/editor` -> `/reentrant/demo`.
+      - type: markdown
+        body: Type the code yourself for maximum learning, or use the action buttons below to open files, apply the guided change, and save.
+  - sectionId: dependencies
+    title: "Step 1: Add Dependencies"
+    blocks:
+      - type: editorStepList
+        listId: editor-dependencies
+        title: Enable Redis and Redisson
+        startAt: 1
+        items:
+          - itemId: open-build
+            body: Open `build.gradle.kts`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: build.gradle.kts
+          - itemId: enable-dependencies
+            body: Uncomment the Redis and Redisson dependency lines.
+            hint: "`spring-boot-starter-data-redis` connects Spring to Redis. `redisson-spring-boot-starter` provides `RLock`."
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: locks-editor.enable-dependencies
+          - itemId: save-build
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: lock-mode
+    title: "Step 2: Enable Lock Mode"
+    blocks:
+      - type: editorStepList
+        listId: editor-lock-mode
+        title: Switch the lock mode to Redisson
+        startAt: 4
+        items:
+          - itemId: open-properties
+            body: Open `application.properties`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: application.properties
+          - itemId: enable-lock-mode
+            body: Change `workshop.lock.mode=none` to `workshop.lock.mode=redisson`.
+            hint: The app only enables the lock path when this property is set to `redisson`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: locks-editor.enable-lock-mode
+          - itemId: save-properties
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: lock-implementation
+    title: "Step 3: Implement the Lock"
+    blocks:
+      - type: editorStepList
+        listId: editor-lock-implementation
+        title: Finish the Redisson integration in LockManager.java
+        startAt: 7
+        items:
+          - itemId: open-lock-manager
+            body: Open `LockManager.java`.
+            action:
+              id: openFile
+              label: Open File
+              args:
+                file: LockManager.java
+          - itemId: apply-lock
+            body: Restore the import, field, constructor wiring, `isEnabled()`, and `withLock()` implementation.
+            hint: The guided change adds `RLock`, uses `tryLock(...)`, and unlocks only when the current thread still holds the lock.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: locks-editor.apply-redisson-lock
+          - itemId: save-lock-manager
+            body: Save the file.
+            action:
+              id: saveFile
+              label: Save Changes
+  - sectionId: review
+    title: "Step 4: See How Your Lock Gets Used"
+    blocks:
+      - type: editorStepList
+        listId: editor-review
+        title: Load the read-only reference
+        startAt: 10
+        items:
+          - itemId: load-reference
+            body: Show `PurchaseService.java` to see how `withLock()` protects the purchase flow.
+            hint: This file stays read-only in the workshop. It is reference material only.
+            action:
+              id: openReference
+              label: Show Reference
+              args:
+                referenceId: locks-editor.purchase-service-review
+      - type: widget
+        widgetId: locks-editor.reference-review
+  - sectionId: rebuild-and-test
+    title: "Step 5: Rebuild and Test"
+    blocks:
+      - type: stepList
+        listId: editor-next-steps
+        variant: ordered
+        items:
+          - itemId: open-hub
+            title: Rebuild the service
+            body: Open the Workshop Hub and rebuild and restart the distributed locks service.
+            actions:
+              - id: openHub
+                label: Open Workshop Hub
+          - itemId: open-demo
+            title: Test the implementation
+            body: After the service comes back up, open the demo and verify that the lock status shows as enabled.
+            actions:
+              - id: openRoute
+                label: Open Demo
+                args:
+                  route: /reentrant/demo
+      - type: callout
+        tone: warning
+        body: Think about what happens if you forget `unlock()`. The lock stays held until `leaseTime` expires and blocks other workers.

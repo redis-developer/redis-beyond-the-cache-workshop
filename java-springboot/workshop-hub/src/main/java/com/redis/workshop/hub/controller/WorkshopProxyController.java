@@ -26,8 +26,6 @@ public class WorkshopProxyController {
     private final RestTemplate restTemplate = new RestTemplate();
     private final WorkshopRegistryService registryService;
 
-    private static final int REDIS_INSIGHT_PORT = 5540;
-
     public WorkshopProxyController(WorkshopRegistryService registryService) {
         this.registryService = registryService;
     }
@@ -117,34 +115,13 @@ public class WorkshopProxyController {
                 // Rewrite form actions
                 html = html.replace("action=\"/login\"", "action=\"" + basePath + "/login\"");
                 html = html.replace("action=\"/logout\"", "action=\"" + basePath + "/logout\"");
-                // Rewrite Redis Insight assets (uses /assets/ path)
+                // Rewrite absolute asset paths that are emitted under /assets/
                 html = html.replace("src=\"/assets/", "src=\"" + basePath + "/assets/");
                 html = html.replace("href=\"/assets/", "href=\"" + basePath + "/assets/");
-                // Rewrite favicon paths (for Redis Insight)
+                // Rewrite favicon-style asset paths that live at the web root
                 html = html.replace("href=\"/favicon-", "href=\"" + basePath + "/favicon-");
                 html = html.replace("src=\"/favicon-", "src=\"" + basePath + "/favicon-");
-                // Set Redis Insight proxy path configuration
-                html = html.replace("RIPROXYPATH = '';", "RIPROXYPATH = '" + basePath + "/';");
                 responseBody = html.getBytes(StandardCharsets.UTF_8);
-                responseHeaders.setContentLength(responseBody.length);
-            }
-
-            // Rewrite JavaScript responses for ES module imports (Redis Insight)
-            if (contentType != null && contentType.contains("javascript") && responseBody != null
-                    && workshopId.equals("redis-insight")) {
-                String js = new String(responseBody, StandardCharsets.UTF_8);
-                // Rewrite dynamic imports like: import("/assets/...") or from "/assets/..."
-                js = js.replace("from\"/assets/", "from\"" + basePath + "/assets/");
-                js = js.replace("from \"/assets/", "from \"" + basePath + "/assets/");
-                js = js.replace("import(\"/assets/", "import(\"" + basePath + "/assets/");
-                js = js.replace("(\"/assets/", "(\"" + basePath + "/assets/");
-                js = js.replace("'/assets/", "'" + basePath + "/assets/");
-                // Rewrite API calls
-                js = js.replace("\"/api/", "\"" + basePath + "/api/");
-                js = js.replace("'/api/", "'" + basePath + "/api/");
-                js = js.replace("fetch(\"/", "fetch(\"" + basePath + "/");
-                js = js.replace("fetch('/", "fetch('" + basePath + "/");
-                responseBody = js.getBytes(StandardCharsets.UTF_8);
                 responseHeaders.setContentLength(responseBody.length);
             }
 
@@ -168,10 +145,6 @@ public class WorkshopProxyController {
     }
 
     private Integer resolvePort(String workshopId) {
-        if ("redis-insight".equals(workshopId)) {
-            return REDIS_INSIGHT_PORT;
-        }
-
         for (Workshop workshop : registryService.getWorkshops()) {
             String frontendServiceName = getFrontendServiceName(workshop);
             if (workshopId.equals(frontendServiceName)) {

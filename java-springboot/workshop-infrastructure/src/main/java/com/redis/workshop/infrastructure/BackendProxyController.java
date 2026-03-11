@@ -73,7 +73,10 @@ public class BackendProxyController {
     )
     public ResponseEntity<byte[]> proxyRequest(HttpServletRequest request, @RequestBody(required = false) byte[] body) {
         String requestPath = extractPath(request);
-        if (requestPath.equals("/api/editor") || requestPath.startsWith("/api/editor/")) {
+        if (requestPath.equals("/api/editor")
+            || requestPath.startsWith("/api/editor/")
+            || requestPath.equals("/api/content")
+            || requestPath.startsWith("/api/content/")) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 

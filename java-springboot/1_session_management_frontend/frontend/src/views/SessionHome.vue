@@ -1,209 +1,31 @@
 <template>
   <div class="session-home">
-    <!-- Workshop Header with Hub Link -->
     <WorkshopHeader :hub-url="workshopHubUrl" />
 
     <div class="welcome-container">
-      <!-- Left Column: Instructions -->
       <div class="instructions-column">
-        <!-- STAGE 1: In-Memory Sessions (Problem) -->
-        <div v-if="!redisEnabled && !stage1Completed" class="instructions">
-          <h2>STAGE 1: Problem - In-Memory Sessions</h2>
-          <div class="alert alert-warning">
-            <strong>Current State:</strong> Sessions are stored in-memory (not in Redis)
+        <div class="instructions">
+          <div v-if="contentError" class="content-state content-state--error">
+            {{ contentError }}
           </div>
-          <p class="intro">Let's see the problem with in-memory sessions. Complete each test to proceed:</p>
-
-          <div class="test-item" :class="{ 'completed': stage1Tests.test1 }">
-            <div class="test-header">
-              <h4>Test 1: Note Your Session ID</h4>
-              <span v-if="stage1Tests.test1" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Your current session ID is shown on the right: <code>{{ sessionInfo.sessionId }}</code>. This ID identifies your session in the server's memory.</p>
-            <button v-if="!stage1Tests.test1" @click="completeStage1Test('test1')" class="btn btn-outline btn-sm">
-              I've noted my Session ID
-            </button>
+          <div v-else-if="!homeContent" class="content-state">
+            Loading workshop instructions...
           </div>
-
-          <div v-if="stage1Tests.test1" class="test-item" :class="{ 'completed': stage1Tests.test2 }">
-            <div class="test-header">
-              <h4>Test 2: Restart the Backend</h4>
-              <span v-if="stage1Tests.test2" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and restart the workshop backend without rebuilding. This simulates a server restart or deployment.</p>
-            <button v-if="!stage1Tests.test2" @click="completeStage1Test('test2')" class="btn btn-outline btn-sm">
-              I've restarted the backend
-            </button>
-          </div>
-
-          <div v-if="stage1Tests.test2" class="test-item" :class="{ 'completed': stage1Tests.test3 }">
-            <div class="test-header">
-              <h4>Test 3: Refresh This Page</h4>
-              <span v-if="stage1Tests.test3" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Try to refresh this page. You'll be logged out because in-memory sessions are lost when the server restarts. Log back in and notice your Session ID is now different - your previous session was lost!</p>
-            <div v-if="previousSessionId && !stage1Tests.test3" class="session-comparison" :class="{ 'success': !sessionIdChanged }">
-              <div class="session-old">
-                <span class="label">Previous Session ID:</span>
-                <code>{{ previousSessionId }}</code>
-              </div>
-              <div class="session-new">
-                <span class="label">New Session ID:</span>
-                <code>{{ sessionInfo.sessionId }}</code>
-              </div>
-              <p v-if="sessionIdChanged" class="comparison-note">Your session ID changed! This proves the old session was lost.</p>
-              <p v-else class="comparison-note warning">Session IDs match - try restarting the app and refreshing.</p>
-            </div>
-            <button v-if="!stage1Tests.test3" @click="completeStage1Test('test3')" class="btn btn-outline btn-sm">
-              I logged back in and have a new Session ID
-            </button>
-          </div>
-
-          <div v-if="stage1Tests.test3" class="test-item">
-            <div class="test-header">
-              <h4>Test 4: Proceed to Stage 2</h4>
-            </div>
-            <p class="test-description">You've experienced the problem with in-memory sessions. Now let's fix it using Redis!</p>
-            <button @click="markStage1Complete" class="btn btn-primary">
-              Show Me How to Fix This
-            </button>
-          </div>
-        </div>
-
-        <!-- STAGE 2: Instructions (Only shown after Stage 1 is completed) -->
-        <div v-if="!redisEnabled && stage1Completed" class="instructions">
-          <h2>STAGE 2: Enable Redis Session Management</h2>
-
-          <div class="alert alert-info">
-            <strong>Option 1: Use the In-Browser Code Editor</strong>
-            <p style="margin: 0.5rem 0 0 0;">
-              <router-link to="/editor" class="editor-link">Open Code Editor →</router-link>
-            </p>
-          </div>
-
-          <p class="intro"><strong>Option 2: Edit files in your IDE</strong></p>
-
-          <div class="step-item">
-            <h4>Step 1: Add Redis Dependencies</h4>
-            <p class="step-description">Open <code>build.gradle.kts</code> and uncomment the Redis dependencies: <code>spring-boot-starter-data-redis</code> and <code>spring-session-data-redis</code></p>
-          </div>
-
-          <div class="step-item">
-            <h4>Step 2: Configure Application Properties</h4>
-            <p class="step-description">Open <code>application.properties</code>, change <code>spring.session.store-type=none</code> to <code>spring.session.store-type=redis</code>, and uncomment the 3 Redis session configuration lines.</p>
-          </div>
-
-          <div class="step-item">
-            <h4>Step 3: Configure Spring Security</h4>
-            <p class="step-description">Open <code>SecurityConfig.java</code> and uncomment the <code>HttpSessionSecurityContextRepository</code> configuration (imports, bean, and filter chain config).</p>
-          </div>
-
-          <div class="step-item">
-            <h4>Step 4: Restart and Verify</h4>
-            <p class="step-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and rebuild and restart the workshop backend. Then come back to see the difference.</p>
-          </div>
-        </div>
-
-        <!-- STAGE 3: Redis Sessions (Solution) -->
-        <div v-if="redisEnabled" class="instructions">
-          <h2>STAGE 3: Redis Session Management Enabled!</h2>
-          <div class="alert alert-success">
-            <strong>Sessions are now stored in Redis (distributed storage)</strong>
-          </div>
-          <p class="intro">Let's verify it works. Complete each test to proceed:</p>
-
-          <div class="test-item" :class="{ 'completed': stage3Tests.test1 }">
-            <div class="test-header">
-              <h4>Test 1: Note Your Session ID</h4>
-              <span v-if="stage3Tests.test1" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Note your Session ID on the right: <code>{{ sessionInfo.sessionId }}</code>. This ID is now stored in Redis, not in application memory.</p>
-            <button v-if="!stage3Tests.test1" @click="completeStage3Test('test1')" class="btn btn-outline btn-sm">
-              I've noted my Session ID
-            </button>
-          </div>
-
-          <div v-if="stage3Tests.test1" class="test-item" :class="{ 'completed': stage3Tests.test2 }">
-            <div class="test-header">
-              <h4>Test 2: Restart the Backend</h4>
-              <span v-if="stage3Tests.test2" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Go to the <a :href="workshopHubUrl" target="_blank">Workshop Hub</a> and restart the workshop backend without rebuilding.</p>
-            <button v-if="!stage3Tests.test2" @click="completeStage3Test('test2')" class="btn btn-outline btn-sm">
-              I've restarted the backend
-            </button>
-          </div>
-
-          <div v-if="stage3Tests.test2" class="test-item" :class="{ 'completed': stage3Tests.test3 }">
-            <div class="test-header">
-              <h4>Test 3: Still Logged In!</h4>
-              <span v-if="stage3Tests.test3" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Refresh this page - you're still logged in with the same Session ID! Redis preserved your session across the restart.</p>
-            <div v-if="previousSessionId && !stage3Tests.test3" class="session-comparison success">
-              <div class="session-old">
-                <span class="label">Previous Session ID:</span>
-                <code>{{ previousSessionId }}</code>
-              </div>
-              <div class="session-new">
-                <span class="label">Current Session ID:</span>
-                <code>{{ sessionInfo.sessionId }}</code>
-              </div>
-              <p v-if="!sessionIdChanged" class="comparison-note success">Same Session ID! Redis preserved your session.</p>
-              <p v-else class="comparison-note warning">Session ID changed - this shouldn't happen with Redis enabled.</p>
-            </div>
-            <button v-if="!stage3Tests.test3" @click="completeStage3Test('test3')" class="btn btn-outline btn-sm">
-              I'm still logged in!
-            </button>
-          </div>
-
-          <div v-if="stage3Tests.test3" class="test-item" :class="{ 'completed': stage3Tests.test4 }">
-            <div class="test-header">
-              <h4>Test 4: View in Redis</h4>
-              <span v-if="stage3Tests.test4" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Use Redis Insight and search for <code>spring:session</code> to see your session data stored in Redis.</p>
-            <a :href="redisInsightUrl" target="_blank" class="btn btn-outline btn-sm" style="margin-right: 0.5rem;">
-              Open Redis Insight
-            </a>
-            <button v-if="!stage3Tests.test4" @click="completeStage3Test('test4')" class="btn btn-outline btn-sm">
-              I've seen my session in Redis
-            </button>
-          </div>
-
-          <div v-if="stage3Tests.test4" class="test-item" :class="{ 'completed': stage3Tests.test5 }">
-            <div class="test-header">
-              <h4>Test 5: Separate Browser Session (Optional)</h4>
-              <span v-if="stage3Tests.test5" class="test-check">Done</span>
-            </div>
-            <p class="test-description">Open the workshop in an incognito or private window, or use a different browser. You should see a different session ID there while this browser stays logged in.</p>
-            <button v-if="!stage3Tests.test5" @click="completeStage3Test('test5')" class="btn btn-outline btn-sm">
-              I've tested a second browser session
-            </button>
-          </div>
-
-          <div v-if="stage3Tests.test4" class="completion-box">
-            <h3>Workshop Complete!</h3>
-            <p>You've successfully learned how to implement distributed session management with Redis.</p>
-            <h4>What You Learned:</h4>
-            <ul>
-              <li>Sessions persist across application restarts</li>
-              <li>Multiple application instances can share sessions (horizontal scaling)</li>
-              <li>Session data is stored in Redis, not in application memory</li>
-              <li>Enables zero-downtime deployments and load balancing</li>
-            </ul>
-
-            <div class="alert alert-info" style="margin-top: 1rem;">
-              <strong>Want to try again?</strong> Restore all files to their original state.
-            </div>
-            <button @click="restartLab" class="btn btn-warning" :disabled="restartingLab">
-              {{ restartingLab ? 'Restoring files...' : 'Restart Lab' }}
-            </button>
-          </div>
+          <WorkshopContentRenderer
+            v-else
+            :content="resolvedHomeContent"
+            :tokens="contentTokens"
+            :active-stage-id="activeStageId"
+            :action-handlers="contentActionHandlers"
+            :widgets="contentWidgets"
+            :widget-props="contentWidgetProps"
+            :show-title="false"
+            :show-summary="false"
+            @render-error="handleContentRenderError"
+          />
         </div>
       </div>
 
-      <!-- Right Column: System Details -->
       <div class="details-column">
         <div class="details-card">
           <div class="header">
@@ -251,7 +73,6 @@
       </div>
     </div>
 
-    <!-- Modal using shared component -->
     <WorkshopModal
       v-model="modal.show"
       :title="modal.title"
@@ -263,26 +84,119 @@
   </div>
 </template>
 
-
-
-
 <script>
+import { WorkshopContentRenderer } from '../../../../../workshop-frontend-shared/src/index.js';
 import {
   getApiUrl,
   getBasePath,
   getRedisInsightUrl,
   getWorkshopHubUrl
-} from "../utils/basePath";
-import { WorkshopModal, WorkshopHeader } from "../utils/components";
+} from '../utils/basePath';
+import { WorkshopModal, WorkshopHeader } from '../utils/components';
+import SessionComparisonWidget from '../components/content/SessionComparisonWidget.vue';
+import { loadWorkshopContentView } from '../utils/workshopContent';
+
+function createStage1Defaults() {
+  return {
+    test1: false,
+    test2: false,
+    test3: false
+  };
+}
+
+function createStage3Defaults() {
+  return {
+    test1: false,
+    test2: false,
+    test3: false,
+    test4: false,
+    test5: false
+  };
+}
+
+function loadSavedProgress(storageKey, defaults) {
+  const saved = localStorage.getItem(storageKey);
+  if (!saved) {
+    return { ...defaults };
+  }
+
+  try {
+    return { ...defaults, ...JSON.parse(saved) };
+  } catch (error) {
+    console.warn(`Unable to parse saved workshop progress for ${storageKey}`, error);
+    return { ...defaults };
+  }
+}
+
+function cloneContent(content) {
+  return JSON.parse(JSON.stringify(content));
+}
+
+function prepareSequentialStepList(items, progress) {
+  const preparedItems = items.map(item => (
+    progress[item.itemId]
+      ? { ...item, actions: [] }
+      : item
+  ));
+
+  return preparedItems.filter((item, index) => (
+    index === 0 || Boolean(progress[items[index - 1].itemId])
+  ));
+}
+
+function updateStageStepList(stage, sectionId, listId, progress) {
+  stage.sections = stage.sections.map(section => {
+    if (section.sectionId !== sectionId) {
+      return section;
+    }
+
+    return {
+      ...section,
+      blocks: section.blocks.map(block => {
+        if (block.type !== 'stepList' || block.listId !== listId) {
+          return block;
+        }
+
+        return {
+          ...block,
+          items: prepareSequentialStepList(block.items || [], progress)
+        };
+      })
+    };
+  });
+}
+
+function prepareSessionHomeContent(content, stage1Tests, stage3Tests) {
+  const nextContent = cloneContent(content);
+  const stages = nextContent.stages || [];
+
+  const stage1 = stages.find(stage => stage.stageId === 'problem');
+  if (stage1) {
+    updateStageStepList(stage1, 'stage-1', 'stage1-tests', stage1Tests);
+  }
+
+  const stage3 = stages.find(stage => stage.stageId === 'redis-enabled');
+  if (stage3) {
+    updateStageStepList(stage3, 'stage-3-tests', 'stage3-tests', stage3Tests);
+    if (!stage3Tests.test4) {
+      stage3.sections = stage3.sections.filter(section => section.sectionId !== 'stage-3-completion');
+    }
+  }
+
+  return nextContent;
+}
 
 export default {
   name: 'SessionHome',
   components: {
+    WorkshopContentRenderer,
     WorkshopModal,
     WorkshopHeader
   },
   data() {
     return {
+      homeContent: null,
+      contentError: '',
       sessionInfo: {
         sessionId: 'ABC123DEF456',
         storageType: 'In-Memory',
@@ -293,18 +207,8 @@ export default {
       stage1Completed: false,
       restartingLab: false,
       previousSessionId: null,
-      stage1Tests: {
-        test1: false,
-        test2: false,
-        test3: false
-      },
-      stage3Tests: {
-        test1: false,
-        test2: false,
-        test3: false,
-        test4: false,
-        test5: false
-      },
+      stage1Tests: createStage1Defaults(),
+      stage3Tests: createStage3Defaults(),
       modal: {
         show: false,
         type: 'alert',
@@ -315,52 +219,113 @@ export default {
     };
   },
   computed: {
+    activeStageId() {
+      if (this.redisEnabled) {
+        return 'redis-enabled';
+      }
+
+      if (this.stage1Completed) {
+        return 'enable-redis';
+      }
+
+      return 'problem';
+    },
     basePath() {
       return getBasePath();
     },
-    workshopHubUrl() {
-      return getWorkshopHubUrl();
+    contentActionHandlers() {
+      return {
+        markItemComplete: ({ args }) => this.completeContentItem(args.groupId, args.itemId),
+        openEditor: () => this.$router.push('/editor'),
+        openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
+        openRedisInsight: () => window.open(this.redisInsightUrl, '_blank', 'noopener'),
+        restartLab: () => this.restartLab(),
+        resetProgress: () => this.resetProgress(),
+        setStage: ({ args }) => this.handleStageChange(args.stageId)
+      };
+    },
+    contentTokens() {
+      return {
+        sessionId: this.sessionInfo.sessionId
+      };
+    },
+    contentWidgetProps() {
+      return {
+        'session-home.redis-session-comparison': {
+          visible: Boolean(this.previousSessionId) && !this.stage3Tests.test3,
+          showSuccess: true,
+          previousSessionId: this.previousSessionId || '',
+          currentSessionId: this.sessionInfo.sessionId,
+          sessionIdChanged: this.sessionIdChanged,
+          changedMessage: "Session ID changed - this shouldn't happen with Redis enabled.",
+          unchangedMessage: 'Same Session ID! Redis preserved your session.',
+          changedClass: 'warning',
+          unchangedClass: 'success'
+        },
+        'session-home.session-comparison': {
+          visible: Boolean(this.previousSessionId) && !this.stage1Tests.test3,
+          showSuccess: !this.sessionIdChanged,
+          currentLabel: 'New Session ID:',
+          previousSessionId: this.previousSessionId || '',
+          currentSessionId: this.sessionInfo.sessionId,
+          sessionIdChanged: this.sessionIdChanged,
+          changedMessage: 'Your session ID changed! This proves the old session was lost.',
+          unchangedMessage: 'Session IDs match - try restarting the app and refreshing.',
+          changedClass: '',
+          unchangedClass: 'warning'
+        }
+      };
+    },
+    contentWidgets() {
+      return {
+        'session-home.redis-session-comparison': SessionComparisonWidget,
+        'session-home.session-comparison': SessionComparisonWidget
+      };
     },
     redisInsightUrl() {
       return getRedisInsightUrl();
     },
+    resolvedHomeContent() {
+      if (!this.homeContent) {
+        return null;
+      }
+
+      return prepareSessionHomeContent(this.homeContent, this.stage1Tests, this.stage3Tests);
+    },
     sessionIdChanged() {
-      return this.previousSessionId && this.previousSessionId !== this.sessionInfo.sessionId;
+      return Boolean(this.previousSessionId) && this.previousSessionId !== this.sessionInfo.sessionId;
+    },
+    workshopHubUrl() {
+      return getWorkshopHubUrl();
     }
   },
   async mounted() {
-    await this.fetchSessionInfo();
     this.loadTestProgress();
+    await Promise.all([
+      this.fetchSessionInfo(),
+      this.loadHomeContent()
+    ]);
   },
   methods: {
-    loadTestProgress() {
-      const saved1 = localStorage.getItem('stage1Tests');
-      const saved3 = localStorage.getItem('stage3Tests');
-      const savedSessionId = localStorage.getItem('previousSessionId');
-      if (saved1) this.stage1Tests = JSON.parse(saved1);
-      if (saved3) this.stage3Tests = JSON.parse(saved3);
-      if (savedSessionId) this.previousSessionId = savedSessionId;
-    },
-    saveTestProgress() {
-      localStorage.setItem('stage1Tests', JSON.stringify(this.stage1Tests));
-      localStorage.setItem('stage3Tests', JSON.stringify(this.stage3Tests));
-    },
-    saveSessionId() {
-      localStorage.setItem('previousSessionId', this.sessionInfo.sessionId);
-      this.previousSessionId = this.sessionInfo.sessionId;
-    },
-    completeStage1Test(test) {
-      if (test === 'test1') {
+    completeContentItem(groupId, itemId) {
+      if (itemId === 'test1') {
         this.saveSessionId();
       }
-      this.stage1Tests[test] = true;
-      this.saveTestProgress();
-    },
-    completeStage3Test(test) {
-      if (test === 'test1') {
-        this.saveSessionId();
+
+      if (groupId === 'stage1-tests') {
+        this.stage1Tests = {
+          ...this.stage1Tests,
+          [itemId]: true
+        };
       }
-      this.stage3Tests[test] = true;
+
+      if (groupId === 'stage3-tests') {
+        this.stage3Tests = {
+          ...this.stage3Tests,
+          [itemId]: true
+        };
+      }
+
       this.saveTestProgress();
     },
     async fetchSessionInfo() {
@@ -369,7 +334,6 @@ export default {
           credentials: 'include'
         });
         if (response.status === 401 || response.status === 403) {
-          // Session is invalid, redirect to login
           window.location.href = `${this.basePath}/login`;
           return;
         }
@@ -388,6 +352,50 @@ export default {
         console.error('Error fetching session info:', error);
       }
     },
+    async handleLogout() {
+      try {
+        await fetch(`${this.basePath}/logout`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+      } catch (error) {
+        console.error('Error during logout:', error);
+      } finally {
+        window.location.href = `${this.basePath}/login?logout`;
+      }
+    },
+    handleContentRenderError(issues) {
+      console.warn('Session home content render issues:', issues);
+    },
+    handleModalCancel() {
+      this.modal.show = false;
+      this.modal.onConfirm = null;
+    },
+    handleModalConfirm() {
+      if (this.modal.onConfirm) {
+        this.modal.onConfirm();
+      }
+      this.modal.show = false;
+      this.modal.onConfirm = null;
+    },
+    async handleStageChange(stageId) {
+      if (stageId === 'enable-redis') {
+        await this.markStage1Complete();
+      }
+    },
+    loadTestProgress() {
+      this.stage1Tests = loadSavedProgress('stage1Tests', createStage1Defaults());
+      this.stage3Tests = loadSavedProgress('stage3Tests', createStage3Defaults());
+      this.previousSessionId = localStorage.getItem('previousSessionId');
+    },
+    async loadHomeContent() {
+      try {
+        this.homeContent = await loadWorkshopContentView('session-home');
+      } catch (error) {
+        console.error('Error loading session workshop content:', error);
+        this.contentError = 'Unable to load workshop instructions. Refresh the page and try again.';
+      }
+    },
     async markStage1Complete() {
       try {
         const response = await fetch(getApiUrl('/api/mark-stage1-complete'), {
@@ -401,30 +409,13 @@ export default {
         console.error('Error marking stage 1 complete:', error);
       }
     },
-    showModal(type, title, message, onConfirm = null) {
-      this.modal = {
-        show: true,
-        type,
-        title,
-        message,
-        onConfirm
-      };
-    },
-    handleModalConfirm() {
-      if (this.modal.onConfirm) {
-        this.modal.onConfirm();
-      }
-      this.modal.show = false;
-      this.modal.onConfirm = null;
-    },
-    handleModalCancel() {
-      this.modal.show = false;
-      this.modal.onConfirm = null;
+    refreshSession() {
+      this.fetchSessionInfo();
     },
     resetProgress() {
       this.showModal('confirm', 'Reset Progress', 'Reset all test progress? You will start from the first test again.', () => {
-        this.stage1Tests = { test1: false, test2: false, test3: false };
-        this.stage3Tests = { test1: false, test2: false, test3: false, test4: false, test5: false };
+        this.stage1Tests = createStage1Defaults();
+        this.stage3Tests = createStage3Defaults();
         this.previousSessionId = null;
         localStorage.removeItem('stage1Tests');
         localStorage.removeItem('stage3Tests');
@@ -443,16 +434,15 @@ export default {
           const data = await response.json();
 
           if (data.success) {
-            // Reset test progress
-            this.stage1Tests = { test1: false, test2: false, test3: false };
-            this.stage3Tests = { test1: false, test2: false, test3: false, test4: false, test5: false };
+            this.stage1Tests = createStage1Defaults();
+            this.stage3Tests = createStage3Defaults();
             this.previousSessionId = null;
             localStorage.removeItem('stage1Tests');
             localStorage.removeItem('stage3Tests');
             localStorage.removeItem('previousSessionId');
             this.showModal('alert', 'Lab Reset', 'Lab reset! Please restart the workshop backend from the Workshop Hub.\n\nThen refresh this page to start from Stage 1.');
           } else {
-            this.showModal('alert', 'Error', 'Error: ' + (data.error || 'Failed to restore files'));
+            this.showModal('alert', 'Error', `Error: ${data.error || 'Failed to restore files'}`);
           }
         } catch (error) {
           console.error('Error restarting lab:', error);
@@ -462,22 +452,22 @@ export default {
         }
       });
     },
-    async handleLogout() {
-      try {
-        // Call Spring Security's logout endpoint to invalidate the session
-        await fetch(`${this.basePath}/logout`, {
-          method: 'POST',
-          credentials: 'include'
-        });
-      } catch (error) {
-        console.error('Error during logout:', error);
-      } finally {
-        // Redirect to login page after logout
-        window.location.href = `${this.basePath}/login?logout`;
-      }
+    saveSessionId() {
+      localStorage.setItem('previousSessionId', this.sessionInfo.sessionId);
+      this.previousSessionId = this.sessionInfo.sessionId;
     },
-    refreshSession() {
-      this.fetchSessionInfo();
+    saveTestProgress() {
+      localStorage.setItem('stage1Tests', JSON.stringify(this.stage1Tests));
+      localStorage.setItem('stage3Tests', JSON.stringify(this.stage3Tests));
+    },
+    showModal(type, title, message, onConfirm = null) {
+      this.modal = {
+        show: true,
+        type,
+        title,
+        message,
+        onConfirm
+      };
     }
   }
 };
@@ -516,45 +506,55 @@ export default {
   border: 1px solid var(--color-border);
 }
 
-.instructions h2 {
-  margin-bottom: var(--spacing-4);
-  color: var(--color-text);
-  font-size: var(--font-size-xl);
-}
-
-.instructions h3 {
-  margin-top: var(--spacing-6);
-  margin-bottom: var(--spacing-3);
-  color: var(--color-text);
-  font-size: var(--font-size-lg);
-}
-
-.instructions .intro {
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-5);
-  line-height: 1.6;
-}
-
-/* Overrides for view-specific styling */
-.test-item.completed {
-  opacity: 0.7;
-}
-
-.test-check {
-  background: #10b981;
-  color: white;
-  padding: 0.2rem 0.5rem;
-  border-radius: var(--radius-sm);
-}
-
 .btn-link {
   width: 100%;
   text-align: center;
   margin-bottom: var(--spacing-3);
 }
 
-/* Session Comparison Box */
-.session-comparison {
+.content-state {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.content-state--error {
+  color: #fca5a5;
+}
+
+.instructions :deep(.content-renderer-header__stage) {
+  color: var(--color-text);
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
+}
+
+.instructions :deep(.content-step-item),
+.instructions :deep(.content-callout),
+.instructions :deep(.content-widget) {
+  background: var(--color-dark-800);
+}
+
+.instructions :deep(.content-step-item__heading h4),
+.instructions :deep(.content-section__header h3) {
+  color: var(--color-text);
+}
+
+.instructions :deep(.content-section__header .workshop-markdown),
+.instructions :deep(.workshop-markdown),
+.instructions :deep(.content-step-item__heading .workshop-markdown) {
+  color: var(--color-text-secondary);
+}
+
+.instructions :deep(.content-action--primary) {
+  background: #DC382C;
+  border-color: #DC382C;
+}
+
+.instructions :deep(.content-action--secondary) {
+  background: transparent;
+  border-color: var(--color-border);
+}
+
+.instructions :deep(.session-comparison) {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid #ef4444;
   border-radius: var(--radius-md);
@@ -562,26 +562,26 @@ export default {
   margin: var(--spacing-3) 0;
 }
 
-.session-comparison.success {
+.instructions :deep(.session-comparison.success) {
   background: rgba(16, 185, 129, 0.1);
   border-color: #10b981;
 }
 
-.session-old,
-.session-new {
+.instructions :deep(.session-old),
+.instructions :deep(.session-new) {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   margin-bottom: var(--spacing-2);
 }
 
-.session-comparison .label {
+.instructions :deep(.session-comparison .label) {
   font-size: var(--font-size-xs);
   color: var(--color-text-secondary);
   min-width: 120px;
 }
 
-.session-comparison code {
+.instructions :deep(.session-comparison code) {
   background: var(--color-surface);
   padding: 0.2rem 0.4rem;
   border-radius: var(--radius-sm);
@@ -589,69 +589,19 @@ export default {
   word-break: break-all;
 }
 
-.comparison-note {
+.instructions :deep(.comparison-note) {
   margin: var(--spacing-2) 0 0 0;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
   color: #ef4444;
 }
 
-.comparison-note.success {
+.instructions :deep(.comparison-note.success) {
   color: #10b981;
 }
 
-.comparison-note.warning {
+.instructions :deep(.comparison-note.warning) {
   color: #f59e0b;
-}
-
-.completion-box {
-  margin-top: var(--spacing-6);
-  padding: var(--spacing-5);
-  background: rgba(16, 185, 129, 0.1);
-  border: 1px solid #10b981;
-  border-radius: var(--radius-md);
-}
-
-.completion-box h3 {
-  color: #10b981;
-  margin-top: 0;
-  margin-bottom: var(--spacing-2);
-}
-
-.completion-box p {
-  color: var(--color-text-secondary);
-  margin-bottom: var(--spacing-4);
-}
-
-.completion-box h4 {
-  color: var(--color-text);
-  font-size: var(--font-size-sm);
-  margin-bottom: var(--spacing-2);
-}
-
-.test-description a,
-.step-description a {
-  color: #DC382C;
-  text-decoration: underline;
-}
-
-.instructions code {
-  background: var(--color-surface);
-  padding: 0.2rem 0.4rem;
-  border-radius: var(--radius-sm);
-  color: #DC382C;
-  font-family: 'Courier New', monospace;
-  font-size: 0.85em;
-}
-
-.instructions ul {
-  margin-left: var(--spacing-5);
-  color: var(--color-text-secondary);
-}
-
-.instructions ul li {
-  margin-bottom: var(--spacing-2);
-  line-height: 1.6;
 }
 
 /* Right Column - Details */
@@ -741,42 +691,6 @@ export default {
 
 .footer-info strong {
   color: #DC382C;
-}
-
-/* Override alert-info for this view */
-.alert-info {
-  background: #094771;
-}
-
-/* Redis Insight Box */
-.redis-insight-box {
-  margin: var(--spacing-5) 0;
-  padding: var(--spacing-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-dark-800);
-}
-
-.redis-insight-box h4 {
-  margin-bottom: var(--spacing-2);
-  color: #4fc3f7;
-  font-size: var(--font-size-base);
-}
-
-.redis-insight-box p {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-sm);
-  margin-bottom: var(--spacing-3);
-}
-
-.redis-insight-box code {
-  background: var(--color-surface);
-  color: #4fc3f7;
-}
-
-/* View-specific button overrides */
-.btn-warning {
-  margin-top: var(--spacing-3);
 }
 
 /* Responsive */

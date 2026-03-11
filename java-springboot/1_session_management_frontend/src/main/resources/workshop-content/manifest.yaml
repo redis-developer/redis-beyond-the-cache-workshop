@@ -1,0 +1,11 @@
+schemaVersion: 1
+workshopId: 1_session_management
+views:
+  - viewId: session-home
+    route: /welcome
+    pageType: stage-flow
+    file: views/session-home.yaml
+  - viewId: session-editor
+    route: /editor
+    pageType: editor
+    file: views/session-editor.yaml

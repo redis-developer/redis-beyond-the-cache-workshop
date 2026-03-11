@@ -1,0 +1,178 @@
+schemaVersion: 1
+viewId: search-home
+route: /
+pageType: stage-flow
+title: Secondary Indexes and Full-Text Search
+slot: instructions
+summary: Introduce Redis Query Engine, explain indexing, and guide the learner through the build.
+header:
+  showHubLink: true
+  stageNav:
+    clickable: true
+    steps:
+      - stageId: intro
+        label: Intro
+      - stageId: learn
+        label: Learn
+      - stageId: build
+        label: Build
+      - stageId: test
+        label: Test
+stages:
+  - stageId: intro
+    title: Secondary Indexes and Full-Text Search
+    sections:
+      - sectionId: intro-overview
+        blocks:
+          - type: markdown
+            body: >
+              Redis Query Engine adds indexing and querying capabilities to Redis. It lets you create
+              secondary indexes on JSON documents and then search by fields beyond the primary key.
+          - type: stepList
+            listId: query-engine-capabilities
+            variant: ordered
+            items:
+              - itemId: secondary-indexes
+                title: What are Secondary Indexes?
+                body: |
+                  Secondary indexes make these query patterns possible:
+
+                  - `TAG` for exact matches such as genres and categories
+                  - `NUMERIC` for ranges such as years
+                  - `TEXT` for full-text search
+                  - `GEO` and `VECTOR` for location and similarity search
+              - itemId: full-text-search
+                title: What is Full-Text Search?
+                body: |
+                  Full-text search goes beyond exact matching:
+
+                  - stemming
+                  - fuzzy matching
+                  - relevance scoring
+              - itemId: getting-started
+                title: Getting Started
+                body: Continue to see how indexing works, implement the annotations, and then test the search application.
+                actions:
+                  - id: setStage
+                    label: Continue
+                    args:
+                      stageId: learn
+  - stageId: learn
+    title: How Indexes Work
+    sections:
+      - sectionId: data-shape
+        blocks:
+          - type: markdown
+            body: Each movie is stored as a JSON document.
+          - type: codeSnippet
+            language: json
+            title: Example Movie Document
+            code: |
+              {
+                "id": "tt0133093",
+                "title": "The Matrix",
+                "year": 1999,
+                "genres": ["Action", "Sci-Fi"],
+                "cast": ["Keanu Reeves", "Laurence Fishburne"],
+                "extract": "A computer hacker learns about the true nature of reality..."
+              }
+      - sectionId: index-shapes
+        blocks:
+          - type: markdown
+            body: Redis Query Engine builds indexes that map searchable field values to document keys.
+          - type: codeSnippet
+            language: text
+            title: Example Index Structures
+            code: |
+              Title Index (TEXT):
+                "matrix" -> [movie:tt0133093, movie:tt0234215]
+
+              Year Index (NUMERIC):
+                1999 -> [movie:tt0133093, movie:tt0234215]
+
+              Cast Index (TAG):
+                "Keanu Reeves" -> [movie:tt0133093, movie:tt0234215]
+          - type: stepList
+            listId: stage-two-next
+            variant: ordered
+            items:
+              - itemId: proceed-to-build
+                title: Ready to Build?
+                body: Move on to the implementation stage once the index structure makes sense.
+                actions:
+                  - id: setStage
+                    label: Build It
+                    args:
+                      stageId: build
+  - stageId: build
+    title: Enable Full-Text Search
+    sections:
+      - sectionId: implementation-path
+        blocks:
+          - type: callout
+            tone: info
+            title: Option 1
+            body: Use the in-browser code editor for guided changes.
+            actions:
+              - id: openEditor
+                label: Open Code Editor
+          - type: markdown
+            body: "**Option 2:** edit the files in your IDE and rebuild when you are done."
+          - type: stepList
+            listId: build-search
+            variant: ordered
+            items:
+              - itemId: dependencies
+                title: "Step 1: Add Dependencies"
+                body: Uncomment the `redis-om-spring` dependency and annotation processor in `build.gradle.kts`.
+              - itemId: annotate-movie
+                title: "Step 2: Annotate the Movie Entity"
+                body: Add `@Document`, `@Id`, `@Searchable`, and `@Indexed` annotations to `Movie.java`.
+              - itemId: configure-redis
+                title: "Step 3: Configure Redis Connection"
+                body: Restore the Redis host and port settings in `application.properties`.
+              - itemId: enable-repositories
+                title: "Step 4: Enable Document Repositories"
+                body: Re-enable `@EnableRedisDocumentRepositories` in `FullTextSearchApplication.java`.
+              - itemId: movie-repository
+                title: "Step 5: Implement the Repository"
+                body: Extend `RedisDocumentRepository` in `MovieRepository.java`.
+              - itemId: movie-service
+                title: "Step 6: Implement MovieService"
+                body: Re-enable `MovieRepository` injection and the movie loading logic.
+              - itemId: search-service
+                title: "Step 7: Implement SearchService"
+                body: Re-enable the `EntityStream` search implementation and the genre query.
+              - itemId: rebuild-and-test
+                title: "Step 8: Rebuild and Restart"
+                body: Rebuild the application and then continue to the testing stage.
+                actions:
+                  - id: openHub
+                    label: Rebuild and Restart
+                    args:
+                      mode: rebuildRestart
+                      service: backend
+                  - id: setStage
+                    label: Continue to Test
+                    args:
+                      stageId: test
+  - stageId: test
+    title: Test Your Implementation
+    sections:
+      - sectionId: test-path
+        blocks:
+          - type: callout
+            tone: success
+            body: The build stage is complete. Open the search route and validate the implementation with real queries.
+          - type: stepList
+            listId: test-search
+            variant: ordered
+            items:
+              - itemId: open-search
+                title: Open the Search Screen
+                body: Move to the search page and test title search, fuzzy search, and tag or numeric filters.
+                actions:
+                  - id: openRoute
+                    label: Test Your Implementation
+                    args:
+                      route: /search

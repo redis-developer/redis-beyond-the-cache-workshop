@@ -1,0 +1,128 @@
+schemaVersion: 1
+viewId: memory-challenges
+route: /challenges
+pageType: stage-flow
+title: Agent Memory Challenges
+slot: instructions
+summary: Understand the real engineering challenges behind memory systems, why Redis maps cleanly to the problem, and what AMS handles for you.
+header:
+  showHubLink: true
+  stageNav:
+    clickable: true
+    steps:
+      - stageId: challenges
+        label: Challenges
+      - stageId: redis
+        label: Why Redis
+      - stageId: ams
+        label: Agent Memory Server
+stages:
+  - stageId: challenges
+    title: Understanding the Real Challenges
+    sections:
+      - sectionId: challenge-overview
+        blocks:
+          - type: markdown
+            body: Now that you know **what** memory you need, the next question is **why building it is hard**.
+          - type: callout
+            tone: warning
+            title: The Hard Part Is Not Storage
+            body: Storing text in a database is easy. The real difficulty is deciding **what to remember** and **what to retrieve right now**.
+          - type: stepList
+            listId: core-problems
+            variant: ordered
+            items:
+              - itemId: extraction
+                title: Memory Extraction
+                body: |
+                  Decide which parts of a conversation contain durable facts.
+
+                  - extract structured signals from natural language
+                  - ignore irrelevant chatter
+                  - resolve references and pronouns correctly
+              - itemId: retrieval
+                title: Memory Retrieval
+                body: |
+                  Decide which memories matter for the current user message.
+
+                  - match by meaning, not just keywords
+                  - balance relevance and recency
+                  - scale to very large memory sets
+          - type: callout
+            tone: info
+            title: Storage Challenges Still Matter
+            body: |
+              - **Speed:** lookups must happen in milliseconds
+              - **Vector search:** semantic retrieval requires embeddings and similarity search
+              - **Scalability:** memory systems grow with every user and every conversation
+              - **Flexibility:** filters by user, topic, time, and memory type all matter
+  - stageId: redis
+    title: Why Redis Is Ideal for Agent Memory
+    sections:
+      - sectionId: redis-fit
+        blocks:
+          - type: markdown
+            body: Redis is not just a cache. It is a **real-time data platform** with the exact primitives agent memory needs.
+          - type: codeSnippet
+            language: text
+            title: Native Vector Search Example
+            code: |
+              FT.SEARCH memories "(@user_id:{alice})=>[KNN 5 @embedding $query_vec]"
+          - type: stepList
+            listId: redis-features
+            variant: ordered
+            items:
+              - itemId: vector-search
+                title: Vector Search
+                body: Store embeddings beside metadata and search by meaning with Redis Query Engine.
+              - itemId: latency
+                title: Sub-Millisecond Latency
+                body: Memory retrieval stays fast enough for interactive chat experiences.
+              - itemId: data-structures
+                title: Rich Data Structures
+                body: JSON, hashes, and sorted sets cover the data access patterns memory systems need.
+              - itemId: ttl
+                title: TTL and Expiration
+                body: Session-scoped working memory can expire automatically without custom cleanup jobs.
+              - itemId: scale
+                title: Horizontal Scalability
+                body: Redis Cluster can scale to very large memory datasets.
+  - stageId: ams
+    title: Agent Memory Server
+    sections:
+      - sectionId: ams-value
+        blocks:
+          - type: markdown
+            body: Agent Memory Server (AMS) is an **open-source memory layer** built on Redis that handles the operational details so your application can focus on product behavior.
+          - type: callout
+            tone: info
+            title: What AMS Handles For You
+            body: |
+              - semantic search with vector embeddings
+              - session-scoped working memory and summarization
+              - deduplication and memory lifecycle handling
+              - multi-tenancy, namespaces, and user isolation
+          - type: callout
+            tone: success
+            title: Workshop Scope
+            body: This workshop focuses on the **code-driven** integration pattern where your application explicitly controls memory operations.
+          - type: stepList
+            listId: integration-patterns
+            variant: ordered
+            items:
+              - itemId: llm-driven
+                title: LLM-Driven
+                body: The model decides when to store or retrieve memories through tool calls.
+              - itemId: code-driven
+                title: Code-Driven
+                body: Your application explicitly stores and retrieves memory. This workshop uses this pattern.
+              - itemId: background
+                title: Background Extraction
+                body: AMS extracts memory from conversations asynchronously with minimal application logic.
+          - type: callout
+            tone: success
+            title: Ready to Build It?
+            body: Open the in-browser editor to wire the AMS SDK, the Spring AI bridge, and the advisor chain used by the chat UI.
+            actions:
+              - id: openEditor
+                label: Start the Hands-On Lab

@@ -26,6 +26,8 @@ INTERNAL_COMPOSE_PATH = JAVA_DIR / "workshop-hub" / "docker-compose.internal.yml
 ALLOWED_INFRASTRUCTURE_DEPENDENCIES = {"redis", "postgres"}
 ALLOWED_REDIS_FLAVORS = {"standard", "stack"}
 ALLOWED_FRONTEND_PREBUILD_VALUES = {"true", "false"}
+ALLOWED_CONTENT_PAGE_TYPES = {"narrative", "stage-flow", "editor"}
+CONTENT_ROOT_RELATIVE = Path("src/main/resources/workshop-content")
 
 REGISTRY_REQUIRED_FIELDS = [
     "id",
@@ -191,6 +193,410 @@ def parse_included_projects(settings_path: Path) -> list[str]:
         if match:
             included_projects.append(match.group(1))
     return included_projects
+
+
+def normalize_scalar(value: str) -> str:
+    normalized = value.strip()
+    if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {'"', "'"}:
+        return normalized[1:-1]
+    return normalized
+
+
+def display_path(path: Path, relative_to: Path) -> str:
+    try:
+        return path.relative_to(relative_to).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+def parse_workshop_content_manifest(manifest_path: Path) -> dict[str, object]:
+    schema_version = None
+    workshop_id = None
+    views: list[dict[str, object]] = []
+    current: dict[str, object] | None = None
+
+    for line_number, line in enumerate(manifest_path.read_text(encoding="utf-8").splitlines(), start=1):
+        schema_match = re.match(r"^schemaVersion:\s*(\d+)\s*$", line)
+        if schema_match:
+            schema_version = int(schema_match.group(1))
+            continue
+
+        workshop_match = re.match(r"^workshopId:\s*(.+?)\s*$", line)
+        if workshop_match:
+            workshop_id = normalize_scalar(workshop_match.group(1))
+            continue
+
+        view_match = re.match(r"^  - viewId:\s*(.+?)\s*$", line)
+        if view_match:
+            if current is not None:
+                views.append(current)
+            current = {
+                "viewId": normalize_scalar(view_match.group(1)),
+                "_line": line_number,
+            }
+            continue
+
+        if current is None:
+            continue
+
+        field_match = re.match(r"^    (route|pageType|file):\s*(.+?)\s*$", line)
+        if field_match:
+            current[field_match.group(1)] = normalize_scalar(field_match.group(2))
+
+    if current is not None:
+        views.append(current)
+
+    return {
+        "schema_version": schema_version,
+        "workshop_id": workshop_id,
+        "views": views,
+    }
+
+
+def parse_workshop_content_view(view_path: Path) -> dict[str, object]:
+    schema_version = None
+    view_id = None
+    route = None
+    page_type = None
+    title = None
+    slot = None
+    summary = None
+    has_summary = False
+    stage_ids: list[str] = []
+    section_ids: list[str] = []
+    block_types: list[str] = []
+
+    for line in view_path.read_text(encoding="utf-8").splitlines():
+        schema_match = re.match(r"^schemaVersion:\s*(\d+)\s*$", line)
+        if schema_match:
+            schema_version = int(schema_match.group(1))
+            continue
+
+        field_match = re.match(r"^(viewId|route|pageType|title|slot):\s*(.+?)\s*$", line)
+        if field_match:
+            field_name = field_match.group(1)
+            field_value = normalize_scalar(field_match.group(2))
+            if field_name == "viewId":
+                view_id = field_value
+            elif field_name == "route":
+                route = field_value
+            elif field_name == "pageType":
+                page_type = field_value
+            elif field_name == "title":
+                title = field_value
+            elif field_name == "slot":
+                slot = field_value
+            continue
+
+        summary_match = re.match(r"^summary:\s*(.*?)\s*$", line)
+        if summary_match:
+            has_summary = True
+            summary = normalize_scalar(summary_match.group(1))
+            continue
+
+        stage_match = re.match(r"^  - stageId:\s*(.+?)\s*$", line)
+        if stage_match:
+            stage_ids.append(normalize_scalar(stage_match.group(1)))
+            continue
+
+        section_match = re.match(r"^  - sectionId:\s*(.+?)\s*$", line)
+        if section_match:
+            section_ids.append(normalize_scalar(section_match.group(1)))
+            continue
+
+        block_match = re.match(r"^\s+- type:\s*(.+?)\s*$", line)
+        if block_match:
+            block_types.append(normalize_scalar(block_match.group(1)))
+
+    return {
+        "schema_version": schema_version,
+        "view_id": view_id,
+        "route": route,
+        "page_type": page_type,
+        "title": title,
+        "slot": slot,
+        "summary": summary,
+        "has_summary": has_summary,
+        "stage_ids": stage_ids,
+        "section_ids": section_ids,
+        "block_types": block_types,
+    }
+
+
+def collect_workshop_content_errors(
+    module_root: Path,
+    module_label: str,
+    allowed_workshop_ids: set[str],
+    *,
+    relative_to: Path,
+    require_views_directory: bool = False,
+    expected_views: dict[str, dict[str, str | bool]] | None = None,
+) -> list[str]:
+    errors: list[str] = []
+    content_root = module_root / CONTENT_ROOT_RELATIVE
+
+    if not content_root.is_dir():
+        return [
+            f"{module_label} workshop content directory is missing: {display_path(content_root, relative_to)}"
+        ]
+
+    manifest_path = content_root / "manifest.yaml"
+    if not manifest_path.is_file():
+        return [
+            f"{module_label} workshop content manifest is missing: {display_path(manifest_path, relative_to)}"
+        ]
+
+    manifest = parse_workshop_content_manifest(manifest_path)
+    if manifest["schema_version"] != 1:
+        errors.append(
+            f"{module_label} workshop content manifest must declare schemaVersion 1: "
+            f"{display_path(manifest_path, relative_to)}"
+        )
+
+    workshop_content_id = str(manifest.get("workshop_id") or "").strip()
+    if not workshop_content_id:
+        errors.append(
+            f"{module_label} workshop content manifest is missing workshopId: "
+            f"{display_path(manifest_path, relative_to)}"
+        )
+    elif workshop_content_id not in allowed_workshop_ids:
+        allowed_ids_display = ", ".join(sorted(allowed_workshop_ids))
+        errors.append(
+            f"{module_label} workshop content manifest has workshopId {workshop_content_id!r}; "
+            f"expected one of {allowed_ids_display}"
+        )
+
+    views = manifest["views"]
+    assert isinstance(views, list)
+    if not views:
+        errors.append(
+            f"{module_label} workshop content manifest must declare at least one view: "
+            f"{display_path(manifest_path, relative_to)}"
+        )
+        return errors
+
+    seen_view_ids: set[str] = set()
+    seen_routes: set[str] = set()
+    seen_files: set[str] = set()
+    parsed_views: dict[str, dict[str, object]] = {}
+    manifest_views_by_id: dict[str, dict[str, object]] = {}
+
+    for manifest_view in views:
+        line_number = int(manifest_view.get("_line", 0))
+        view_id = str(manifest_view.get("viewId", "")).strip()
+        route = str(manifest_view.get("route", "")).strip()
+        page_type = str(manifest_view.get("pageType", "")).strip()
+        file_value = str(manifest_view.get("file", "")).strip()
+
+        manifest_views_by_id[view_id] = manifest_view
+
+        missing_manifest_fields = [
+            field_name
+            for field_name, field_value in [
+                ("viewId", view_id),
+                ("route", route),
+                ("pageType", page_type),
+                ("file", file_value),
+            ]
+            if not field_value
+        ]
+        if missing_manifest_fields:
+            errors.append(
+                f"{module_label} workshop content manifest view at line {line_number} is missing fields: "
+                + ", ".join(missing_manifest_fields)
+            )
+            continue
+
+        if view_id in seen_view_ids:
+            errors.append(
+                f"{module_label} workshop content manifest declares duplicate viewId {view_id!r}"
+            )
+        seen_view_ids.add(view_id)
+
+        if route in seen_routes:
+            errors.append(
+                f"{module_label} workshop content manifest declares duplicate route {route!r}"
+            )
+        seen_routes.add(route)
+
+        if page_type not in ALLOWED_CONTENT_PAGE_TYPES:
+            errors.append(
+                f"{module_label} workshop content manifest view {view_id!r} has unsupported "
+                f"pageType {page_type!r}"
+            )
+
+        relative_view_path = Path(file_value)
+        if relative_view_path.is_absolute():
+            errors.append(
+                f"{module_label} workshop content manifest view {view_id!r} must use a relative file path"
+            )
+            continue
+        if ".." in relative_view_path.parts:
+            errors.append(
+                f"{module_label} workshop content manifest view {view_id!r} must not escape workshop-content/"
+            )
+            continue
+        if relative_view_path.suffix != ".yaml":
+            errors.append(
+                f"{module_label} workshop content manifest view {view_id!r} must point to a .yaml file"
+            )
+        if require_views_directory and (not relative_view_path.parts or relative_view_path.parts[0] != "views"):
+            errors.append(
+                f"{module_label} workshop content manifest view {view_id!r} must live under workshop-content/views/"
+            )
+
+        normalized_file = relative_view_path.as_posix()
+        if normalized_file in seen_files:
+            errors.append(
+                f"{module_label} workshop content manifest declares duplicate file {normalized_file!r}"
+            )
+        seen_files.add(normalized_file)
+
+        view_path = content_root / relative_view_path
+        if not view_path.is_file():
+            errors.append(
+                f"{module_label} workshop content view file is missing for {view_id!r}: "
+                f"{display_path(view_path, relative_to)}"
+            )
+            continue
+
+        parsed_view = parse_workshop_content_view(view_path)
+        parsed_views[view_id] = parsed_view
+
+        if parsed_view["schema_version"] != 1:
+            errors.append(
+                f"{module_label} workshop content view {view_id!r} must declare schemaVersion 1: "
+                f"{display_path(view_path, relative_to)}"
+            )
+        if parsed_view["view_id"] != view_id:
+            errors.append(
+                f"{module_label} workshop content view file {display_path(view_path, relative_to)} "
+                f"declares viewId {parsed_view['view_id']!r}; expected {view_id!r}"
+            )
+        if parsed_view["route"] != route:
+            errors.append(
+                f"{module_label} workshop content view {view_id!r} must declare route {route!r}"
+            )
+        if parsed_view["page_type"] != page_type:
+            errors.append(
+                f"{module_label} workshop content view {view_id!r} must declare pageType {page_type!r}"
+            )
+        if not parsed_view["title"]:
+            errors.append(
+                f"{module_label} workshop content view {view_id!r} is missing a title"
+            )
+        if parsed_view["slot"] != "instructions":
+            errors.append(
+                f"{module_label} workshop content view {view_id!r} must declare slot 'instructions'"
+            )
+
+        stage_ids = parsed_view["stage_ids"]
+        section_ids = parsed_view["section_ids"]
+        block_types = parsed_view["block_types"]
+        assert isinstance(stage_ids, list)
+        assert isinstance(section_ids, list)
+        assert isinstance(block_types, list)
+
+        if page_type == "stage-flow" and not stage_ids:
+            errors.append(
+                f"{module_label} workshop content view {view_id!r} must declare at least one top-level stage"
+            )
+        if page_type in {"narrative", "editor"} and not section_ids:
+            errors.append(
+                f"{module_label} workshop content view {view_id!r} must declare at least one top-level section"
+            )
+        if not block_types:
+            errors.append(
+                f"{module_label} workshop content view {view_id!r} must declare at least one content block"
+            )
+
+    if expected_views is not None:
+        expected_view_ids = set(expected_views)
+        actual_view_ids = set(manifest_views_by_id)
+        if actual_view_ids != expected_view_ids:
+            errors.append(
+                f"{module_label} workshop content manifest expected views {sorted(expected_view_ids)!r}, "
+                f"found {sorted(actual_view_ids)!r}"
+            )
+
+        for expected_view_id, expectations in expected_views.items():
+            manifest_view = manifest_views_by_id.get(expected_view_id)
+            if manifest_view is None:
+                continue
+
+            for manifest_field in ["route", "pageType", "file"]:
+                expected_value = expectations.get(manifest_field)
+                if expected_value is None:
+                    continue
+                actual_value = str(manifest_view.get(manifest_field, "")).strip()
+                if actual_value != expected_value:
+                    errors.append(
+                        f"{module_label} scaffold manifest view {expected_view_id!r} expected "
+                        f"{manifest_field} {expected_value!r}, found {actual_value!r}"
+                    )
+
+            parsed_view = parsed_views.get(expected_view_id)
+            if parsed_view is None:
+                continue
+
+            for parsed_field, expectation_key in [
+                ("title", "title"),
+                ("slot", "slot"),
+                ("summary", "summary"),
+            ]:
+                expected_value = expectations.get(expectation_key)
+                if expected_value is None:
+                    continue
+                actual_value = str(parsed_view.get(parsed_field, "") or "").strip()
+                if actual_value != expected_value:
+                    errors.append(
+                        f"{module_label} scaffold view {expected_view_id!r} expected "
+                        f"{parsed_field} {expected_value!r}, found {actual_value!r}"
+                    )
+
+            require_summary = expectations.get("requireSummary")
+            if require_summary is True and not parsed_view["has_summary"]:
+                errors.append(
+                    f"{module_label} scaffold view {expected_view_id!r} must declare a summary"
+                )
+
+    return errors
+
+
+def validate_workshop_content(
+    module_root: Path,
+    module_label: str,
+    allowed_workshop_ids: set[str],
+    *,
+    relative_to: Path,
+    require_views_directory: bool = False,
+    expected_views: dict[str, dict[str, str | bool]] | None = None,
+) -> None:
+    content_errors = collect_workshop_content_errors(
+        module_root,
+        module_label,
+        allowed_workshop_ids,
+        relative_to=relative_to,
+        require_views_directory=require_views_directory,
+        expected_views=expected_views,
+    )
+    if content_errors:
+        fail(
+            "Workshop standardization check failed:\n"
+            + "\n".join(f"- {error}" for error in content_errors)
+        )
+
+
+def assert_contains(path: Path, required_substrings: list[str], *, label: str, relative_to: Path) -> None:
+    content = path.read_text(encoding="utf-8")
+    missing = [substring for substring in required_substrings if substring not in content]
+    if missing:
+        formatted_missing = ", ".join(repr(item) for item in missing)
+        fail(
+            "Workshop standardization check failed:\n"
+            f"- {label} is missing expected content markers in {display_path(path, relative_to)}: "
+            f"{formatted_missing}"
+        )
 
 
 def validate_existing_workshops() -> None:
@@ -416,6 +822,16 @@ def validate_existing_workshops() -> None:
                         f"{workshop_id} manifest reset file is missing: {reset_path.relative_to(ROOT)}"
                     )
 
+        if frontend_dir.is_dir():
+            errors.extend(
+                collect_workshop_content_errors(
+                    frontend_dir,
+                    f"{workshop_id} frontend module",
+                    {workshop_id, f"{workshop_id}_frontend"},
+                    relative_to=ROOT,
+                )
+            )
+
         for module_name in [workshop_id, f"{workshop_id}_frontend"]:
             include_line = f'include("{module_name}")'
             if include_line not in settings_text:
@@ -590,6 +1006,11 @@ def validate_scaffold_smoke() -> None:
                 "Workshop standardization check failed:\n"
                 "- Scaffold output no longer tells contributors to regenerate compose files."
             )
+        if "content manifest:" not in output or "content views:" not in output:
+            fail(
+                "Workshop standardization check failed:\n"
+                "- Scaffold output no longer calls out the generated workshop-content files."
+            )
 
         generated_backend_dir = temp_java_dir / smoke_id
         generated_frontend_dir = temp_java_dir / f"{smoke_id}_frontend"
@@ -612,9 +1033,13 @@ def validate_scaffold_smoke() -> None:
             generated_frontend_dir / "frontend/src/router/index.js",
             generated_frontend_dir / "frontend/src/utils/basePath.js",
             generated_frontend_dir / "frontend/src/utils/components.js",
+            generated_frontend_dir / "frontend/src/utils/workshopContent.js",
             generated_frontend_dir / f"frontend/src/views/{pascal_case}Home.vue",
             generated_frontend_dir / f"frontend/src/views/{pascal_case}Editor.vue",
             generated_frontend_dir / "src/main/resources/application.properties",
+            generated_frontend_dir / "src/main/resources/workshop-content/manifest.yaml",
+            generated_frontend_dir / f"src/main/resources/workshop-content/views/{smoke_service}-home.yaml",
+            generated_frontend_dir / f"src/main/resources/workshop-content/views/{smoke_service}-editor.yaml",
             generated_frontend_dir / "src/main/resources/workshop-manifest.yaml",
             generated_frontend_dir / "src/main/resources/workshop-manifest-reset/build.gradle.kts",
             generated_frontend_dir / "src/main/resources/workshop-manifest-reset/application.properties",
@@ -724,6 +1149,69 @@ def validate_scaffold_smoke() -> None:
                     "Workshop standardization check failed:\n"
                     f"- Scaffold frontend application.properties is missing {expected_line!r}."
                 )
+
+        validate_workshop_content(
+            generated_frontend_dir,
+            "Scaffold smoke frontend module",
+            {smoke_id},
+            relative_to=temp_dir,
+            require_views_directory=True,
+            expected_views={
+                f"{smoke_service}-home": {
+                    "route": "/",
+                    "pageType": "narrative",
+                    "file": f"views/{smoke_service}-home.yaml",
+                    "title": smoke_title,
+                    "slot": "instructions",
+                    "requireSummary": True,
+                },
+                f"{smoke_service}-editor": {
+                    "route": "/editor",
+                    "pageType": "editor",
+                    "file": f"views/{smoke_service}-editor.yaml",
+                    "title": smoke_title,
+                    "slot": "instructions",
+                    "requireSummary": True,
+                },
+            },
+        )
+
+        assert_contains(
+            generated_frontend_dir / "frontend/src/utils/workshopContent.js",
+            [
+                "export async function fetchWorkshopContent(viewId)",
+                "/api/content/views/${encodeURIComponent(viewId)}",
+            ],
+            label="Scaffold workshop content client",
+            relative_to=temp_dir,
+        )
+        assert_contains(
+            generated_frontend_dir / "frontend/src/utils/components.js",
+            ["WorkshopContentRenderer", "WorkshopEditorLayout"],
+            label="Scaffold component exports",
+            relative_to=temp_dir,
+        )
+        assert_contains(
+            generated_frontend_dir / f"frontend/src/views/{pascal_case}Home.vue",
+            [
+                "WorkshopContentRenderer",
+                "fetchWorkshopContent",
+                f"this.content = await fetchWorkshopContent('{smoke_service}-home')",
+            ],
+            label="Scaffold home view",
+            relative_to=temp_dir,
+        )
+        assert_contains(
+            generated_frontend_dir / f"frontend/src/views/{pascal_case}Editor.vue",
+            [
+                "WorkshopEditorLayout",
+                "WorkshopContentRenderer",
+                "fetchWorkshopContent",
+                f"this.content = await fetchWorkshopContent('{smoke_service}-editor')",
+            ],
+            label="Scaffold editor view",
+            relative_to=temp_dir,
+        )
 
 
 def main() -> None:

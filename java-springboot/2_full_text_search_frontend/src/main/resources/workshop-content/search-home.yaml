@@ -1,0 +1,213 @@
+schemaVersion: 1
+viewId: search-home
+route: /
+pageType: stage-flow
+title: Full-Text Search with Redis
+slot: instructions
+summary: Learn how Redis Query Engine indexes movie data, then build and test the search flow.
+header:
+  showHubLink: true
+  stageNav:
+    clickable: true
+    steps:
+      - stageId: intro
+        label: Intro
+      - stageId: learn
+        label: Learn
+      - stageId: build
+        label: Build
+      - stageId: test
+        label: Test
+stages:
+  - stageId: intro
+    title: Secondary Indexes and Full-Text Search
+    sections:
+      - sectionId: intro-overview
+        blocks:
+          - type: markdown
+            body: >
+              Redis Query Engine adds indexing and querying capabilities to Redis. It lets you create
+              secondary indexes on JSON documents and Hashes so you can search beyond the primary key.
+          - type: stepList
+            listId: intro-concepts
+            variant: ordered
+            items:
+              - itemId: secondary-indexes
+                title: What are Secondary Indexes?
+                body: |
+                  Secondary indexes let you query by fields other than the primary key.
+
+                  - `TAG` for exact matches like genres, status, and cast members
+                  - `NUMERIC` for ranges like release year
+                  - `TEXT` for full-text search
+                  - `GEO` and `VECTOR` for location and similarity search
+              - itemId: full-text-search
+                title: What is Full-Text Search?
+                body: |
+                  A `TEXT` index goes beyond exact matching.
+
+                  - stemming makes `running` match `run`
+                  - fuzzy matching can recover from minor typos
+                  - relevance scoring ranks the best matches first
+              - itemId: why-redis
+                title: Why Use Redis Query Engine?
+                body: |
+                  Redis is fast because both the data and the indexes live in memory.
+
+                  - no extra search cluster
+                  - no ETL or sync pipeline
+                  - index updates happen as data changes
+              - itemId: continue
+                title: Getting Started
+                body: Continue to see how the movie index is structured before you enable it in the code.
+                actions:
+                  - id: setStage
+                    label: Continue
+                    args:
+                      stageId: learn
+  - stageId: learn
+    title: How Indexes Work
+    sections:
+      - sectionId: movie-data
+        blocks:
+          - type: markdown
+            body: Each movie is stored as a JSON document.
+          - type: codeSnippet
+            language: json
+            title: Example Movie Document
+            code: |
+              {
+                "id": "tt0133093",
+                "title": "The Matrix",
+                "year": 1999,
+                "genres": ["Action", "Sci-Fi"],
+                "cast": ["Keanu Reeves", "Laurence Fishburne"],
+                "extract": "A computer hacker learns about the true nature of reality..."
+              }
+      - sectionId: searchable-queries
+        title: Queries We Want to Support
+        blocks:
+          - type: markdown
+            body: |
+              - `matrix` should find `The Matrix`
+              - `hacker` should match the description field
+              - `Keanu Reeves` should filter on cast members
+              - `1999` should filter on release year
+              - combined filters should narrow the result set
+      - sectionId: index-structures
+        title: Index Structure
+        blocks:
+          - type: markdown
+            body: Redis Query Engine builds lookup structures that map field values to document keys.
+          - type: codeSnippet
+            language: text
+            title: Example Indexes
+            code: |
+              Title Index (TEXT):
+                "matrix" -> [movie:tt0133093, movie:tt0234215]
+                "inception" -> [movie:tt1375666]
+
+              Year Index (NUMERIC):
+                1999 -> [movie:tt0133093, movie:tt0234215]
+                2010 -> [movie:tt1375666]
+
+              Cast Index (TAG):
+                "Keanu Reeves" -> [movie:tt0133093, movie:tt0234215]
+          - type: stepList
+            listId: workshop-index-types
+            variant: ordered
+            items:
+              - itemId: title-and-description
+                title: TEXT Indexes
+                body: Use `TEXT` indexing on `title` and `extract` for stemming and relevance-based matching.
+              - itemId: actor-and-genre
+                title: TAG Indexes
+                body: Use `TAG` indexing on `cast` and `genres` for exact filters on arrays and categories.
+              - itemId: year-range
+                title: NUMERIC Index
+                body: Use `NUMERIC` indexing on `year` for range queries and sorted output.
+                actions:
+                  - id: setStage
+                    label: Build It
+                    args:
+                      stageId: build
+  - stageId: build
+    title: Enable Full-Text Search
+    sections:
+      - sectionId: editor-path
+        blocks:
+          - type: callout
+            tone: info
+            title: Option 1
+            body: Use the in-browser code editor for the guided implementation.
+            actions:
+              - id: openEditor
+                label: Open Code Editor
+          - type: markdown
+            body: "**Option 2:** edit the files in your IDE and follow the same sequence shown below."
+      - sectionId: build-steps
+        blocks:
+          - type: stepList
+            listId: build-search
+            variant: ordered
+            items:
+              - itemId: dependencies
+                title: "Step 1: Add Dependencies"
+                body: Uncomment the `redis-om-spring` dependency and annotation processor in `build.gradle.kts`.
+              - itemId: movie-annotations
+                title: "Step 2: Annotate the Movie Entity"
+                body: Add `@Document`, `@Id`, `@Searchable`, and `@Indexed` annotations to `Movie.java`.
+              - itemId: redis-config
+                title: "Step 3: Configure Redis Connection"
+                body: Restore the Redis host and port settings in `application.properties`.
+              - itemId: redis-repositories
+                title: "Step 4: Enable Document Repositories"
+                body: Re-enable `@EnableRedisDocumentRepositories` in `FullTextSearchApplication.java`.
+              - itemId: repository-implementation
+                title: "Step 5: Implement the Repository"
+                body: Extend `RedisDocumentRepository` in `MovieRepository.java`.
+              - itemId: movie-service
+                title: "Step 6: Implement MovieService"
+                body: Re-enable `MovieRepository` injection plus the movie loading methods in `MovieService.java`.
+              - itemId: search-service
+                title: "Step 7: Implement SearchService"
+                body: Re-enable the `EntityStream` search implementation and the genre query in `SearchService.java`.
+              - itemId: rebuild-backend
+                title: "Step 8: Rebuild and Restart"
+                body: Rebuild the backend so Redis Query Engine starts with the new index configuration.
+                actions:
+                  - id: openHub
+                    label: Rebuild and Restart
+                    args:
+                      mode: rebuildRestart
+                      service: backend
+                  - id: setStage
+                    label: Continue to Test
+                    args:
+                      stageId: test
+  - stageId: test
+    title: Test Your Implementation
+    sections:
+      - sectionId: test-flow
+        blocks:
+          - type: callout
+            tone: success
+            body: The implementation path is complete. Open the live search screen and validate the behavior with real queries.
+            actions:
+              - id: openRoute
+                label: Open Search Screen
+                args:
+                  route: /search
+          - type: stepList
+            listId: test-search
+            variant: ordered
+            items:
+              - itemId: title-search
+                title: Title Search
+                body: Search for `matrix` in the title field to confirm the `TEXT` index is active.
+              - itemId: description-search
+                title: Full-Text Search
+                body: Search for `space adventure` or another description phrase to validate full-text matching.
+              - itemId: tag-and-numeric-filters
+                title: Filters
+                body: Filter by actor, genre, and release year to confirm the `TAG` and `NUMERIC` indexes are wired correctly.

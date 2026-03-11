@@ -67,6 +67,7 @@ mkdir -p "$BACKEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME"
 mkdir -p "$BACKEND_MODULE_DIR/src/main/resources"
 mkdir -p "$FRONTEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/frontend/infrastructure"
 mkdir -p "$FRONTEND_MODULE_DIR/src/main/resources/static"
+mkdir -p "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/views"
 mkdir -p "$FRONTEND_MODULE_DIR/src/main/resources/workshop-manifest-reset"
 mkdir -p "$FRONTEND_MODULE_DIR/frontend/public"
 mkdir -p "$FRONTEND_MODULE_DIR/frontend/src/assets/logo"
@@ -352,12 +353,15 @@ cat <<EOF > "$FRONTEND_MODULE_DIR/src/test/java/com/redis/workshop/$PACKAGE_NAME
 package com.redis.workshop.$PACKAGE_NAME.frontend;
 
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
 import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -385,6 +389,31 @@ class ${PASCAL_CASE}FrontendIntegrationTest {
     void backendApiIsHandledByProxyInFrontendModule() throws Exception {
         mockMvc.perform(get("/api/health"))
             .andExpect(status().isBadGateway());
+    }
+
+    @Test
+    void contentApiExposesWorkshopOwnedViews() throws Exception {
+        mockMvc.perform(get("/api/content/manifest"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.workshopId").value("$ID"))
+            .andExpect(jsonPath("$.views", hasSize(2)));
+
+        mockMvc.perform(get("/api/content/views/${SERVICE_NAME}-home"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("${SERVICE_NAME}-home"))
+            .andExpect(jsonPath("$.pageType").value("narrative"));
+
+        mockMvc.perform(get("/api/content/views/${SERVICE_NAME}-editor"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("${SERVICE_NAME}-editor"))
+            .andExpect(jsonPath("$.pageType").value("editor"));
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/", "/editor"})
+    void spaRoutesResolveToFrontend(String route) throws Exception {
+        mockMvc.perform(get(route))
+            .andExpect(status().isOk());
     }
 }
 EOF
@@ -525,6 +554,20 @@ cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/public/index.html"
 </html>
 EOF
 
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/static/index.html"
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <title>$TITLE</title>
+  </head>
+  <body>
+    <div id="app"></div>
+  </body>
+</html>
+EOF
+
 cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/main.js"
 import { getBasePath } from './utils/basePath'
 
@@ -577,7 +620,35 @@ EOF
 
 cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/utils/components.js"
 export { default as WorkshopHeader } from '../../../../../workshop-frontend-shared/src/components/WorkshopHeader.vue'
-export { default as WorkshopModal } from '../../../../../workshop-frontend-shared/src/components/WorkshopModal.vue'
+export { default as WorkshopContentRenderer } from '../../../../../workshop-frontend-shared/src/components/WorkshopContentRenderer.vue'
+export { default as WorkshopEditorLayout } from '../../../../../workshop-frontend-shared/src/components/WorkshopEditorLayout.vue'
+EOF
+
+cat <<'EOF' > "$FRONTEND_MODULE_DIR/frontend/src/utils/workshopContent.js"
+import { getApiUrl } from './basePath'
+
+export async function fetchWorkshopContent(viewId) {
+  const response = await fetch(getApiUrl(`/api/content/views/${encodeURIComponent(viewId)}`), {
+    credentials: 'include'
+  })
+
+  if (!response.ok) {
+    let message = `Failed to load workshop content (${response.status})`
+
+    try {
+      const errorBody = await response.json()
+      if (errorBody?.message) {
+        message = errorBody.message
+      }
+    } catch (error) {
+      // Ignore parse failures and use the default message.
+    }
+
+    throw new Error(message)
+  }
+
+  return response.json()
+}
 EOF
 
 cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/src/views/${PASCAL_CASE}Home.vue"
@@ -585,24 +656,79 @@ cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/src/views/${PASCAL_CASE}Home.vue"
   <div class="workshop-home">
     <WorkshopHeader :hub-url="workshopHubUrl" />
 
-    <div class="main-container">
-      <h1>$TITLE</h1>
-      <p>TODO: Add workshop guidance, demos, and success criteria.</p>
-      <router-link to="/editor" class="btn btn-primary">Open Editor</router-link>
-    </div>
+    <main class="main-container">
+      <div v-if="loading" class="content-status">
+        Loading workshop instructions...
+      </div>
+
+      <div v-else-if="loadError" class="content-status content-status--error">
+        {{ loadError }}
+      </div>
+
+      <WorkshopContentRenderer
+        v-else-if="content"
+        :content="content"
+        :show-title="true"
+        :show-summary="true"
+        :show-stage-title="false"
+        :action-handlers="actionHandlers"
+      />
+    </main>
   </div>
 </template>
 
 <script>
-import { WorkshopHeader } from '../utils/components'
+import { WorkshopContentRenderer, WorkshopHeader } from '../utils/components'
 import { getWorkshopHubUrl } from '../utils/basePath'
+import { fetchWorkshopContent } from '../utils/workshopContent'
 
 export default {
   name: '${PASCAL_CASE}Home',
-  components: { WorkshopHeader },
+  components: {
+    WorkshopContentRenderer,
+    WorkshopHeader
+  },
+  data() {
+    return {
+      content: null,
+      loading: true,
+      loadError: ''
+    }
+  },
+  async mounted() {
+    await this.loadContent()
+  },
   computed: {
     workshopHubUrl() {
       return getWorkshopHubUrl()
+    },
+    actionHandlers() {
+      return {
+        openEditor: () => this.openRoute('/editor'),
+        openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
+        openRoute: ({ args }) => this.openRoute(args?.route)
+      }
+    }
+  },
+  methods: {
+    async loadContent() {
+      this.loading = true
+      this.loadError = ''
+
+      try {
+        this.content = await fetchWorkshopContent('${SERVICE_NAME}-home')
+      } catch (error) {
+        this.loadError = error.message || 'Failed to load workshop instructions.'
+      } finally {
+        this.loading = false
+      }
+    },
+    openRoute(route) {
+      if (!route) {
+        return
+      }
+
+      this.\$router.push(route).catch(() => {})
     }
   }
 }
@@ -618,31 +744,263 @@ export default {
 .main-container {
   max-width: 960px;
   margin: 0 auto;
+  padding-top: var(--spacing-4);
+}
+
+.content-status {
   background: var(--color-surface);
   border-radius: var(--radius-xl);
   padding: var(--spacing-6);
+  box-shadow: var(--shadow-xl);
+  border: 1px solid var(--color-border);
+}
+
+.content-status--error {
+  background: rgba(239, 68, 68, 0.18);
 }
 </style>
 EOF
 
 cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/src/views/${PASCAL_CASE}Editor.vue"
 <template>
-  <WorkshopEditorLayout title="$TITLE Editor" :files="files" />
+  <WorkshopEditorLayout
+    ref="layout"
+    title="$TITLE Editor"
+    :files="files"
+  >
+    <template #instructions>
+      <div v-if="loading" class="content-status">
+        Loading workshop instructions...
+      </div>
+
+      <div v-else-if="loadError" class="content-status content-status--error">
+        {{ loadError }}
+      </div>
+
+      <WorkshopContentRenderer
+        v-else-if="content"
+        :content="content"
+        :show-title="false"
+        :show-summary="true"
+        :show-stage-title="false"
+        :action-handlers="actionHandlers"
+      />
+    </template>
+  </WorkshopEditorLayout>
 </template>
 
 <script>
-import { WorkshopEditorLayout } from '../../../../../workshop-frontend-shared/src/index.js'
+import { WorkshopContentRenderer, WorkshopEditorLayout } from '../utils/components'
+import { getWorkshopHubUrl } from '../utils/basePath'
+import { fetchWorkshopContent } from '../utils/workshopContent'
 
 export default {
   name: '${PASCAL_CASE}Editor',
-  components: { WorkshopEditorLayout },
+  components: {
+    WorkshopContentRenderer,
+    WorkshopEditorLayout
+  },
   data() {
     return {
-      files: ['build.gradle.kts', 'application.properties', '${PASCAL_CASE}Application.java']
+      files: ['build.gradle.kts', 'application.properties', '${PASCAL_CASE}Application.java'],
+      content: null,
+      loading: true,
+      loadError: ''
+    }
+  },
+  async mounted() {
+    await this.loadContent()
+  },
+  computed: {
+    workshopHubUrl() {
+      return getWorkshopHubUrl()
+    },
+    actionHandlers() {
+      return {
+        openFile: ({ args }) => this.loadFile(args?.file),
+        saveFile: () => this.saveFile(),
+        openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
+        openRoute: ({ args }) => this.openRoute(args?.route)
+      }
+    }
+  },
+  methods: {
+    async loadContent() {
+      this.loading = true
+      this.loadError = ''
+
+      try {
+        this.content = await fetchWorkshopContent('${SERVICE_NAME}-editor')
+      } catch (error) {
+        this.loadError = error.message || 'Failed to load workshop instructions.'
+      } finally {
+        this.loading = false
+      }
+    },
+    loadFile(fileName) {
+      if (!fileName) {
+        return
+      }
+
+      return this.\$refs.layout?.loadFile(fileName)
+    },
+    saveFile() {
+      return this.\$refs.layout?.save()
+    },
+    openRoute(route) {
+      if (!route) {
+        return
+      }
+
+      this.\$router.push(route).catch(() => {})
     }
   }
 }
 </script>
+
+<style scoped>
+.content-status {
+  border-radius: var(--radius-md);
+  padding: var(--spacing-4);
+  background: rgba(59, 130, 246, 0.12);
+  color: var(--color-text);
+}
+
+.content-status--error {
+  background: rgba(239, 68, 68, 0.18);
+}
+</style>
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/manifest.yaml"
+schemaVersion: 1
+workshopId: $ID
+views:
+  - viewId: ${SERVICE_NAME}-home
+    route: /
+    pageType: narrative
+    file: views/${SERVICE_NAME}-home.yaml
+  - viewId: ${SERVICE_NAME}-editor
+    route: /editor
+    pageType: editor
+    file: views/${SERVICE_NAME}-editor.yaml
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/views/${SERVICE_NAME}-home.yaml"
+schemaVersion: 1
+viewId: ${SERVICE_NAME}-home
+route: /
+pageType: narrative
+title: $TITLE
+slot: instructions
+summary: Author workshop instructions in these YAML files so the Vue views stay focused on state, API calls, and action handlers.
+header:
+  showHubLink: true
+sections:
+  - sectionId: content-driven-overview
+    title: Content-Driven Workshop Authoring
+    blocks:
+      - type: callout
+        tone: info
+        title: Edit content here
+        body: Update learner-facing copy in src/main/resources/workshop-content/views instead of writing large instruction templates in Vue.
+      - type: stepList
+        listId: scaffold-overview
+        variant: ordered
+        items:
+          - itemId: review-home-content
+            title: Review the generated content files
+            body: Start with ${SERVICE_NAME}-home.yaml and ${SERVICE_NAME}-editor.yaml, then add more view files as the workshop grows.
+          - itemId: keep-vue-thin
+            title: Keep the Vue route thin
+            body: The generated home and editor views fetch content from the shared content API and delegate rendering to the shared renderer.
+          - itemId: open-editor
+            title: Continue in the editor
+            body: Use the editor route to guide learners through the backend files that still live in the workshop manifest.
+            actions:
+              - id: openEditor
+                label: Open Editor
+      - type: callout
+        tone: success
+        title: After you customize the workshop
+        body: Replace the placeholder copy in this file, update the backend TODOs, and regenerate compose files from the workshop hub module.
+        actions:
+          - id: openHub
+            label: Open Workshop Hub
+EOF
+
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/views/${SERVICE_NAME}-editor.yaml"
+schemaVersion: 1
+viewId: ${SERVICE_NAME}-editor
+route: /editor
+pageType: editor
+title: $TITLE
+slot: instructions
+summary: Keep guided editing instructions in YAML while the editor view manages file loading and save behavior in code.
+sections:
+  - sectionId: editor-overview
+    blocks:
+      - type: callout
+        tone: info
+        body: The scaffolded editor view loads this document through the shared content path and keeps only file operations and routing behavior in Vue.
+  - sectionId: starter-workflow
+    title: Suggested first edits
+    blocks:
+      - type: editorStepList
+        listId: backend-build
+        title: "Step 1: Review dependencies"
+        startAt: 1
+        items:
+          - itemId: open-build-file
+            body: Open build.gradle.kts and replace the scaffold TODOs with the dependencies your workshop needs.
+            action:
+              id: openFile
+              label: Open build.gradle.kts
+              args:
+                file: build.gradle.kts
+          - itemId: save-build-file
+            body: Save the file after updating the dependency list.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: backend-config
+        title: "Step 2: Configure application properties"
+        startAt: 3
+        items:
+          - itemId: open-application-properties
+            body: Open application.properties and update runtime settings for the workshop scenario you are building.
+            action:
+              id: openFile
+              label: Open application.properties
+              args:
+                file: application.properties
+          - itemId: save-application-properties
+            body: Save the configuration updates.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: editorStepList
+        listId: backend-application
+        title: "Step 3: Implement the backend entry point"
+        startAt: 5
+        items:
+          - itemId: open-application-class
+            body: Open ${PASCAL_CASE}Application.java and replace the scaffold with the workshop-specific application setup.
+            action:
+              id: openFile
+              label: Open ${PASCAL_CASE}Application.java
+              args:
+                file: ${PASCAL_CASE}Application.java
+          - itemId: save-application-class
+            body: Save the file after the initial implementation is in place.
+            action:
+              id: saveFile
+              label: Save Changes
+      - type: callout
+        tone: success
+        title: Extend the editor workflow here
+        body: Add or refine editor steps in this YAML file instead of expanding the Vue template with instructional markup.
 EOF
 
 append_if_missing() {
@@ -685,12 +1043,17 @@ cat <<EOF
 Created:
 - backend module: java-springboot/$ID
 - frontend module: java-springboot/$FRONTEND_MODULE
+- content manifest: java-springboot/$FRONTEND_MODULE/src/main/resources/workshop-content/manifest.yaml
+- content views:
+  - java-springboot/$FRONTEND_MODULE/src/main/resources/workshop-content/views/${SERVICE_NAME}-home.yaml
+  - java-springboot/$FRONTEND_MODULE/src/main/resources/workshop-content/views/${SERVICE_NAME}-editor.yaml
 
 Registered:
 - workshops.yaml
 - java-springboot/settings.gradle.kts
 
 Next steps:
-1. Fill in the TODOs in both generated modules.
-2. Run ./java-springboot/gradlew -p java-springboot :workshop-hub:generateCompose
+1. Replace the placeholder content in the generated YAML view files and keep new instructional copy in workshop-content/.
+2. Fill in the TODOs in the backend module and workshop manifest.
+3. Run ./java-springboot/gradlew -p java-springboot :workshop-hub:generateCompose
 EOF

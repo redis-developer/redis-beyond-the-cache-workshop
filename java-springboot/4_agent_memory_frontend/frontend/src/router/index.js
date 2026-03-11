@@ -6,6 +6,7 @@ const MemoryChallenges = () => import('../views/MemoryChallenges.vue')
 const MemoryEditor = () => import('../views/MemoryEditor.vue')
 const MemoryDemo = () => import('../views/MemoryChat.vue')
 const MemoryLearn = () => import('../views/MemoryLearn.vue')
+const MemoryLab = () => import('../views/MemoryLab.vue')
 
 const routes = [
   {
@@ -32,6 +33,11 @@ const routes = [
     path: '/learn',
     name: 'MemoryLearn',
     component: MemoryLearn
+  },
+  {
+    path: '/lab',
+    name: 'MemoryLab',
+    component: MemoryLab
   }
 ]
 
@@ -41,4 +47,3 @@ const router = createRouter({
 })
 
 export default router
-

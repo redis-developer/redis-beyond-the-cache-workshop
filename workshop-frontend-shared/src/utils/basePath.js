@@ -84,8 +84,7 @@ function getWorkshopProxyContext(pathname = '') {
 
   return {
     basePath,
-    hubUrl: prefix ? `${prefix}/` : '/',
-    redisInsightUrl: `${prefix}${workshopMarker}redis-insight/`
+    hubUrl: prefix ? `${prefix}/` : '/'
   };
 }
 
@@ -123,10 +122,10 @@ export function getWorkshopHubUrl(options = {}) {
 /**
  * Resolve the Redis Insight URL for the current runtime.
  *
- * When a workshop is running behind the hub proxy, this returns the proxied
- * Redis Insight path on the current origin. When a workshop is running
- * standalone, it falls back to the local Redis Insight port so workshop UIs do
- * not need to hardcode `:5540`.
+ * Redis Insight must be accessed directly on its own port because it does not
+ * work correctly behind the workshop proxy. This always resolves to the local
+ * Redis Insight port on the current origin so workshop UIs do not need to
+ * hardcode `:5540`.
  *
  * @param {Object} [options]
  * @param {Location} [options.location] - Override location, mainly for tests
@@ -134,9 +133,6 @@ export function getWorkshopHubUrl(options = {}) {
  * @returns {string} The Redis Insight URL for the current runtime
  */
 export function getRedisInsightUrl(options = {}) {
-  return resolveRuntimeUrl({
-    location: options.location,
-    port: options.port || 5540,
-    getProxyUrl: ({ redisInsightUrl }) => redisInsightUrl
-  });
+  const runtimeLocation = getRuntimeLocation(options.location);
+  return `${runtimeLocation.protocol}//${runtimeLocation.hostname}:${options.port || 5540}/`;
 }

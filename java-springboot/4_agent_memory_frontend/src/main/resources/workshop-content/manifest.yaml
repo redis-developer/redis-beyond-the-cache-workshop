@@ -1,0 +1,27 @@
+schemaVersion: 1
+workshopId: 4_agent_memory
+views:
+  - viewId: memory-home
+    route: /
+    pageType: stage-flow
+    file: views/memory-home.yaml
+  - viewId: memory-challenges
+    route: /challenges
+    pageType: stage-flow
+    file: views/memory-challenges.yaml
+  - viewId: memory-learn
+    route: /learn
+    pageType: narrative
+    file: views/memory-learn.yaml
+  - viewId: memory-lab
+    route: /lab
+    pageType: stage-flow
+    file: views/memory-lab.yaml
+  - viewId: memory-editor
+    route: /editor
+    pageType: editor
+    file: views/memory-editor.yaml
+  - viewId: memory-chat
+    route: /demo
+    pageType: stage-flow
+    file: views/memory-chat.yaml
