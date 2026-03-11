@@ -27,6 +27,7 @@
             v-model="content"
             class="code-editor"
             :disabled="!currentFile"
+            wrap="off"
             spellcheck="false"
             @scroll="syncScroll"
           ></textarea>
@@ -205,21 +206,21 @@ export default {
 </script>
 
 <style scoped>
-.editor-container { flex: 1; display: flex; flex-direction: column; }
+.editor-container { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .file-tabs { display: flex; background: #252526; border-bottom: 1px solid var(--color-border); overflow-x: auto; }
 .file-tab { padding: var(--spacing-3) var(--spacing-6); background: transparent; border: none; color: #969696; cursor: pointer; transition: all var(--transition-base); border-right: 1px solid var(--color-border); white-space: nowrap; font-size: var(--font-size-sm); }
 .file-tab:hover { background: #2a2d2e; color: #cccccc; }
 .file-tab.active { background: #1e1e1e; color: #ffffff; border-bottom: 2px solid #DC382C; }
-.editor-panel { flex: 1; display: flex; flex-direction: column; }
-.editor-header { background: #252526; padding: var(--spacing-3) var(--spacing-4); display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--color-border); }
-.editor-header h3 { color: #cccccc; margin: 0; font-size: var(--font-size-sm); }
+.editor-panel { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.editor-header { background: #252526; padding: var(--spacing-3) var(--spacing-4); display: flex; justify-content: space-between; align-items: center; gap: var(--spacing-3); border-bottom: 1px solid var(--color-border); }
+.editor-header h3 { color: #cccccc; margin: 0; font-size: var(--font-size-sm); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .editor-actions { display: flex; gap: var(--spacing-2); }
 .editor-actions button { padding: var(--spacing-2) var(--spacing-4); font-size: var(--font-size-sm); }
-.code-editor-wrapper { flex: 1; width: 100%; height: 100%; overflow: hidden; }
-.editor-container-inner { position: relative; width: 100%; height: 100%; }
+.code-editor-wrapper { flex: 1; width: 100%; min-width: 0; height: 100%; overflow: hidden; }
+.editor-container-inner { position: relative; width: 100%; min-width: 0; height: 100%; overflow: hidden; }
 .code-highlight { position: absolute; top: 0; left: 0; right: 0; bottom: 0; margin: 0; padding: var(--spacing-4); background: #1e1e1e; font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.5; overflow: auto; pointer-events: none; white-space: pre; color: #d4d4d4; }
 .code-highlight code { font-family: inherit; font-size: inherit; line-height: inherit; background: transparent; padding: 0; }
-.code-editor { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; color: transparent; caret-color: #fff; border: none; padding: var(--spacing-4); font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.5; resize: none; z-index: 1; }
+.code-editor { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: transparent; color: transparent; caret-color: #fff; border: none; padding: var(--spacing-4); font-family: 'Consolas', 'Monaco', 'Courier New', monospace; font-size: 14px; line-height: 1.5; white-space: pre; overflow: auto; resize: none; z-index: 1; }
 .code-editor:focus { outline: none; }
 .code-editor:disabled { opacity: 0.5; cursor: not-allowed; }
 .status-message { position: fixed; bottom: 20px; right: 20px; padding: var(--spacing-4) var(--spacing-6); background: #252526; color: #fff; text-align: center; font-size: var(--font-size-sm); border-radius: var(--radius-md); box-shadow: var(--shadow-xl); z-index: 1000; transition: opacity var(--transition-base); }

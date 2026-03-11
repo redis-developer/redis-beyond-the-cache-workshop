@@ -1,7 +1,11 @@
 <template>
   <div class="workshop-editor">
     <div class="main-container">
-      <div class="workshop-panel">
+      <div
+        class="workshop-panel"
+        :class="{ 'workshop-panel--resizing': isResizing }"
+        :style="workshopPanelStyle"
+      >
         <div class="workshop-header">
           <h2>
             <div class="logo-small">
@@ -14,6 +18,14 @@
           <slot name="instructions"></slot>
         </div>
       </div>
+      <button
+        type="button"
+        class="workshop-panel-resize-handle"
+        :class="{ 'workshop-panel-resize-handle--active': isResizing }"
+        aria-label="Resize instructions panel"
+        title="Drag to resize instructions panel"
+        @pointerdown="startResize"
+      ></button>
 
       <CodeEditor
         ref="editor"
@@ -32,22 +44,80 @@ import { getWorkshopHubUrl } from '../utils/basePath.js';
 export default {
   name: 'WorkshopEditorLayout',
   components: { CodeEditor },
+  data() {
+    return {
+      panelWidth: 400,
+      isResizing: false
+    };
+  },
   props: {
     title: { type: String, required: true },
     files: { type: Array, required: true }
   },
   emits: ['file-loaded', 'file-saved'],
   computed: {
+    workshopPanelStyle() {
+      return {
+        width: `${this.panelWidth}px`
+      };
+    },
     workshopHubUrl() {
       return getWorkshopHubUrl();
     }
   },
+  mounted() {
+    this.restorePanelWidth();
+  },
+  beforeUnmount() {
+    this.stopResize();
+  },
   methods: {
+    clampPanelWidth(nextWidth) {
+      const minWidth = 320;
+      const maxWidth = Math.max(minWidth, window.innerWidth - 320);
+      return Math.min(Math.max(nextWidth, minWidth), maxWidth);
+    },
+    persistPanelWidth() {
+      localStorage.setItem('workshopEditorPanelWidth', String(this.panelWidth));
+    },
     onFileLoaded(data) {
       this.$emit('file-loaded', data);
     },
     onFileSaved(data) {
       this.$emit('file-saved', data);
+    },
+    onResize(event) {
+      if (!this.isResizing) {
+        return;
+      }
+
+      this.panelWidth = this.clampPanelWidth(event.clientX);
+    },
+    restorePanelWidth() {
+      const savedWidth = Number.parseInt(localStorage.getItem('workshopEditorPanelWidth') || '', 10);
+      if (!Number.isNaN(savedWidth)) {
+        this.panelWidth = this.clampPanelWidth(savedWidth);
+      }
+    },
+    startResize(event) {
+      event.preventDefault();
+      this.isResizing = true;
+      window.addEventListener('pointermove', this.onResize);
+      window.addEventListener('pointerup', this.stopResize);
+      document.body.style.cursor = 'col-resize';
+      document.body.style.userSelect = 'none';
+    },
+    stopResize() {
+      if (!this.isResizing) {
+        return;
+      }
+
+      this.isResizing = false;
+      window.removeEventListener('pointermove', this.onResize);
+      window.removeEventListener('pointerup', this.stopResize);
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      this.persistPanelWidth();
     },
     // Proxy methods to CodeEditor
     loadFile(fileName) { return this.$refs.editor.loadFile(fileName); },
@@ -64,10 +134,15 @@ export default {
 <style scoped>
 .workshop-editor { margin: 0; padding: 0; background: #1a1a1a; overflow: hidden; }
 .main-container { display: flex; height: 100vh; width: 100vw; }
-.workshop-panel { width: 400px; background: #1e1e1e; border-right: 1px solid var(--color-border); display: flex; flex-direction: column; overflow: hidden; }
+.workshop-panel { width: 400px; min-width: 320px; background: #1e1e1e; border-right: 1px solid var(--color-border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
+.workshop-panel--resizing { pointer-events: none; }
 .workshop-header { background: #252526; padding: var(--spacing-4); border-bottom: 1px solid var(--color-border); }
 .workshop-header h2 { margin: 0; color: #DC382C; font-size: var(--font-size-lg); display: flex; align-items: center; gap: var(--spacing-2); }
 .logo-small { display: inline-block; }
+.workshop-panel-resize-handle { width: 10px; min-width: 10px; padding: 0; border: 0; background: linear-gradient(180deg, rgba(59, 130, 246, 0) 0%, rgba(59, 130, 246, 0.2) 50%, rgba(59, 130, 246, 0) 100%); cursor: col-resize; position: relative; flex-shrink: 0; }
+.workshop-panel-resize-handle::before { content: ''; position: absolute; inset: 0 3px; background: rgba(59, 130, 246, 0.18); transition: background 150ms ease; }
+.workshop-panel-resize-handle:hover::before,
+.workshop-panel-resize-handle--active::before { background: rgba(96, 165, 250, 0.5); }
 .workshop-content { flex: 1; overflow-y: auto; padding: var(--spacing-6); color: #cccccc; font-size: var(--font-size-sm); line-height: 1.6; }
 .workshop-content :deep(h3) { color: #fff; font-size: var(--font-size-base); margin-top: 0; }
 .workshop-content :deep(h4) { color: #4fc3f7; font-size: var(--font-size-sm); margin-top: var(--spacing-6); margin-bottom: var(--spacing-3); font-weight: var(--font-weight-semibold); }
@@ -102,6 +177,6 @@ export default {
 .workshop-content :deep(.concept-box.warning p) { color: #fcd9a8; }
 .workshop-content :deep(.concept-box.review) { background: rgba(59, 130, 246, 0.1); border-left-color: #3b82f6; }
 .workshop-content :deep(.completion-banner) { margin-top: var(--spacing-6); padding: var(--spacing-4); background: #1e7e34; color: white; border-radius: var(--radius-md); text-align: center; font-weight: var(--font-weight-semibold); }
-@media (max-width: 1024px) { .workshop-panel { width: 300px; } }
-@media (max-width: 768px) { .main-container { flex-direction: column; } .workshop-panel { width: 100%; max-height: 40vh; } }
+@media (max-width: 1024px) { .workshop-panel { min-width: 280px; } }
+@media (max-width: 768px) { .main-container { flex-direction: column; } .workshop-panel { width: 100% !important; max-height: 40vh; } .workshop-panel-resize-handle { display: none; } }
 </style>
