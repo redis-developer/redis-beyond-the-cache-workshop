@@ -45,6 +45,7 @@ fun registerFrontendBuildTask(
     outputDir: File
 ): TaskProvider<Exec> {
     return project.tasks.register<Exec>("buildFrontend") {
+        val sharedFrontendDir = project.rootProject.projectDir.parentFile.resolve("workshop-frontend-shared")
         val npmCmd = if (OperatingSystem.current().isWindows) "npm.cmd" else "npm"
         val npmExecutable = findExecutableOnPath(npmCmd)
         workingDir = frontendDir
@@ -52,6 +53,9 @@ fun registerFrontendBuildTask(
         commandLine(npmExecutable ?: npmCmd, "run", "build")
         inputs.dir(frontendDir.resolve("src"))
         inputs.dir(frontendDir.resolve("public"))
+        if (sharedFrontendDir.exists()) {
+            inputs.dir(sharedFrontendDir)
+        }
         inputs.files(
             frontendDir.resolve("package.json"),
             frontendDir.resolve("package-lock.json"),

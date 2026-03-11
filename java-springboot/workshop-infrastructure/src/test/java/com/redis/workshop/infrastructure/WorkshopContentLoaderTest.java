@@ -41,8 +41,16 @@ class WorkshopContentLoaderTest {
                     sections:
                       - sectionId: overview
                         blocks:
-                          - type: markdown
+                          - type: statusPanel
+                            tone: info
+                            title: Current State
                             body: Welcome to the workshop.
+                          - type: actionRow
+                            actions:
+                              - id: setStage
+                                label: Next
+                                args:
+                                  stageId: intro
                           - type: stepList
                             listId: intro-steps
                             variant: ordered
@@ -73,9 +81,9 @@ class WorkshopContentLoaderTest {
         assertThat(view.stages()).hasSize(1);
         assertThat(view.stages().getFirst().sections()).hasSize(1);
         assertThat(view.stages().getFirst().sections().getFirst().blocks())
-            .hasSize(2)
-            .first()
-            .isInstanceOf(WorkshopMarkdownBlock.class);
+            .hasSize(3)
+            .element(1)
+            .isInstanceOf(WorkshopActionRowBlock.class);
     }
 
     @Test

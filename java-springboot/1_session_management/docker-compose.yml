@@ -1,22 +1,43 @@
 services:
-  session-management:
+  session-management-api:
     build:
       context: ../..
       dockerfile: java-springboot/1_session_management/Dockerfile
+    ports:
+      - "18080:18080"
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - WORKSHOP_BASE_PATH=/workshop-sources
+      - SERVER_PORT=18080
+    volumes:
+      - ./:/workshop-sources
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  session-management:
+    build:
+      context: ../..
+      dockerfile: java-springboot/1_session_management_frontend/Dockerfile
       args:
-        # Standalone mode: use root path (/)
         VUE_APP_BASE_PATH: /
     ports:
       - "8080:8080"
     environment:
-      # Inside Docker, use the redis service hostname instead of localhost
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - WORKSHOP_BASE_PATH=/workspace/1_session_management
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - WORKSHOP_BASE_PATH=/workshop-sources
+      - SERVER_PORT=8080
+      - WORKSHOP_BACKEND_URL=http://session-management-api:18080
     volumes:
-      - ../:/workspace/1_session_management
+      - ./:/workshop-sources
     depends_on:
-      - redis
+      - session-management-api
 
   redis:
     image: redis:latest
@@ -44,9 +65,9 @@ services:
     volumes:
       - redis-insight-data:/db
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
 volumes:
   redis-data:
   redis-insight-data:
-

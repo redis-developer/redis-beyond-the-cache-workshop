@@ -2,6 +2,7 @@ package com.redis.workshop.session.frontend.infrastructure;
 
 import com.redis.workshop.infrastructure.FrontendRuntimeProperties;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
@@ -13,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestMethod;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import java.io.IOException;
 import java.net.URI;
@@ -20,6 +22,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.List;
@@ -27,6 +30,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @RestController
 @ConditionalOnProperty(name = "workshop.backend.url")
@@ -48,9 +52,14 @@ public class SessionAuthProxyController {
     private final FrontendRuntimeProperties runtimeProperties;
     private final HttpClient httpClient;
 
+    @Autowired
     public SessionAuthProxyController(FrontendRuntimeProperties runtimeProperties) {
+        this(runtimeProperties, HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build());
+    }
+
+    SessionAuthProxyController(FrontendRuntimeProperties runtimeProperties, HttpClient httpClient) {
         this.runtimeProperties = runtimeProperties;
-        this.httpClient = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+        this.httpClient = httpClient;
     }
 
     @RequestMapping(value = {"/login", "/logout"}, method = RequestMethod.POST)
@@ -63,9 +72,12 @@ public class SessionAuthProxyController {
                 .body(errorBody);
         }
 
-        URI targetUri = URI.create(backendUri.get().toString() + request.getRequestURI()
-            + (request.getQueryString() == null ? "" : "?" + request.getQueryString()));
-        HttpRequest outboundRequest = buildOutboundRequest(request, targetUri, body);
+        URI targetUri = UriComponentsBuilder.fromUri(backendUri.get())
+            .path(request.getRequestURI())
+            .replaceQuery(request.getQueryString())
+            .build(true)
+            .toUri();
+        HttpRequest outboundRequest = buildOutboundRequest(request, targetUri, authRequestBody(request, body));
 
         try {
             HttpResponse<byte[]> backendResponse = httpClient.send(outboundRequest, HttpResponse.BodyHandlers.ofByteArray());
@@ -119,6 +131,22 @@ public class SessionAuthProxyController {
             return HttpRequest.BodyPublishers.noBody();
         }
         return HttpRequest.BodyPublishers.ofByteArray(body);
+    }
+
+    private byte[] authRequestBody(HttpServletRequest request, byte[] body) {
+        String contentType = request.getContentType();
+        if (contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith(MediaType.APPLICATION_FORM_URLENCODED_VALUE)) {
+            String encodedForm = request.getParameterMap().entrySet().stream()
+                .flatMap(entry -> java.util.Arrays.stream(entry.getValue())
+                    .map(value -> urlEncode(entry.getKey()) + "=" + urlEncode(value)))
+                .collect(Collectors.joining("&"));
+            return encodedForm.getBytes(StandardCharsets.UTF_8);
+        }
+        return body;
+    }
+
+    private String urlEncode(String value) {
+        return URLEncoder.encode(value, StandardCharsets.UTF_8);
     }
 
     private ResponseEntity<byte[]> toResponseEntity(

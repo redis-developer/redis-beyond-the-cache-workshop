@@ -17,7 +17,7 @@ stages:
     sections:
       - sectionId: stage-1
         blocks:
-          - type: callout
+          - type: statusPanel
             tone: warning
             title: Current State
             body: Sessions are stored in-memory and are **not** persisted in Redis.

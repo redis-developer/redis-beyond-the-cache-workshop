@@ -2,6 +2,8 @@ const PAGE_TYPES = new Set(['narrative', 'stage-flow', 'editor']);
 const BLOCK_TYPES = new Set([
   'markdown',
   'callout',
+  'statusPanel',
+  'actionRow',
   'stepList',
   'editorStepList',
   'codeSnippet',
@@ -81,6 +83,27 @@ function mapBlock(block, context, resolveString, missingTokens, errors) {
       tone: block.tone || 'info',
       title: block.title || '',
       body: resolveString(block.body),
+      actions: (block.actions || [])
+        .map(action => mapAction(action, blockContext, resolveString))
+        .filter(Boolean)
+    };
+  }
+
+  if (block.type === 'statusPanel') {
+    return {
+      type: 'statusPanel',
+      tone: block.tone || 'info',
+      title: block.title || '',
+      body: resolveString(block.body),
+      actions: (block.actions || [])
+        .map(action => mapAction(action, blockContext, resolveString))
+        .filter(Boolean)
+    };
+  }
+
+  if (block.type === 'actionRow') {
+    return {
+      type: 'actionRow',
       actions: (block.actions || [])
         .map(action => mapAction(action, blockContext, resolveString))
         .filter(Boolean)

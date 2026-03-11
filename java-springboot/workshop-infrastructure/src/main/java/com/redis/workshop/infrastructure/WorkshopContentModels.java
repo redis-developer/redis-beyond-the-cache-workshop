@@ -108,6 +108,8 @@ record WorkshopContentSection(
 @JsonSubTypes({
     @JsonSubTypes.Type(value = WorkshopMarkdownBlock.class, name = "markdown"),
     @JsonSubTypes.Type(value = WorkshopCalloutBlock.class, name = "callout"),
+    @JsonSubTypes.Type(value = WorkshopStatusPanelBlock.class, name = "statusPanel"),
+    @JsonSubTypes.Type(value = WorkshopActionRowBlock.class, name = "actionRow"),
     @JsonSubTypes.Type(value = WorkshopStepListBlock.class, name = "stepList"),
     @JsonSubTypes.Type(value = WorkshopEditorStepListBlock.class, name = "editorStepList"),
     @JsonSubTypes.Type(value = WorkshopCodeSnippetBlock.class, name = "codeSnippet"),
@@ -131,6 +133,29 @@ record WorkshopCalloutBlock(
 ) implements WorkshopContentBlock {
 
     WorkshopCalloutBlock {
+        actions = actions == null ? List.of() : List.copyOf(actions);
+    }
+}
+
+@JsonTypeName("statusPanel")
+record WorkshopStatusPanelBlock(
+    WorkshopContentTone tone,
+    String title,
+    String body,
+    List<WorkshopContentAction> actions
+) implements WorkshopContentBlock {
+
+    WorkshopStatusPanelBlock {
+        actions = actions == null ? List.of() : List.copyOf(actions);
+    }
+}
+
+@JsonTypeName("actionRow")
+record WorkshopActionRowBlock(
+    List<WorkshopContentAction> actions
+) implements WorkshopContentBlock {
+
+    WorkshopActionRowBlock {
         actions = actions == null ? List.of() : List.copyOf(actions);
     }
 }

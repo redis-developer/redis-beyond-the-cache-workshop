@@ -19,6 +19,7 @@ from pathlib import Path
 
 ROOT = Path(sys.argv[1]).resolve()
 JAVA_DIR = ROOT / "java-springboot"
+BUILD_GRADLE_PATH = JAVA_DIR / "build.gradle.kts"
 REGISTRY_PATH = ROOT / "workshops.yaml"
 SETTINGS_PATH = JAVA_DIR / "settings.gradle.kts"
 LOCAL_COMPOSE_PATH = JAVA_DIR / "workshop-hub" / "docker-compose.local.yml"
@@ -606,12 +607,26 @@ def validate_existing_workshops() -> None:
         fail(f"workshop registry is missing: {REGISTRY_PATH}")
     if not SETTINGS_PATH.is_file():
         fail(f"Gradle settings are missing: {SETTINGS_PATH}")
+    if not BUILD_GRADLE_PATH.is_file():
+        fail(f"Gradle build file is missing: {BUILD_GRADLE_PATH}")
 
     version, workshops = parse_registry(REGISTRY_PATH)
     if version != 1:
         errors.append(f"workshops.yaml version must be 1, found {version!r}")
     if not workshops:
         errors.append("workshops.yaml does not define any workshops")
+
+    build_gradle_text = BUILD_GRADLE_PATH.read_text(encoding="utf-8")
+    for required_marker in [
+        'val sharedFrontendDir = project.rootProject.projectDir.parentFile.resolve("workshop-frontend-shared")',
+        "if (sharedFrontendDir.exists()) {",
+        "inputs.dir(sharedFrontendDir)",
+    ]:
+        if required_marker not in build_gradle_text:
+            errors.append(
+                "java-springboot/build.gradle.kts must track workshop-frontend-shared as a buildFrontend input "
+                f"(missing {required_marker!r})"
+            )
 
     settings_text = SETTINGS_PATH.read_text(encoding="utf-8")
     seen_ids: set[str] = set()

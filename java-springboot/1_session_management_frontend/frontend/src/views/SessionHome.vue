@@ -205,6 +205,7 @@ export default {
       },
       redisEnabled: false,
       stage1Completed: false,
+      manualStageId: '',
       restartingLab: false,
       previousSessionId: null,
       stage1Tests: createStage1Defaults(),
@@ -219,7 +220,7 @@ export default {
     };
   },
   computed: {
-    activeStageId() {
+    automaticStageId() {
       if (this.redisEnabled) {
         return 'redis-enabled';
       }
@@ -229,6 +230,9 @@ export default {
       }
 
       return 'problem';
+    },
+    activeStageId() {
+      return this.manualStageId || this.automaticStageId;
     },
     basePath() {
       return getBasePath();
@@ -382,6 +386,8 @@ export default {
       if (stageId === 'enable-redis') {
         await this.markStage1Complete();
       }
+
+      this.manualStageId = stageId;
     },
     loadTestProgress() {
       this.stage1Tests = loadSavedProgress('stage1Tests', createStage1Defaults());
@@ -416,6 +422,7 @@ export default {
       this.showModal('confirm', 'Reset Progress', 'Reset all test progress? You will start from the first test again.', () => {
         this.stage1Tests = createStage1Defaults();
         this.stage3Tests = createStage3Defaults();
+        this.manualStageId = '';
         this.previousSessionId = null;
         localStorage.removeItem('stage1Tests');
         localStorage.removeItem('stage3Tests');
@@ -436,6 +443,7 @@ export default {
           if (data.success) {
             this.stage1Tests = createStage1Defaults();
             this.stage3Tests = createStage3Defaults();
+            this.manualStageId = '';
             this.previousSessionId = null;
             localStorage.removeItem('stage1Tests');
             localStorage.removeItem('stage3Tests');
@@ -528,7 +536,6 @@ export default {
 }
 
 .instructions :deep(.content-step-item),
-.instructions :deep(.content-callout),
 .instructions :deep(.content-widget) {
   background: var(--color-dark-800);
 }
@@ -544,22 +551,12 @@ export default {
   color: var(--color-text-secondary);
 }
 
-.instructions :deep(.content-action--primary) {
-  background: #DC382C;
-  border-color: #DC382C;
-}
-
-.instructions :deep(.content-action--secondary) {
-  background: transparent;
-  border-color: var(--color-border);
-}
-
 .instructions :deep(.session-comparison) {
   background: rgba(239, 68, 68, 0.1);
   border: 1px solid #ef4444;
   border-radius: var(--radius-md);
   padding: var(--spacing-3);
-  margin: var(--spacing-3) 0;
+  margin: var(--spacing-4) 0 0 calc(2rem + var(--spacing-3));
 }
 
 .instructions :deep(.session-comparison.success) {
@@ -602,6 +599,12 @@ export default {
 
 .instructions :deep(.comparison-note.warning) {
   color: #f59e0b;
+}
+
+@media (max-width: 768px) {
+  .instructions :deep(.session-comparison) {
+    margin-left: 0;
+  }
 }
 
 /* Right Column - Details */

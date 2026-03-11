@@ -8,21 +8,20 @@ module.exports = defineConfig({
   outputDir: '../src/main/resources/static',
   publicPath: basePath,
   devServer: {
-    port: 8081,
+    port: 9080,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:18080',
         changeOrigin: true
       },
       '/login': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:18080',
         changeOrigin: true
       },
       '/logout': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:18080',
         changeOrigin: true
       }
     }
   }
 })
-

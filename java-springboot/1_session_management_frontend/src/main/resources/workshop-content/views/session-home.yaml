@@ -12,9 +12,9 @@ stages:
     sections:
       - sectionId: stage-1
         blocks:
-          - type: callout
+          - type: statusPanel
             tone: warning
-            title: Current State
+            title: Current state
             body: Sessions are stored in-memory (not in Redis).
           - type: markdown
             body: "Let's see the problem with in-memory sessions. Complete each test to proceed:"
@@ -95,14 +95,26 @@ stages:
                 actions:
                   - id: openHub
                     label: Open Workshop Hub
+          - type: actionRow
+            actions:
+              - id: setStage
+                label: Back to Stage 1
+                args:
+                  stageId: problem
   - stageId: redis-enabled
     title: "STAGE 3: Redis Session Management Enabled!"
     sections:
       - sectionId: stage-3-tests
         blocks:
-          - type: callout
+          - type: statusPanel
             tone: success
-            body: Sessions are now stored in Redis (distributed storage).
+            title: Current state
+            body: Sessions are stored in Redis.
+            actions:
+              - id: setStage
+                label: Back to Stage 1
+                args:
+                  stageId: problem
           - type: markdown
             body: "Let's verify it works. Complete each test to proceed:"
           - type: stepList

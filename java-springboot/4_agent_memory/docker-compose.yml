@@ -1,8 +1,32 @@
 services:
-  agent-memory-workshop:
+  agent-memory-api:
     build:
       context: ../..
       dockerfile: java-springboot/4_agent_memory/Dockerfile
+    ports:
+      - "18083:18083"
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - AGENT_MEMORY_SERVER_URL=http://agent-memory-server:8000
+      - WORKSHOP_BASE_PATH=/workshop-sources
+      - SERVER_PORT=18083
+    volumes:
+      - ./:/workshop-sources
+    depends_on:
+      redis:
+        condition: service_healthy
+      agent-memory-server:
+        condition: service_healthy
+
+  agent-memory:
+    build:
+      context: ../..
+      dockerfile: java-springboot/4_agent_memory_frontend/Dockerfile
+      args:
+        VUE_APP_BASE_PATH: /
     ports:
       - "8083:8083"
     environment:
@@ -10,13 +34,13 @@ services:
       - SPRING_DATA_REDIS_PORT=6379
       - SPRING_REDIS_HOST=redis
       - SPRING_REDIS_PORT=6379
-      - AGENT_MEMORY_SERVER_URL=http://agent-memory-server:8000
-      - WORKSHOP_BASE_PATH=/workspace/4_agent_memory
+      - WORKSHOP_BASE_PATH=/workshop-sources
+      - SERVER_PORT=8083
+      - WORKSHOP_BACKEND_URL=http://agent-memory-api:18083
     volumes:
-      - ../:/workspace/4_agent_memory
+      - ./:/workshop-sources
     depends_on:
-      agent-memory-server:
-        condition: service_healthy
+      - agent-memory-api
 
   agent-memory-server:
     image: redislabs/agent-memory-server:latest
@@ -74,9 +98,9 @@ services:
     volumes:
       - redis-insight-data:/db
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
 volumes:
   redis-data:
   redis-insight-data:
-

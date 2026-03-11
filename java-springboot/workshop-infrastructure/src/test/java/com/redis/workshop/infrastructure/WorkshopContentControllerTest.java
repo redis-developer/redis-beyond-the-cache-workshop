@@ -33,7 +33,7 @@ class WorkshopContentControllerTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.viewId").value("session-home"))
             .andExpect(jsonPath("$.pageType").value("narrative"))
-            .andExpect(jsonPath("$.sections[0].blocks[0].type").value("callout"))
+            .andExpect(jsonPath("$.sections[0].blocks[0].type").value("statusPanel"))
             .andExpect(jsonPath("$.sections[0].blocks[0].actions[0].id").value("openEditor"));
     }
 
@@ -87,8 +87,9 @@ class WorkshopContentControllerTest {
                 sections:
                   - sectionId: overview
                     blocks:
-                      - type: callout
+                      - type: statusPanel
                         tone: info
+                        title: Current State
                         body: Use the editor for the guided path.
                         actions:
                           - id: openEditor

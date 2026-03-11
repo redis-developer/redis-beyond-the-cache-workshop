@@ -63,7 +63,7 @@ cd /path/to/redis-beyond-the-cache-workshop
 cd java-springboot/1_session_management
 docker-compose up -d
 
-# Visit: http://localhost:8080
+# Visit: http://localhost:18080
 ```
 
 **Configuration**:
@@ -96,7 +96,7 @@ docker run -d -p 6379:6379 redis:latest
 cd java-springboot
 ./gradlew :1_session_management:bootRun
 
-# Visit: http://localhost:8080
+# Visit: http://localhost:18080
 ```
 
 ### Option B: Vue Dev Server + Spring Boot (Recommended for Frontend Development)
@@ -113,12 +113,12 @@ cd java-springboot/1_session_management_frontend/frontend
 npm install
 npm run serve
 
-# Visit: http://localhost:8081 (Vue dev server with hot reload)
+# Visit: http://localhost:9080 (Vue dev server with hot reload)
 ```
 
 **Configuration**:
 - Frontend uses: `VUE_APP_BASE_PATH=/` (default in vue.config.js)
-- Vue dev server proxies `/api`, `/login`, `/logout` to Spring Boot on port 8080
+- Vue dev server proxies `/api`, `/login`, `/logout` to Spring Boot on port 18080
 - API calls go to: `/api/*`
 - Hot reload enabled for frontend development
 

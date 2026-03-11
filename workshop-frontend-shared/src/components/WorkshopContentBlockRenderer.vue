@@ -6,12 +6,43 @@
   />
 
   <article
+    v-else-if="block.type === 'statusPanel'"
+    class="content-block content-status-panel"
+    :class="[
+      `content-status-panel--${block.tone}`,
+      { 'content-status-panel--untitled': !block.title }
+    ]"
+  >
+    <div class="content-status-panel__main">
+      <div class="content-status-panel__text">
+        <span v-if="block.title" class="content-status-panel__title">{{ block.title }}:</span>
+        <div class="content-status-panel__body">
+          <WorkshopMarkdownContent :body="block.body" />
+        </div>
+      </div>
+      <div v-if="block.actions.length" class="content-action-row content-action-row--inline">
+        <WorkshopContentAction
+          v-for="action in block.actions"
+          :key="`${action.id}-${action.label}`"
+          :action="action"
+          appearance="secondary"
+          @trigger="emitAction(action)"
+        />
+      </div>
+    </div>
+  </article>
+
+  <article
     v-else-if="block.type === 'callout'"
     class="content-block content-callout"
     :class="`content-callout--${block.tone}`"
   >
-    <h4 v-if="block.title" class="content-callout__title">{{ block.title }}</h4>
-    <WorkshopMarkdownContent :body="block.body" />
+    <div class="content-callout__header">
+      <h4 v-if="block.title" class="content-callout__title">{{ block.title }}</h4>
+    </div>
+    <div class="content-callout__body">
+      <WorkshopMarkdownContent :body="block.body" />
+    </div>
     <div v-if="block.actions.length" class="content-action-row">
       <WorkshopContentAction
         v-for="action in block.actions"
@@ -22,6 +53,18 @@
       />
     </div>
   </article>
+
+  <div v-else-if="block.type === 'actionRow'" class="content-block content-action-block">
+    <div class="content-action-row content-action-row--navigation">
+      <WorkshopContentAction
+        v-for="action in block.actions"
+        :key="`${action.id}-${action.label}`"
+        :action="action"
+        appearance="secondary"
+        @trigger="emitAction(action)"
+      />
+    </div>
+  </div>
 
   <article v-else-if="block.type === 'codeSnippet'" class="content-block content-code-snippet">
     <div v-if="block.title" class="content-code-snippet__title">{{ block.title }}</div>
@@ -96,16 +139,31 @@
       </div>
       <div class="content-editor-step-item__body">
         <WorkshopMarkdownContent :body="item.body" />
-        <div v-if="item.hint" class="content-editor-step-item__hint">
-          <WorkshopMarkdownContent :body="item.hint" />
-        </div>
       </div>
-      <WorkshopContentAction
-        v-if="item.action"
-        :action="item.action"
-        appearance="primary"
-        @trigger="emitAction(item.action, item)"
-      />
+      <div v-if="item.hint || item.action" class="content-editor-step-item__controls">
+        <div v-if="item.hint" class="content-editor-step-item__hint-control">
+          <button
+            type="button"
+            class="content-editor-step-item__hint-trigger"
+            aria-label="Show hint"
+          >
+            i
+          </button>
+          <div class="content-editor-step-item__hint-popover">
+            <WorkshopMarkdownContent :body="item.hint" />
+          </div>
+        </div>
+        <button
+          v-if="item.action"
+          type="button"
+          class="content-editor-step-item__play-button"
+          :aria-label="item.action.label"
+          :title="item.action.label"
+          @click="emitAction(item.action, item)"
+        >
+          <span class="content-editor-step-item__play-icon" aria-hidden="true"></span>
+        </button>
+      </div>
     </article>
   </div>
 

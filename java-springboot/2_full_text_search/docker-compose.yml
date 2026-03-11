@@ -1,19 +1,43 @@
 services:
-  full-text-search:
+  full-text-search-api:
     build:
       context: ../..
       dockerfile: java-springboot/2_full_text_search/Dockerfile
     ports:
-      - "8080:8080"
+      - "18081:18081"
     environment:
       - SPRING_DATA_REDIS_HOST=redis
       - SPRING_DATA_REDIS_PORT=6379
-      - WORKSHOP_BASE_PATH=/workspace/2_full_text_search
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - WORKSHOP_BASE_PATH=/workshop-sources
+      - SERVER_PORT=18081
     volumes:
-      - ../:/workspace/2_full_text_search
+      - ./:/workshop-sources
     depends_on:
       redis:
         condition: service_healthy
+
+  full-text-search:
+    build:
+      context: ../..
+      dockerfile: java-springboot/2_full_text_search_frontend/Dockerfile
+      args:
+        VUE_APP_BASE_PATH: /
+    ports:
+      - "8081:8081"
+    environment:
+      - SPRING_DATA_REDIS_HOST=redis
+      - SPRING_DATA_REDIS_PORT=6379
+      - SPRING_REDIS_HOST=redis
+      - SPRING_REDIS_PORT=6379
+      - WORKSHOP_BASE_PATH=/workshop-sources
+      - SERVER_PORT=8081
+      - WORKSHOP_BACKEND_URL=http://full-text-search-api:18081
+    volumes:
+      - ./:/workshop-sources
+    depends_on:
+      - full-text-search-api
 
   redis:
     image: redis:latest
@@ -41,9 +65,9 @@ services:
     volumes:
       - redis-insight-data:/db
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
 
 volumes:
   redis-data:
   redis-insight-data:
-

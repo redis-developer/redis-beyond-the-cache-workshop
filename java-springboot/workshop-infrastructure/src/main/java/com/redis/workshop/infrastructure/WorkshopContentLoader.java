@@ -487,19 +487,19 @@ public class WorkshopContentLoader {
             if (supportingContext && block instanceof WorkshopMarkdownBlock) {
                 throw new WorkshopContentValidationException(
                     "Workshop content " + locationLabel + " in " + viewFile
-                        + " may only use codeSnippet, callout, or widget inside supportingBlocks"
+                        + " may only use codeSnippet, callout, statusPanel, or widget inside supportingBlocks"
                 );
             }
             if (supportingContext && block instanceof WorkshopStepListBlock) {
                 throw new WorkshopContentValidationException(
                     "Workshop content " + locationLabel + " in " + viewFile
-                        + " may only use codeSnippet, callout, or widget inside supportingBlocks"
+                        + " may only use codeSnippet, callout, statusPanel, or widget inside supportingBlocks"
                 );
             }
             if (supportingContext && block instanceof WorkshopEditorStepListBlock) {
                 throw new WorkshopContentValidationException(
                     "Workshop content " + locationLabel + " in " + viewFile
-                        + " may only use codeSnippet, callout, or widget inside supportingBlocks"
+                        + " may only use codeSnippet, callout, statusPanel, or widget inside supportingBlocks"
                 );
             }
 
@@ -533,6 +533,50 @@ public class WorkshopContentLoader {
                         "Workshop content " + locationLabel + " in " + viewFile + " callout.body must not contain raw HTML"
                     );
                     validateActions(calloutBlock.actions(), viewFile, locationLabel + " callout", editableFileNames);
+                }
+                case WorkshopStatusPanelBlock statusPanelBlock -> {
+                    if (statusPanelBlock.tone() == null) {
+                        throw new WorkshopContentValidationException(
+                            "Workshop content " + locationLabel + " in " + viewFile + " must define statusPanel.tone"
+                        );
+                    }
+                    requireText(
+                        statusPanelBlock.title(),
+                        "Workshop content " + locationLabel + " in " + viewFile + " must define statusPanel.title"
+                    );
+                    requireText(
+                        statusPanelBlock.body(),
+                        "Workshop content " + locationLabel + " in " + viewFile + " must define statusPanel.body"
+                    );
+                    rejectRawHtml(
+                        statusPanelBlock.title(),
+                        "Workshop content " + locationLabel + " in " + viewFile
+                            + " statusPanel.title must not contain raw HTML"
+                    );
+                    rejectRawHtml(
+                        statusPanelBlock.body(),
+                        "Workshop content " + locationLabel + " in " + viewFile
+                            + " statusPanel.body must not contain raw HTML"
+                    );
+                    validateActions(
+                        statusPanelBlock.actions(),
+                        viewFile,
+                        locationLabel + " statusPanel",
+                        editableFileNames
+                    );
+                }
+                case WorkshopActionRowBlock actionRowBlock -> {
+                    if (actionRowBlock.actions().isEmpty()) {
+                        throw new WorkshopContentValidationException(
+                            "Workshop content " + locationLabel + " in " + viewFile + " must define actionRow.actions"
+                        );
+                    }
+                    validateActions(
+                        actionRowBlock.actions(),
+                        viewFile,
+                        locationLabel + " actionRow",
+                        editableFileNames
+                    );
                 }
                 case WorkshopStepListBlock stepListBlock -> validateStepList(
                     stepListBlock,

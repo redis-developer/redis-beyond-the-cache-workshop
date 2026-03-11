@@ -31,7 +31,15 @@ function loadYamlFixture(fileName) {
 
 function verifyStageFlowExample() {
   const sessionHome = loadYamlFixture('session-home.yaml');
-  const renderModel = createContentRenderModel(sessionHome, {
+  const problemModel = createContentRenderModel(sessionHome, {
+    activeStageId: 'problem',
+    tokens: {
+      sessionId: 'abc123',
+      previousSessionId: 'old456',
+      sessionIdChanged: true
+    }
+  });
+  const enableRedisModel = createContentRenderModel(sessionHome, {
     activeStageId: 'enable-redis',
     tokens: {
       sessionId: 'abc123',
@@ -40,17 +48,26 @@ function verifyStageFlowExample() {
     }
   });
 
-  assert.equal(renderModel.pageType, 'stage-flow');
-  assert.equal(renderModel.stage.stageId, 'enable-redis');
-  assert.deepEqual(renderModel.errors, []);
-  assert.deepEqual(renderModel.missingTokens, []);
+  assert.equal(problemModel.pageType, 'stage-flow');
+  assert.equal(problemModel.stage.stageId, 'problem');
+  assert.deepEqual(problemModel.errors, []);
+  assert.deepEqual(problemModel.missingTokens, []);
+  assert.equal(enableRedisModel.pageType, 'stage-flow');
+  assert.equal(enableRedisModel.stage.stageId, 'enable-redis');
+  assert.deepEqual(enableRedisModel.errors, []);
+  assert.deepEqual(enableRedisModel.missingTokens, []);
   assert.equal(getStageNavItems(sessionHome).length, 3);
-  assert.equal(renderModel.sections.length, 1);
+  assert.equal(problemModel.sections.length, 1);
+  assert.equal(enableRedisModel.sections.length, 1);
 
-  const stageBlocks = renderModel.sections[0].blocks;
-  const optionCallout = stageBlocks.find(block => block.type === 'callout');
-  const orderedSteps = stageBlocks.find(block => block.type === 'stepList');
+  const problemBlocks = problemModel.sections[0].blocks;
+  const enableRedisBlocks = enableRedisModel.sections[0].blocks;
+  const statusPanel = problemBlocks.find(block => block.type === 'statusPanel');
+  const optionCallout = enableRedisBlocks.find(block => block.type === 'callout');
+  const orderedSteps = enableRedisBlocks.find(block => block.type === 'stepList');
 
+  assert.ok(statusPanel);
+  assert.equal(statusPanel.title, 'Current State');
   assert.ok(optionCallout);
   assert.equal(optionCallout.actions[0].id, 'openEditor');
   assert.ok(orderedSteps);
