@@ -89,7 +89,7 @@ export default {
 .workshop-content :deep(.play-btn:active) { transform: scale(0.95); }
 .workshop-content :deep(.play-btn.hint-btn) { background: #b45309; }
 .workshop-content :deep(.play-btn.hint-btn:hover) { background: #d97706; }
-.workshop-content :deep(code) { background: #2d2d2d; padding: 0.2rem 0.4rem; border-radius: var(--radius-sm); color: #ce9178; font-size: 0.85rem; }
+.workshop-content :deep(code) { background: #2d2d2d; padding: 0.2rem 0.4rem; border-radius: var(--radius-sm); color: #ce9178; font-size: 0.85rem; white-space: normal; overflow-wrap: anywhere; word-break: break-word; }
 .workshop-content :deep(.alert) { padding: var(--spacing-4); border-radius: var(--radius-md); margin-bottom: var(--spacing-4); background: #094771; border-left: 3px solid #569cd6; }
 .workshop-content :deep(.note) { margin-bottom: var(--spacing-4); color: #999; font-size: 0.85rem; }
 .workshop-content :deep(.link) { color: #569cd6; text-decoration: none; }
