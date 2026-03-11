@@ -97,6 +97,8 @@ stages:
                     label: Open Workshop Hub
           - type: actionRow
             actions:
+              - id: restartLab
+                label: Reset Code
               - id: setStage
                 label: Back to Stage 1
                 args:
@@ -110,11 +112,6 @@ stages:
             tone: success
             title: Current state
             body: Sessions are stored in Redis.
-            actions:
-              - id: setStage
-                label: Back to Stage 1
-                args:
-                  stageId: problem
           - type: markdown
             body: "Let's verify it works. Complete each test to proceed:"
           - type: stepList
@@ -173,6 +170,12 @@ stages:
                     args:
                       groupId: stage3-tests
                       itemId: test5
+          - type: actionRow
+            actions:
+              - id: setStage
+                label: Back to Stage 1
+                args:
+                  stageId: problem
       - sectionId: stage-3-completion
         title: Workshop Complete!
         blocks:

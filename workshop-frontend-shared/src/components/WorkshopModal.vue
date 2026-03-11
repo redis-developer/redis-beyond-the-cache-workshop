@@ -17,7 +17,7 @@
               {{ cancelText }}
             </button>
             <button @click="confirm" class="btn btn-primary">
-              {{ confirmText }}
+              {{ computedConfirmText }}
             </button>
           </slot>
         </div>
@@ -197,4 +197,3 @@ export default {
 }
 .btn-outline:hover { background: var(--color-border, rgba(71, 85, 105, 0.5)); }
 </style>
-

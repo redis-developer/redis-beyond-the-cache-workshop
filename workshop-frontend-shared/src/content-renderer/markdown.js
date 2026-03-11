@@ -1,4 +1,5 @@
 const BLOCKQUOTE_PATTERN = /^\s*>\s?/;
+const HEADING_PATTERN = /^\s*(#{1,6})\s+(.+?)\s*$/;
 const ORDERED_LIST_PATTERN = /^\s*\d+\.\s+/;
 const UNORDERED_LIST_PATTERN = /^\s*[-*]\s+/;
 const CODE_TOKEN = '\u0000CODE';
@@ -67,6 +68,7 @@ function collectParagraph(lines, startIndex) {
     const line = lines[index];
     if (
       !line.trim() ||
+      HEADING_PATTERN.test(line) ||
       BLOCKQUOTE_PATTERN.test(line) ||
       ORDERED_LIST_PATTERN.test(line) ||
       UNORDERED_LIST_PATTERN.test(line)
@@ -81,6 +83,23 @@ function collectParagraph(lines, startIndex) {
   return {
     html: `<p>${renderInlineMarkdown(paragraphLines.join(' '))}</p>`,
     nextIndex: index
+  };
+}
+
+function collectHeading(lines, startIndex) {
+  const line = lines[startIndex];
+  const match = line.match(HEADING_PATTERN);
+
+  if (!match) {
+    return null;
+  }
+
+  const level = Math.min(match[1].length, 6);
+  const content = renderInlineMarkdown(match[2].trim());
+
+  return {
+    html: `<h${level}>${content}</h${level}>`,
+    nextIndex: startIndex + 1
   };
 }
 
@@ -151,6 +170,13 @@ export function renderMarkdown(markdown) {
       const blockquote = collectBlockquote(lines, index);
       blocks.push(blockquote.html);
       index = blockquote.nextIndex;
+      continue;
+    }
+
+    if (HEADING_PATTERN.test(line)) {
+      const heading = collectHeading(lines, index);
+      blocks.push(heading.html);
+      index = heading.nextIndex;
       continue;
     }
 

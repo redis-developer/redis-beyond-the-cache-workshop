@@ -3,7 +3,6 @@
     ref="layout"
     :title="editorTitle"
     :files="files"
-    @file-loaded="onFileLoaded"
   >
     <template #instructions>
       <div v-if="contentError" class="content-state content-state--error">
@@ -34,7 +33,7 @@ import { getWorkshopHubUrl } from '../utils/basePath';
 import { loadWorkshopContentView } from '../utils/workshopContent';
 
 function updateEditorFile(view, fileName, transform, successMessage) {
-  if (view.currentFile !== fileName) {
+  if (view.$refs.layout.getCurrentFile() !== fileName) {
     view.$refs.layout.showStatus(`Please open ${fileName} first!`, 'error');
     return;
   }
@@ -58,8 +57,7 @@ export default {
         'build.gradle.kts',
         'application.properties',
         'SecurityConfig.java'
-      ],
-      currentFile: null
+      ]
     };
   },
   computed: {
@@ -117,9 +115,6 @@ export default {
     },
     async loadFileStep(fileName) {
       await this.$refs.layout.loadFile(fileName);
-    },
-    onFileLoaded({ fileName }) {
-      this.currentFile = fileName;
     },
     saveFile() {
       this.$refs.layout.save();

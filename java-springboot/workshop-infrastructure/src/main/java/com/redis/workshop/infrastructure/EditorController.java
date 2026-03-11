@@ -1,5 +1,6 @@
 package com.redis.workshop.infrastructure;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -29,10 +30,21 @@ public class EditorController {
 
       private final WorkshopConfig workshopConfig;
       private final FrontendRuntimeProperties runtimeProperties;
+      private final EditorDiagnosticsService diagnosticsService;
 
+      @Autowired
       public EditorController(WorkshopConfig workshopConfig, FrontendRuntimeProperties runtimeProperties) {
+          this(workshopConfig, runtimeProperties, new EditorDiagnosticsService(workshopConfig, runtimeProperties));
+      }
+
+      EditorController(
+          WorkshopConfig workshopConfig,
+          FrontendRuntimeProperties runtimeProperties,
+          EditorDiagnosticsService diagnosticsService
+      ) {
           this.workshopConfig = workshopConfig;
           this.runtimeProperties = runtimeProperties;
+          this.diagnosticsService = diagnosticsService;
       }
 
     /**
@@ -146,6 +158,35 @@ public class EditorController {
             response.put("error", "Failed to restore files: " + e.getMessage());
         }
 
+        return response;
+    }
+
+    /**
+     * Run build diagnostics for the current workshop and map them back to editable files.
+     */
+    @PostMapping("/diagnostics")
+    public Map<String, Object> collectDiagnostics(@RequestBody(required = false) Map<String, Object> payload) {
+        Map<String, String> overrides = new HashMap<>();
+        Object rawOverrides = payload == null ? null : payload.get("overrides");
+
+        if (rawOverrides instanceof List<?> overrideList) {
+            for (Object entry : overrideList) {
+                if (entry instanceof Map<?, ?> override) {
+                    Object fileName = override.get("fileName");
+                    Object content = override.get("content");
+                    if (fileName instanceof String name && content instanceof String value) {
+                        overrides.put(name, value);
+                    }
+                }
+            }
+        }
+
+        EditorDiagnosticsService.DiagnosticsResponse diagnostics = diagnosticsService.collectDiagnostics(overrides);
+        Map<String, Object> response = new HashMap<>();
+        response.put("diagnostics", diagnostics.diagnostics());
+        if (diagnostics.error() != null) {
+            response.put("error", diagnostics.error());
+        }
         return response;
     }
 

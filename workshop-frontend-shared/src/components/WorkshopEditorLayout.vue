@@ -30,8 +30,10 @@
       <CodeEditor
         ref="editor"
         :files="files"
+        :diagnostics="diagnostics"
         @file-loaded="onFileLoaded"
         @file-saved="onFileSaved"
+        @content-changed="onContentChanged"
       />
     </div>
   </div>
@@ -52,9 +54,10 @@ export default {
   },
   props: {
     title: { type: String, required: true },
-    files: { type: Array, required: true }
+    files: { type: Array, required: true },
+    diagnostics: { type: Array, default: () => [] }
   },
-  emits: ['file-loaded', 'file-saved'],
+  emits: ['file-loaded', 'file-saved', 'content-changed'],
   computed: {
     workshopPanelStyle() {
       return {
@@ -85,6 +88,9 @@ export default {
     },
     onFileSaved(data) {
       this.$emit('file-saved', data);
+    },
+    onContentChanged(data) {
+      this.$emit('content-changed', data);
     },
     onResize(event) {
       if (!this.isResizing) {
