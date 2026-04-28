@@ -1,6 +1,9 @@
 package com.redis.workshop.infrastructure;
 
+import jakarta.servlet.http.HttpServletRequest;
+
 import java.io.IOException;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -12,6 +15,7 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Matcher;
@@ -24,12 +28,20 @@ final class EditorDiagnosticsService {
     private static final Duration COMMAND_TIMEOUT = Duration.ofSeconds(20);
 
     private final WorkshopConfig workshopConfig;
-    private final FrontendRuntimeProperties runtimeProperties;
+    private final SessionRuntimeResolver runtimeResolver;
     private final CommandExecutor commandExecutor;
+    private final SessionRuntimeDiagnosticsClient remoteDiagnosticsClient;
+    private final SessionRuntimeDiagnosticsEndpointResolver diagnosticsEndpointResolver;
     private final Object compileLock = new Object();
 
     EditorDiagnosticsService(WorkshopConfig workshopConfig, FrontendRuntimeProperties runtimeProperties) {
-        this(workshopConfig, runtimeProperties, new ProcessCommandExecutor());
+        this(
+            workshopConfig,
+            new SessionRuntimeResolver(runtimeProperties, workshopConfig),
+            new ProcessCommandExecutor(),
+            new SessionRuntimeDiagnosticsClient(),
+            new SessionRuntimeDiagnosticsEndpointResolver()
+        );
     }
 
     EditorDiagnosticsService(
@@ -37,12 +49,57 @@ final class EditorDiagnosticsService {
         FrontendRuntimeProperties runtimeProperties,
         CommandExecutor commandExecutor
     ) {
+        this(
+            workshopConfig,
+            new SessionRuntimeResolver(runtimeProperties, workshopConfig),
+            commandExecutor,
+            new SessionRuntimeDiagnosticsClient(),
+            new SessionRuntimeDiagnosticsEndpointResolver()
+        );
+    }
+
+    EditorDiagnosticsService(
+        WorkshopConfig workshopConfig,
+        SessionRuntimeResolver runtimeResolver,
+        CommandExecutor commandExecutor
+    ) {
+        this(
+            workshopConfig,
+            runtimeResolver,
+            commandExecutor,
+            new SessionRuntimeDiagnosticsClient(),
+            new SessionRuntimeDiagnosticsEndpointResolver()
+        );
+    }
+
+    EditorDiagnosticsService(
+        WorkshopConfig workshopConfig,
+        SessionRuntimeResolver runtimeResolver,
+        CommandExecutor commandExecutor,
+        SessionRuntimeDiagnosticsClient remoteDiagnosticsClient,
+        SessionRuntimeDiagnosticsEndpointResolver diagnosticsEndpointResolver
+    ) {
         this.workshopConfig = workshopConfig;
-        this.runtimeProperties = runtimeProperties;
+        this.runtimeResolver = runtimeResolver;
         this.commandExecutor = commandExecutor;
+        this.remoteDiagnosticsClient = remoteDiagnosticsClient;
+        this.diagnosticsEndpointResolver = diagnosticsEndpointResolver;
     }
 
     DiagnosticsResponse collectDiagnostics(Map<String, String> overrides) {
+        return collectDiagnostics(overrides, null);
+    }
+
+    DiagnosticsResponse collectDiagnostics(Map<String, String> overrides, HttpServletRequest request) {
+        Optional<URI> remoteEndpoint = runtimeResolver.resolveSessionId()
+            .flatMap(sessionId -> diagnosticsEndpointResolver.resolveDiagnosticsEndpoint(runtimeResolver, request, sessionId));
+        if (remoteEndpoint.isPresent()) {
+            return remoteDiagnosticsClient.collectDiagnostics(remoteEndpoint.get(), workshopConfig, overrides);
+        }
+        return collectDiagnosticsLocally(overrides);
+    }
+
+    private DiagnosticsResponse collectDiagnosticsLocally(Map<String, String> overrides) {
         synchronized (compileLock) {
             Map<String, Path> editablePaths = resolveEditablePaths();
             Map<String, String> normalizedOverrides = normalizeOverrides(overrides, editablePaths);
@@ -74,6 +131,20 @@ final class EditorDiagnosticsService {
             } finally {
                 restoreOriginalContents(originalContents, editablePaths);
             }
+        }
+    }
+
+    void restoreFiles() throws IOException {
+        synchronized (compileLock) {
+            Map<String, Path> editablePaths = resolveEditablePaths();
+            Map<String, String> baselineSnapshot = buildBaselineSnapshot();
+            Optional<URI> remoteEndpoint = runtimeResolver.resolveSessionId()
+                .flatMap(sessionId -> diagnosticsEndpointResolver.resolveRestoreEndpoint(runtimeResolver, sessionId));
+            if (remoteEndpoint.isPresent()) {
+                remoteDiagnosticsClient.restoreFiles(remoteEndpoint.get(), workshopConfig, baselineSnapshot);
+                return;
+            }
+            restoreBaselineSnapshot(baselineSnapshot, editablePaths);
         }
     }
 
@@ -127,6 +198,17 @@ final class EditorDiagnosticsService {
             }
         }
         return normalized;
+    }
+
+    private Map<String, String> buildBaselineSnapshot() {
+        Map<String, String> baselineSnapshot = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : workshopConfig.getEditableFiles().entrySet()) {
+            String originalContent = workshopConfig.getOriginalContent(entry.getKey());
+            if (originalContent != null) {
+                baselineSnapshot.put(entry.getKey(), originalContent);
+            }
+        }
+        return baselineSnapshot;
     }
 
     private List<EditorDiagnostic> parseDiagnostics(String output, Map<String, Path> editablePaths) {
@@ -193,10 +275,10 @@ final class EditorDiagnosticsService {
     }
 
     private Map<String, Path> resolveEditablePaths() {
-        Path moduleRoot = resolveModuleRoot();
         Map<String, Path> editablePaths = new LinkedHashMap<>();
         for (Map.Entry<String, String> entry : workshopConfig.getEditableFiles().entrySet()) {
-            editablePaths.put(entry.getKey(), moduleRoot.resolve(entry.getValue()).normalize());
+            runtimeResolver.resolvePathWithinModule(entry.getValue())
+                .ifPresent(path -> editablePaths.put(entry.getKey(), path));
         }
         return editablePaths;
     }
@@ -212,8 +294,8 @@ final class EditorDiagnosticsService {
     }
 
     private Path resolveModuleRoot() {
-        return runtimeProperties.resolveSourcePath()
-            .orElse(Paths.get(workshopConfig.getBasePath()).toAbsolutePath().normalize());
+        return runtimeResolver.resolveModuleRoot()
+            .orElseThrow(() -> new IllegalStateException("Workshop source path is not configured"));
     }
 
     private void restoreOriginalContents(Map<String, String> originalContents, Map<String, Path> editablePaths) {
@@ -228,6 +310,17 @@ final class EditorDiagnosticsService {
             } catch (IOException ignored) {
                 // Best-effort restore keeps diagnostics collection from leaving the editor unusable.
             }
+        }
+    }
+
+    private void restoreBaselineSnapshot(Map<String, String> baselineSnapshot, Map<String, Path> editablePaths) throws IOException {
+        for (Map.Entry<String, String> entry : baselineSnapshot.entrySet()) {
+            Path filePath = editablePaths.get(entry.getKey());
+            if (filePath == null) {
+                continue;
+            }
+            Files.createDirectories(filePath.getParent());
+            Files.writeString(filePath, entry.getValue(), StandardCharsets.UTF_8);
         }
     }
 

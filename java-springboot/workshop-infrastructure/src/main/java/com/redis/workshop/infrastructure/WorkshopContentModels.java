@@ -356,6 +356,8 @@ enum WorkshopContentActionId {
     SET_STAGE("setStage", "stageId"),
     RUN_CHECK("runCheck", "checkId"),
     RESTART_LAB("restartLab"),
+    RESTART_RUNTIME("restartRuntime"),
+    REBUILD_RUNTIME("rebuildRuntime"),
     RESET_PROGRESS("resetProgress");
 
     private final String value;

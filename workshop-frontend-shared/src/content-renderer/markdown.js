@@ -19,6 +19,14 @@ function sanitizeUrl(url) {
   }
 
   const trimmed = url.trim();
+  if (/[\u0000-\u001F\u007F]/.test(trimmed)) {
+    return null;
+  }
+
+  if (trimmed.startsWith('/') && !trimmed.startsWith('//')) {
+    return escapeHtml(trimmed);
+  }
+
   if (!/^https?:\/\//i.test(trimmed)) {
     return null;
   }

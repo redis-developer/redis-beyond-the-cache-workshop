@@ -12,20 +12,18 @@ Give your AI agents persistent memory with Redis-powered Agent Memory Server (AM
 
 - **OpenAI API Key** - Required for embeddings and chat
 
-## Run with Docker
+## Launch in Workshop Hub
 
-```bash
-# From repository root
-cd java-springboot/workshop-hub
-
-# Start Redis + Workshop
-docker compose -f docker-compose.local.yml --profile infrastructure up -d
-docker compose -f docker-compose.local.yml --profile workshop-4_agent_memory up -d
-```
-
-Open **http://localhost:8083**
+1. Start Workshop 4 from the Workshop Hub.
+2. Open the session route for the workshop. The path shape is `/session/<sessionId>/workshop/agent-memory/`.
+3. Use the Lab, Demo, and Editor pages inside that session.
+4. Open Redis Insight from the workshop UI so it stays scoped to the same session.
 
 Enter your OpenAI API key when prompted.
+
+The session runtime includes the frontend, backend, Redis, Redis Insight, and the Agent Memory sidecar.
+
+For local authoring and debugging workflows, use the local Docker workflow described in [docs/local-dev/docker-workflows.md](/Users/raphaeldelio/Documents/GitHub/workshops/redis-beyond-the-cache-workshop/docs/local-dev/docker-workflows.md).
 
 ## Workshop Flow
 
@@ -69,7 +67,7 @@ The editor guidance follows this order: SDK client setup first, repository integ
 
 ## View in Redis Insight
 
-Open **http://localhost:5540**
+Open Redis Insight from the Lab or Demo page, or use `/session/<sessionId>/redis-insight/`.
 
 **Working Memory:**
 ```
@@ -93,9 +91,7 @@ FT.INFO idx:long_term_memory:workshop
 
 ## Stopping
 
-```bash
-docker compose -f docker-compose.local.yml --profile workshop-4_agent_memory down
-```
+End the session from the Workshop Hub when you are done.
 
 ## Resources
 

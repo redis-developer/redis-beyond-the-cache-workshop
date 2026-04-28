@@ -10,7 +10,7 @@
     <div v-if="showTitle || displaySummary || displayStageTitle" class="content-renderer-header">
       <h2 v-if="showTitle" class="content-renderer-header__title">{{ renderModel.title }}</h2>
       <div v-if="displayStageTitle" class="content-renderer-header__stage">{{ renderModel.stage.title }}</div>
-      <WorkshopMarkdownContent v-if="displaySummary" :body="renderModel.summary" />
+      <WorkshopMarkdownRenderer v-if="displaySummary" :body="renderModel.summary" />
     </div>
 
     <section
@@ -20,7 +20,7 @@
     >
       <header v-if="section.title || section.body" class="content-section__header">
         <h3 v-if="section.title">{{ section.title }}</h3>
-        <WorkshopMarkdownContent v-if="section.body" :body="section.body" />
+        <WorkshopMarkdownRenderer v-if="section.body" :body="section.body" />
       </header>
 
       <div class="content-section__blocks">
@@ -46,19 +46,21 @@ import '../styles/content-renderer.css';
 import {
   bindContentAction,
   createContentRenderModel
-} from '../content-renderer/renderModel.js';
+} from '../content/renderModel.js';
 import WorkshopContentBlockRenderer from './WorkshopContentBlockRenderer.vue';
-import WorkshopMarkdownContent from './WorkshopMarkdownContent.vue';
+import WorkshopMarkdownRenderer from './WorkshopMarkdownRenderer.vue';
 
 export default {
   name: 'WorkshopContentRenderer',
   components: {
     WorkshopContentBlockRenderer,
-    WorkshopMarkdownContent
+    WorkshopMarkdownRenderer
   },
   props: {
     content: { type: Object, required: true },
     tokens: { type: Object, default: () => ({}) },
+    context: { type: Object, default: () => ({}) },
+    allowedPlaceholderPaths: { type: Array, default: () => [] },
     activeStageId: { type: String, default: '' },
     actionHandlers: { type: Object, default: () => ({}) },
     widgets: { type: Object, default: () => ({}) },
@@ -76,11 +78,17 @@ export default {
       return this.showSummary && Boolean(this.renderModel.summary);
     },
     renderIssues() {
-      return [...this.renderModel.errors, ...this.renderModel.missingTokens.map(token => `Missing token: ${token}`)];
+      return [
+        ...this.renderModel.errors,
+        ...this.renderModel.missingPlaceholders.map(path => `Missing placeholder: ${path}`),
+        ...this.renderModel.unsupportedPlaceholders.map(path => `Unsupported placeholder: ${path}`)
+      ];
     },
     renderModel() {
       return createContentRenderModel(this.content, {
         tokens: this.tokens,
+        context: this.context,
+        allowedPlaceholderPaths: this.allowedPlaceholderPaths,
         activeStageId: this.activeStageId
       });
     }

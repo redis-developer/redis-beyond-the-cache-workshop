@@ -1,4 +1,4 @@
-import { getBasePath } from './utils/basePath'
+import { getBasePath } from '../../../../workshop-frontend-shared/src/utils/basePath.js'
 
 // Ensure dynamic chunks load from the correct base path when proxied by the Hub.
 // eslint-disable-next-line no-undef

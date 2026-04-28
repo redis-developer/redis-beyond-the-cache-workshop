@@ -24,20 +24,27 @@
       </div>
     </div>
 
-    <div v-if="$slots.right" class="header-right">
+    <div v-if="$slots.right || showSessionRestartControls" class="header-right">
       <slot name="right"></slot>
+      <WorkshopSessionRestartControls v-if="showSessionRestartControls" />
     </div>
   </header>
 </template>
 
 <script>
+import WorkshopSessionRestartControls from './WorkshopSessionRestartControls.vue';
+
 export default {
   name: 'WorkshopHeader',
+  components: {
+    WorkshopSessionRestartControls
+  },
   props: {
     hubUrl: { type: String, default: '/' },
     steps: { type: Array, default: () => [] },
     currentStep: { type: Number, default: 1 },
-    clickable: { type: Boolean, default: false }
+    clickable: { type: Boolean, default: false },
+    showSessionRestartControls: { type: Boolean, default: false }
   },
   emits: ['step-click']
 };
@@ -128,6 +135,9 @@ export default {
 
 .header-right {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--spacing-3, 0.75rem);
 }
 
 /* Hide labels on small screens */
@@ -136,4 +146,3 @@ export default {
   .progress-steps { gap: var(--spacing-2, 0.5rem); }
 }
 </style>
-

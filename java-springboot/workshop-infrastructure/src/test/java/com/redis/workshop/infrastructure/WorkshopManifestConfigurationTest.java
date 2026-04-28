@@ -73,6 +73,23 @@ class WorkshopManifestConfigurationTest {
     }
 
     @Test
+    void manifestWithoutBasePathDoesNotSynthesizeWorkshopSourcePath() throws IOException {
+        Path manifestPath = writeManifestWithoutBasePath(tempDir);
+
+        contextRunner
+            .withPropertyValues("workshop.manifest.location=" + manifestPath)
+            .run(context -> {
+                WorkshopConfig workshopConfig = context.getBean(WorkshopConfig.class);
+                assertThat(workshopConfig.getBasePath()).isNull();
+
+                FrontendRuntimeProperties runtimeProperties = new FrontendRuntimeProperties();
+                SessionRuntimeResolver resolver = new SessionRuntimeResolver(runtimeProperties, workshopConfig);
+                assertThat(resolver.resolveModuleRoot()).isEmpty();
+                assertThat(resolver.resolvePathWithinModule("src/main/resources/application.properties")).isEmpty();
+            });
+    }
+
+    @Test
     void createsWorkshopConfigFromClasspathManifestWithRelativeResources() throws IOException {
         contextRunner
             .withPropertyValues("workshop.manifest.location=classpath:classpath-manifests/nested/workshop-manifest.yaml")
@@ -179,6 +196,26 @@ class WorkshopManifestConfigurationTest {
                     language: dockerfile
                     resetContent: |
                       FROM eclipse-temurin:21
+                """
+        );
+        return manifestPath;
+    }
+
+    private static Path writeManifestWithoutBasePath(Path tempDir) throws IOException {
+        Files.createDirectories(tempDir.resolve("reset"));
+        Files.writeString(tempDir.resolve("reset/application.properties"), "spring.session.store-type=none\n");
+
+        Path manifestPath = tempDir.resolve("workshop-manifest-without-base-path.yaml");
+        Files.writeString(
+            manifestPath,
+            """
+                moduleName: manifest-workshop
+                title: Manifest Workshop
+                description: Loaded from manifest data
+                editableFiles:
+                  - name: application.properties
+                    path: src/main/resources/application.properties
+                    resetContentLocation: reset/application.properties
                 """
         );
         return manifestPath;

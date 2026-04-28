@@ -1,76 +1,36 @@
 import ApiService from './ApiService';
 
-// Use relative URLs in production (when served from Spring Boot)
-// Use absolute URLs in development (when using Vue dev server)
-const apiUrl = process.env.NODE_ENV === 'production' ? '' : (process.env.VUE_APP_API_URL || 'http://localhost:9000');
+const apiUrl = process.env.NODE_ENV === 'production'
+  ? ''
+  : (process.env.VUE_APP_API_URL || 'http://localhost:9001');
 
 export default {
-  /**
-   * Get all service statuses (infrastructure + workshops)
-   * Returns: Array of ServiceStatus objects
-   */
-  async getAllStatus() {
-    return ApiService.get(`${apiUrl}/manager/api/status`);
-  },
-
-  /**
-   * Get workshop metadata list
-   * Returns: Array of Workshop objects
-   */
   async getWorkshops() {
-    return ApiService.get(`${apiUrl}/manager/api/workshops`);
+    return ApiService.get(`${apiUrl}/api/catalog/workshops`);
   },
 
-  /**
-   * Start infrastructure (Redis + Redis Insight)
-   * Returns: CommandResponse
-   */
-  async startInfrastructure() {
-    return ApiService.post(`${apiUrl}/manager/api/infrastructure/start`);
+  async getSessions() {
+    return ApiService.get(`${apiUrl}/api/sessions`);
   },
 
-  /**
-   * Stop infrastructure (Redis + Redis Insight)
-   * Returns: CommandResponse
-   */
-  async stopInfrastructure() {
-    return ApiService.post(`${apiUrl}/manager/api/infrastructure/stop`);
+  async getSession(sessionId) {
+    return ApiService.get(`${apiUrl}/api/sessions/${sessionId}`);
   },
 
-  /**
-   * Start a specific workshop
-   * @param {string} workshopId - The workshop ID
-   * Returns: CommandResponse
-   */
-  async startWorkshop(workshopId) {
-    return ApiService.post(`${apiUrl}/manager/api/workshop/${workshopId}/start`);
+  async createSession(workshopId, mode, releaseVersion) {
+    const payload = {
+      workshopId,
+      ...(mode ? { mode } : {}),
+      ...(releaseVersion ? { releaseVersion } : {})
+    };
+    return ApiService.post(`${apiUrl}/api/sessions`, payload);
   },
 
-  /**
-   * Stop a specific workshop
-   * @param {string} workshopId - The workshop ID
-   * Returns: CommandResponse
-   */
-  async stopWorkshop(workshopId) {
-    return ApiService.post(`${apiUrl}/manager/api/workshop/${workshopId}/stop`);
+  async restartSession(sessionId, rebuild) {
+    return ApiService.post(`${apiUrl}/api/sessions/${sessionId}/restart`, { rebuild });
   },
 
-  /**
-   * Restart a specific workshop
-   * @param {string} workshopId - The workshop ID
-   * Returns: CommandResponse
-   */
-  async restartWorkshop(workshopId) {
-    return ApiService.post(`${apiUrl}/manager/api/workshop/${workshopId}/restart`);
-  },
-
-  /**
-   * Restart a specific workshop without rebuilding the Docker image.
-   * This stops and force-recreates the container using the existing image.
-   * @param {string} workshopId - The workshop ID
-   * Returns: CommandResponse
-   */
-  async restartWorkshopNoBuild(workshopId) {
-    return ApiService.post(`${apiUrl}/manager/api/workshop/${workshopId}/restart-no-build`);
+  async terminateSession(sessionId) {
+    return ApiService.delete(`${apiUrl}/api/sessions/${sessionId}`);
   }
-}
+};

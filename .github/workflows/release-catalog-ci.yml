@@ -1,0 +1,172 @@
+name: Release Catalog CI
+
+on:
+  pull_request:
+    paths:
+      - ".github/workflows/release-catalog-ci.yml"
+      - ".github/actions/release-catalog-build/action.yml"
+      - "scripts/ci/**"
+      - "docs/ci/**"
+      - "workshops.yaml"
+      - "java-springboot/**/Dockerfile"
+  push:
+    branches:
+      - main
+    paths:
+      - ".github/workflows/release-catalog-ci.yml"
+      - ".github/actions/release-catalog-build/action.yml"
+      - "scripts/ci/**"
+      - "docs/ci/**"
+      - "workshops.yaml"
+      - "java-springboot/**/Dockerfile"
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish images to the configured registry
+        required: true
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
+
+env:
+  RELEASE_CATALOG_PATH: workshops.yaml
+
+jobs:
+  release-catalog-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - id: matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          matrix_json="$(ruby scripts/ci/release_catalog_matrix.rb "${RELEASE_CATALOG_PATH}")"
+          {
+            echo "matrix<<EOF"
+            echo "${matrix_json}"
+            echo "EOF"
+          } >> "${GITHUB_OUTPUT}"
+
+  validate-release-images:
+    runs-on: ubuntu-latest
+    needs:
+      - release-catalog-matrix
+    if: ${{ github.event_name == 'pull_request' || (github.event_name == 'workflow_dispatch' && inputs.publish != 'true') }}
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.release-catalog-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/release-catalog-build
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          context: ${{ matrix.build_context }}
+          image_repository: ${{ matrix.image_repository }}
+          release_version: ${{ matrix.release_version }}
+          source_revision: ${{ github.sha }}
+          build_args: ${{ matrix.build_args }}
+          publish: "false"
+
+  publish-release-images:
+    runs-on: ubuntu-latest
+    needs:
+      - release-catalog-matrix
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == 'true') }}
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJson(needs.release-catalog-matrix.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Require registry credentials
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "${{ secrets.RELEASE_REGISTRY_USERNAME }}" ] || [ -z "${{ secrets.RELEASE_REGISTRY_PASSWORD }}" ]; then
+            echo "RELEASE_REGISTRY_USERNAME and RELEASE_REGISTRY_PASSWORD are required for publish paths." >&2
+            exit 1
+          fi
+
+      - id: registry
+        shell: bash
+        run: |
+          set -euo pipefail
+          registry_host="$(echo "${{ matrix.image_repository }}" | cut -d/ -f1)"
+          echo "host=${registry_host}" >> "${GITHUB_OUTPUT}"
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ${{ steps.registry.outputs.host }}
+          username: ${{ secrets.RELEASE_REGISTRY_USERNAME }}
+          password: ${{ secrets.RELEASE_REGISTRY_PASSWORD }}
+
+      - id: publish
+        uses: ./.github/actions/release-catalog-build
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          context: ${{ matrix.build_context }}
+          image_repository: ${{ matrix.image_repository }}
+          release_version: ${{ matrix.release_version }}
+          source_revision: ${{ github.sha }}
+          build_args: ${{ matrix.build_args }}
+          publish: "true"
+
+      - name: Write digest metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release-digests
+          cat > "release-digests/${{ matrix.release_id }}-${{ matrix.image_role }}.json" <<EOF
+          {
+            "release_id": "${{ matrix.release_id }}",
+            "workshop_id": "${{ matrix.workshop_id }}",
+            "release_version": "${{ matrix.release_version }}",
+            "image_role": "${{ matrix.image_role }}",
+            "image_repository": "${{ matrix.image_repository }}",
+            "image_tag": "${{ steps.publish.outputs.image_tag }}",
+            "image_digest": "${{ steps.publish.outputs.published_digest }}",
+            "source_revision": "${{ github.sha }}"
+          }
+          EOF
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-digest-${{ matrix.release_id }}-${{ matrix.image_role }}
+          path: release-digests/${{ matrix.release_id }}-${{ matrix.image_role }}.json
+          if-no-files-found: error
+
+  merge-release-digests:
+    runs-on: ubuntu-latest
+    needs:
+      - publish-release-images
+    if: ${{ github.event_name == 'push' || (github.event_name == 'workflow_dispatch' && inputs.publish == 'true') }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-digest-*
+          path: release-digests
+          merge-multiple: true
+
+      - name: Merge digest metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+          ruby scripts/ci/merge_release_digests.rb release-digests "${GITHUB_SHA}" > release-catalog-digests.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-catalog-digests
+          path: release-catalog-digests.json
+          if-no-files-found: error

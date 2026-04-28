@@ -3,6 +3,7 @@
     ref="layout"
     title="Full-Text Search Workshop"
     :files="files"
+    show-session-restart-controls
     @file-loaded="onFileLoaded"
     @file-saved="onFileSaved"
   >
@@ -32,8 +33,11 @@
 </template>
 
 <script>
-import { getApiUrl, getWorkshopHubUrl } from '../utils/basePath';
-import { WorkshopContentRenderer, WorkshopEditorLayout } from '../utils/components';
+import {
+  getWorkshopHubUrl,
+  WorkshopContentRenderer,
+  WorkshopEditorLayout
+} from '../../../../../workshop-frontend-shared/src/index.js';
 import { fetchWorkshopContent } from '../utils/workshopContent';
 
 const STORAGE_KEY = 'fullTextSearchWorkshop';
@@ -79,7 +83,8 @@ export default {
       fileContent: '',
       currentStep: 1,
       workshopComplete: false,
-      fileContents: {}
+      fileContents: {},
+      checkingCompletion: false
     };
   },
   async mounted() {
@@ -93,10 +98,8 @@ export default {
       }
     }
 
-    await Promise.all([
-      this.loadContent(),
-      this.checkWorkshopCompletion()
-    ]);
+    await this.loadContent();
+    await this.checkWorkshopCompletion();
   },
   computed: {
     workshopHubUrl() {
@@ -170,9 +173,23 @@ export default {
     onFileLoaded({ fileName, content }) {
       this.currentFile = fileName;
       this.fileContent = content;
+      this.trackFileContent(fileName, content);
     },
-    onFileSaved() {
+    onFileSaved({ fileName, content } = {}) {
+      const savedContent = content ?? this.fileContent;
+      this.fileContent = savedContent;
+      this.trackFileContent(fileName || this.currentFile, savedContent);
       this.checkWorkshopCompletion();
+    },
+    trackFileContent(fileName, content) {
+      if (!fileName) {
+        return;
+      }
+
+      this.fileContents = {
+        ...this.fileContents,
+        [fileName]: content || ''
+      };
     },
     saveProgress(step) {
       this.currentStep = step;
@@ -190,28 +207,25 @@ export default {
       data.currentStep = step;
       localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     },
-    async fetchFileContent(fileName) {
-      try {
-        const response = await fetch(getApiUrl(`/api/editor/file/${fileName}`), { credentials: 'include' });
-        const data = await response.json();
-        return data.content || '';
-      } catch (error) {
-        return '';
-      }
-    },
     async checkWorkshopCompletion() {
-      const filesToCheck = [
-        'build.gradle.kts',
-        'application.properties',
-        'Movie.java',
-        'FullTextSearchApplication.java',
-        'MovieRepository.java',
-        'MovieService.java',
-        'SearchService.java'
-      ];
+      if (this.checkingCompletion) {
+        return;
+      }
 
-      for (const file of filesToCheck) {
-        this.fileContents[file] = await this.fetchFileContent(file);
+      this.checkingCompletion = true;
+      const previousFile = this.currentFile;
+
+      try {
+        for (const fileName of this.files) {
+          await this.$refs.layout.loadFile(fileName);
+          this.trackFileContent(fileName, this.$refs.layout.getCurrentContent() || '');
+        }
+
+        if (previousFile && previousFile !== this.$refs.layout.getCurrentFile()) {
+          await this.$refs.layout.loadFile(previousFile);
+        }
+      } finally {
+        this.checkingCompletion = false;
       }
 
       const checks = [

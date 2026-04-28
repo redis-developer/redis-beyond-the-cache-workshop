@@ -110,6 +110,127 @@ class BackendProxyControllerTest {
         verifyNoInteractions(httpClient);
     }
 
+    @Test
+    void prefersSessionBackendUrlWhenConfigured() throws Exception {
+        runtimeProperties.setSessionBackendUrl("http://session.internal:19090");
+        mockMvc = MockMvcBuilders.standaloneSetup(new BackendProxyController(runtimeProperties, httpClient)).build();
+
+        HttpResponse<byte[]> backendResponse = mockBackendResponse(
+            200,
+            "ok".getBytes(StandardCharsets.UTF_8),
+            Map.of("content-type", List.of("text/plain"))
+        );
+
+        when(httpClient.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any()))
+            .thenReturn(backendResponse);
+
+        mockMvc.perform(get("/api/search").queryParam("q", "redis"))
+            .andExpect(status().isOk())
+            .andExpect(content().string("ok"));
+
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).send(requestCaptor.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any());
+        assertThat(requestCaptor.getValue().uri().toString()).isEqualTo("http://session.internal:19090/api/search?q=redis");
+    }
+
+    @Test
+    void returnsServiceUnavailableWhenSessionRunnerChildIsNotReady() throws Exception {
+        FrontendRuntimeProperties localRuntimeProperties = new FrontendRuntimeProperties();
+        SessionRunnerProperties runnerProperties = new SessionRunnerProperties();
+        runnerProperties.setEnabled(true);
+        runnerProperties.setChildPort(19191);
+        LocalSessionRunnerManager runnerManager = mock(LocalSessionRunnerManager.class);
+        when(runnerManager.isChildReady()).thenReturn(false);
+
+        MockMvc localMockMvc = MockMvcBuilders
+            .standaloneSetup(new BackendProxyController(
+                new SessionRuntimeResolver(localRuntimeProperties, runnerProperties),
+                httpClient,
+                runnerProperties,
+                Optional.of(runnerManager)
+            ))
+            .build();
+
+        localMockMvc.perform(get("/api/search"))
+            .andExpect(status().isServiceUnavailable())
+            .andExpect(content().json("{\"error\":\"Session runner child process is not ready\"}"));
+
+        verifyNoInteractions(httpClient);
+    }
+
+    @Test
+    void proxiesToSessionRunnerChildWhenReady() throws Exception {
+        FrontendRuntimeProperties localRuntimeProperties = new FrontendRuntimeProperties();
+        SessionRunnerProperties runnerProperties = new SessionRunnerProperties();
+        runnerProperties.setEnabled(true);
+        runnerProperties.setChildPort(19191);
+        LocalSessionRunnerManager runnerManager = mock(LocalSessionRunnerManager.class);
+        when(runnerManager.isChildReady()).thenReturn(true);
+        MockMvc localMockMvc = MockMvcBuilders
+            .standaloneSetup(new BackendProxyController(
+                new SessionRuntimeResolver(localRuntimeProperties, runnerProperties),
+                httpClient,
+                runnerProperties,
+                Optional.of(runnerManager)
+            ))
+            .build();
+
+        HttpResponse<byte[]> backendResponse = mockBackendResponse(
+            200,
+            "ok".getBytes(StandardCharsets.UTF_8),
+            Map.of("content-type", List.of("text/plain"))
+        );
+
+        when(httpClient.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any()))
+            .thenReturn(backendResponse);
+
+        localMockMvc.perform(get("/api/search").queryParam("q", "redis"))
+            .andExpect(status().isOk())
+            .andExpect(content().string("ok"));
+
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).send(requestCaptor.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any());
+        assertThat(requestCaptor.getValue().uri().toString()).isEqualTo("http://127.0.0.1:19191/api/search?q=redis");
+    }
+
+    @Test
+    void proxiesSessionRunnerRedisInsightAndRewritesProxyPath() throws Exception {
+        FrontendRuntimeProperties localRuntimeProperties = new FrontendRuntimeProperties();
+        SessionRunnerProperties runnerProperties = new SessionRunnerProperties();
+        runnerProperties.setEnabled(true);
+        runnerProperties.setRedisInsightCommand("redisinsight");
+
+        MockMvc localMockMvc = MockMvcBuilders
+            .standaloneSetup(new BackendProxyController(
+                new SessionRuntimeResolver(localRuntimeProperties, runnerProperties),
+                httpClient,
+                runnerProperties,
+                Optional.empty()
+            ))
+            .build();
+
+        HttpResponse<byte[]> redisInsightResponse = mockBackendResponse(
+            200,
+            "<script src=\"/redis-insight/assets/app.js\"></script>".getBytes(StandardCharsets.UTF_8),
+            Map.of(
+                "content-type", List.of("text/html"),
+                "set-cookie", List.of("RI_SESSION=abc; Path=/redis-insight; HttpOnly")
+            )
+        );
+
+        when(httpClient.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any()))
+            .thenReturn(redisInsightResponse);
+
+        localMockMvc.perform(get("/redis-insight/").header("X-Forwarded-Prefix", "/session/sess-001"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Set-Cookie", containsString("Path=/session/sess-001/redis-insight/")))
+            .andExpect(content().string(containsString("/session/sess-001/redis-insight/assets/app.js")));
+
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).send(requestCaptor.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any());
+        assertThat(requestCaptor.getValue().uri().toString()).isEqualTo("http://127.0.0.1:5540/redis-insight/");
+    }
+
     @SuppressWarnings("unchecked")
     private HttpResponse<byte[]> mockBackendResponse(int statusCode, byte[] body, Map<String, List<String>> headers) {
         HttpResponse<byte[]> response = mock(HttpResponse.class);

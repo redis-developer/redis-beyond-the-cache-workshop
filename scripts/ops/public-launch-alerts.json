@@ -1,0 +1,53 @@
+{
+  "alerts": [
+    {
+      "id": "control_plane_error_rate_high",
+      "ownerTeam": "platform",
+      "severity": "critical",
+      "scope": "control-plane",
+      "runbook": "docs/operations/public-launch-runbook.md#control-plane-error-rate"
+    },
+    {
+      "id": "launch_rejection_spike",
+      "ownerTeam": "platform",
+      "severity": "warning",
+      "scope": "session-launch",
+      "runbook": "docs/operations/public-launch-runbook.md#launch-rejection-spike"
+    },
+    {
+      "id": "startup_timeout_spike",
+      "ownerTeam": "platform",
+      "severity": "critical",
+      "scope": "session-startup",
+      "runbook": "docs/operations/public-launch-runbook.md#startup-timeout-spike"
+    },
+    {
+      "id": "cleanup_backlog_growth",
+      "ownerTeam": "platform",
+      "severity": "warning",
+      "scope": "session-cleanup",
+      "runbook": "docs/operations/public-launch-runbook.md#cleanup-backlog-growth"
+    },
+    {
+      "id": "degraded_session_spike",
+      "ownerTeam": "platform",
+      "severity": "critical",
+      "scope": "session-health",
+      "runbook": "docs/operations/public-launch-runbook.md#degraded-session-spike"
+    },
+    {
+      "id": "capacity_denial_spike",
+      "ownerTeam": "platform",
+      "severity": "warning",
+      "scope": "capacity",
+      "runbook": "docs/operations/public-launch-runbook.md#capacity-denial-spike"
+    },
+    {
+      "id": "release_regression_detected",
+      "ownerTeam": "platform",
+      "severity": "critical",
+      "scope": "release",
+      "runbook": "docs/operations/public-launch-runbook.md#release-regression-detected"
+    }
+  ]
+}

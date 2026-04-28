@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getBasePath } from '../utils/basePath'
+import { getBasePath } from '../../../../../workshop-frontend-shared/src/utils/basePath.js'
 
 const LocksHome = () => import('../views/LocksHome.vue')
 const ReentrantLearn = () => import('../views/ReentrantLearn.vue')

@@ -177,8 +177,65 @@ class WorkshopContentLoaderTest {
             .hasMessageContaining("markdown.body must not contain raw HTML");
     }
 
+    @Test
+    void prefersSessionWorkspaceContentRootOverLegacySourcePath() throws IOException {
+        Path workspaceModuleRoot = writeWorkshopContent(
+            """
+                schemaVersion: 1
+                viewId: session-home
+                route: /welcome
+                pageType: stage-flow
+                title: Session Workspace Title
+                slot: instructions
+                stages:
+                  - stageId: intro
+                    title: Introduction
+                    sections:
+                      - sectionId: overview
+                        blocks:
+                          - type: markdown
+                            body: Session specific content
+                """
+        );
+        Path fallbackModuleRoot = writeWorkshopContentInDirectory(
+            tempDir.resolve("legacy-frontend"),
+            """
+                schemaVersion: 1
+                viewId: session-home
+                route: /welcome
+                pageType: stage-flow
+                title: Legacy Title
+                slot: instructions
+                stages:
+                  - stageId: intro
+                    title: Legacy
+                    sections:
+                      - sectionId: overview
+                        blocks:
+                          - type: markdown
+                            body: Legacy content
+                """
+        );
+
+        FrontendRuntimeProperties runtimeProperties = new FrontendRuntimeProperties();
+        runtimeProperties.setWorkspacePath(workspaceModuleRoot.toString());
+        runtimeProperties.setSourcePath(fallbackModuleRoot.toString());
+        WorkshopContentLoader loader = new WorkshopContentLoader(
+            new MockEnvironment(),
+            new DefaultResourceLoader(),
+            runtimeProperties,
+            Set::of
+        );
+
+        assertThat(loader.requireView("session-home").title()).isEqualTo("Session Workspace Title");
+    }
+
     private Path writeWorkshopContent(String viewDocument) throws IOException {
-        Path moduleRoot = Files.createDirectories(tempDir.resolve("session-frontend"));
+        return writeWorkshopContentInDirectory(tempDir.resolve("session-frontend"), viewDocument);
+    }
+
+    private Path writeWorkshopContentInDirectory(Path moduleRoot, String viewDocument) throws IOException {
+        moduleRoot = Files.createDirectories(moduleRoot);
         Path contentRoot = Files.createDirectories(moduleRoot.resolve("src/main/resources/workshop-content/views"));
 
         Files.writeString(

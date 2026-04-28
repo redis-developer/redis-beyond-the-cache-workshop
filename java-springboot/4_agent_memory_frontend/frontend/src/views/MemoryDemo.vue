@@ -4,6 +4,7 @@
       :hub-url="workshopHubUrl"
       :steps="['Home', 'Demo']"
       :current-step="2"
+      show-session-restart-controls
     />
 
     <div class="main-container">
@@ -167,7 +168,14 @@ export default {
     async startConversation() {
       this.loading = true;
       try {
-        const res = await fetch(getApiUrl(`/api/demo/conversation?userId=${encodeURIComponent(this.userId)}`), {
+        const query = new URLSearchParams({
+          userId: this.userId
+        });
+        if (this.sessionId.trim()) {
+          query.set('sessionId', this.sessionId.trim());
+        }
+
+        const res = await fetch(getApiUrl(`/api/demo/conversation?${query.toString()}`), {
           method: 'POST'
         });
         const data = await res.json();

@@ -4,6 +4,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.core.io.DefaultResourceLoader;
 import org.springframework.mock.env.MockEnvironment;
+import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -21,7 +22,7 @@ class EditorControllerTest {
     Path fallbackSourceDir;
 
     @Test
-    void loadSaveAndRestoreUseConfiguredSourcePath() throws IOException {
+    void loadSaveAndRestorePreferSessionWorkspacePath() throws IOException {
         String fileName = "application.properties";
         String relativePath = "src/main/resources/application.properties";
         String originalContent = "spring.session.store-type=none\n";
@@ -35,7 +36,8 @@ class EditorControllerTest {
         Files.writeString(fallbackFile, "fallback=true\n");
 
         FrontendRuntimeProperties runtimeProperties = new FrontendRuntimeProperties();
-        runtimeProperties.setSourcePath(configuredSourceDir.toString());
+        runtimeProperties.setWorkspacePath(configuredSourceDir.toString());
+        runtimeProperties.setSourcePath(fallbackSourceDir.toString());
 
         WorkshopConfig workshopConfig = new TestWorkshopConfig(
             fallbackSourceDir.toString(),
@@ -53,6 +55,21 @@ class EditorControllerTest {
 
         controller.restoreFiles();
         assertThat(Files.readString(configuredFile)).isEqualTo(originalContent);
+    }
+
+    @Test
+    void rejectsPathsThatEscapeResolvedWorkspace() {
+        FrontendRuntimeProperties runtimeProperties = new FrontendRuntimeProperties();
+        runtimeProperties.setWorkspacePath(configuredSourceDir.toString());
+
+        WorkshopConfig workshopConfig = new TestWorkshopConfig(
+            fallbackSourceDir.toString(),
+            Map.of("escape.txt", "../escape.txt"),
+            Map.of()
+        );
+        EditorController controller = new EditorController(workshopConfig, runtimeProperties);
+
+        assertThat(controller.loadFile("escape.txt")).containsEntry("error", "Invalid file name: escape.txt");
     }
 
     @Test
@@ -114,6 +131,75 @@ class EditorControllerTest {
 
         controller.restoreFiles();
         assertThat(Files.readString(configuredFile)).isEqualTo(originalContent);
+    }
+
+    @Test
+    void collectDiagnosticsKeepsStableResponseShapeForRemoteSessionPath() {
+        FrontendRuntimeProperties runtimeProperties = new FrontendRuntimeProperties();
+        runtimeProperties.setSessionId("session-789");
+
+        WorkshopConfig workshopConfig = new TestWorkshopConfig(
+            fallbackSourceDir.toString(),
+            Map.of("application.properties", "src/main/resources/application.properties"),
+            Map.of()
+        );
+
+        EditorDiagnosticsService diagnosticsService = new EditorDiagnosticsService(
+            workshopConfig,
+            new SessionRuntimeResolver(runtimeProperties, workshopConfig),
+            (command, workingDirectory, environment, timeout) -> new EditorDiagnosticsService.CommandResult(0, ""),
+            new SessionRuntimeDiagnosticsClient() {
+                @Override
+                EditorDiagnosticsService.DiagnosticsResponse collectDiagnostics(
+                    java.net.URI endpoint,
+                    WorkshopConfig config,
+                    Map<String, String> overrides
+                ) {
+                    assertThat(endpoint.toString()).isEqualTo("http://localhost:9000/internal/execution-plane/sessions/session-789/runtime/diagnostics");
+                    assertThat(overrides).containsEntry("application.properties", "spring.session.store-type=redis\n");
+                    return new EditorDiagnosticsService.DiagnosticsResponse(
+                        java.util.List.of(
+                            new EditorDiagnosticsService.EditorDiagnostic(
+                                "diag-1",
+                                "application.properties",
+                                4,
+                                "error",
+                                "remote validation error"
+                            )
+                        ),
+                        null
+                    );
+                }
+            },
+            new SessionRuntimeDiagnosticsEndpointResolver()
+        );
+
+        EditorController controller = new EditorController(
+            workshopConfig,
+            new SessionRuntimeResolver(runtimeProperties, workshopConfig),
+            diagnosticsService
+        );
+
+        MockHttpServletRequest request = new MockHttpServletRequest("POST", "/api/editor/diagnostics");
+        request.setServerName("localhost");
+        request.setServerPort(18081);
+        request.addHeader("Origin", "http://localhost:9000");
+
+        Map<String, Object> response = controller.collectDiagnostics(
+            Map.of(
+                "overrides",
+                java.util.List.of(
+                    Map.of(
+                        "fileName", "application.properties",
+                        "content", "spring.session.store-type=redis\n"
+                    )
+                )
+            ),
+            request
+        );
+
+        assertThat(response).containsOnlyKeys("diagnostics");
+        assertThat(response.get("diagnostics")).isInstanceOf(java.util.List.class);
     }
 
     private static class TestWorkshopConfig implements WorkshopConfig {

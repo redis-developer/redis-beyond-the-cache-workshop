@@ -7,6 +7,7 @@ import com.redis.agentmemory.models.workingmemory.MemoryMessage;
 import com.redis.agentmemory.models.workingmemory.WorkingMemory;
 import com.redis.agentmemory.models.workingmemory.WorkingMemoryResponse;
 import com.redis.workshop.memory.service.AgentMemoryService;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
@@ -87,20 +88,24 @@ public class DemoController {
      * Demo: Start a conversation (working memory).
      */
     @PostMapping("/conversation")
-    public Map<String, Object> startConversation(@RequestParam String userId) {
-        String sessionId = "session-" + UUID.randomUUID().toString().substring(0, 8);
+    public Map<String, Object> startConversation(
+            @RequestParam String userId,
+            @RequestParam(required = false) String sessionId) {
+        String resolvedSessionId = StringUtils.hasText(sessionId)
+                ? sessionId.trim()
+                : "session-" + UUID.randomUUID().toString().substring(0, 8);
 
         WorkingMemory memory = WorkingMemory.builder()
-                .sessionId(sessionId)
+                .sessionId(resolvedSessionId)
                 .messages(List.of(MemoryMessage.builder().role("system").content("You are a helpful assistant.").build()))
                 .userId(userId)
                 .build();
 
         try {
-            memoryService.putWorkingMemory(sessionId, memory);
+            memoryService.putWorkingMemory(resolvedSessionId, memory);
             return Map.of(
                     "success", true,
-                    "sessionId", sessionId,
+                    "sessionId", resolvedSessionId,
                     "userId", userId,
                     "message", "Conversation started"
             );
@@ -177,4 +182,3 @@ public class DemoController {
         }
     }
 }
-

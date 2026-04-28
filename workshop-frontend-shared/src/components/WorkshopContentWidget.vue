@@ -22,8 +22,13 @@ export default {
     resolvedProps() {
       return {
         ...this.contextProps,
-        ...this.widgetProps
+        ...this.safeWidgetProps
       };
+    },
+    safeWidgetProps() {
+      return this.widgetProps && typeof this.widgetProps === 'object' && !Array.isArray(this.widgetProps)
+        ? this.widgetProps
+        : {};
     }
   }
 };

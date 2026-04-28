@@ -1,162 +1,99 @@
-# Docker Setup for Redis Workshop
+# Docker Setup
 
-This repository includes a Docker Compose configuration to run Redis and Redis Insight for the workshop.
+Docker is used for local workshop dependencies.
+Production sessions run as Cloud Run session runners.
 
-## Prerequisites
+## Recommended Local Workflow
 
-- Docker installed on your machine
-- Docker Compose installed (usually comes with Docker Desktop)
+Prerequisites:
 
-## Quick Start
+1. Docker Desktop or a compatible Docker engine.
+2. Java 21.
 
-### Start Redis and Redis Insight
-
-From the root of this repository, run:
-
-```bash
-docker-compose up -d
-```
-
-This will start:
-- **Redis** on port `6379`
-- **Redis Insight** on port `5540`
-
-## Workshop Hub Compose Files
-
-The Workshop Hub compose files are generated from `workshops.yaml`:
+Start a workshop from the repository root:
 
 ```bash
-./java-springboot/gradlew :workshop-hub:generateCompose
+./scripts/run-workshop.sh up 1_session_management
 ```
 
-Generated files:
-- `java-springboot/workshop-hub/docker-compose.local.yml`
-- `java-springboot/workshop-hub/docker-compose.internal.yml`
+Open http://localhost:8080.
 
-Profiles are enabled for selective runs:
-- Infrastructure only: `docker-compose -f java-springboot/workshop-hub/docker-compose.local.yml --profile infrastructure up -d`
-- All workshops: `docker-compose -f java-springboot/workshop-hub/docker-compose.local.yml --profile workshops up -d`
-- Single workshop: `docker-compose -f java-springboot/workshop-hub/docker-compose.local.yml --profile workshop-1_session_management up -d`
-
-### Verify Services are Running
+Stop it with:
 
 ```bash
-docker-compose ps
+./scripts/run-workshop.sh down 1_session_management
 ```
 
-You should see both services running:
-- `redis-workshop` - Redis server
-- `redisinsight-workshop` - Redis Insight GUI
+This helper is the only recommended local development path. It starts local dependencies and runs the workshop frontend and backend from your working tree.
 
-### Access Redis Insight
+## Local Platform Workflow
 
-Open your browser and navigate to:
-```
-http://localhost:5540
-```
+Use this workflow only when you need the control plane to call the execution plane and have the execution plane manage session runner containers through Docker.
+For normal workshop implementation work, use `scripts/run-workshop.sh`.
+Cloud Run remains the production runtime.
 
-### Connect Redis Insight to Redis
-
-When you first open Redis Insight, you'll need to add a database connection:
-
-1. Click "Add Redis Database"
-2. Select "Add Database Manually"
-3. Enter the following details:
-   - **Host**: `redis-workshop` (or `localhost` if connecting from host machine)
-   - **Port**: `6379`
-   - **Database Alias**: `Workshop Redis`
-4. Click "Add Redis Database"
-
-## Useful Commands
-
-### View Logs
+Build a local runner image before launching a session:
 
 ```bash
-# All services
-docker-compose logs -f
-
-# Redis only
-docker-compose logs -f redis
-
-# Redis Insight only
-docker-compose logs -f redis-insight
+java-springboot/session_runtime_tools/runner-image/build-local-runner-image.sh \
+  --workshop-id 1_session_management \
+  --image-tag redis-workshop-session-runner:1_session_management
 ```
 
-### Stop Services
+Start the execution plane:
 
 ```bash
-docker-compose stop
+cd java-springboot
+EXECUTION_PLANE_SHARED_SECRET=localdevsecret \
+EXECUTION_PLANE_RUNTIME_PROVIDER=docker \
+SERVER_PORT=9002 \
+./gradlew :platform_execution_plane:bootRun \
+  --args='--platform.execution-plane.docker.image-overrides.1_session_management=redis-workshop-session-runner:1_session_management'
 ```
 
-### Start Services (after stopping)
+Start the control plane in a second terminal:
 
 ```bash
-docker-compose start
+cd java-springboot
+EXECUTION_PLANE_SHARED_SECRET=localdevsecret \
+EXECUTION_PLANE_BASE_URL=http://localhost:9002 \
+SERVER_PORT=9001 \
+./gradlew :platform_control_plane:bootRun
 ```
 
-### Stop and Remove Containers
+## Other Workshops
 
-```bash
-docker-compose down
-```
+1. `./scripts/run-workshop.sh up 2_full_text_search`
+2. `./scripts/run-workshop.sh up 3_distributed_locks`
+3. `./scripts/run-workshop.sh up 4_agent_memory`
 
-### Stop and Remove Containers + Volumes (clean slate)
+## Cloud Run Alignment
 
-```bash
-docker-compose down -v
-```
+Local Docker should mirror the session runner shape without becoming the product runtime.
+The runner manager owns restart, rebuild restart, restore, diagnostics, session route handling, backend proxying, Redis, and Redis Insight lifecycle.
 
-## Network Configuration
+Workshop app views should not hardcode control plane URLs, Redis Insight ports, session runner endpoints, or direct `/api/editor/restore` calls.
+Use shared shell controls, shell URL helpers, and `getApiUrl` for domain API calls so local Docker and `/session/{sessionId}/` keep the same app behavior.
 
-Both services are connected to a custom Docker network called `redis-workshop-network`. This allows:
-- Redis Insight to connect to Redis using the service name `redis-workshop`
-- Your applications to connect to Redis using `localhost:6379` from the host machine
+## Redis Insight
 
-## Data Persistence
+The local helper exposes Redis Insight at http://localhost:5540.
 
-Data is persisted in Docker volumes:
-- `redis-workshop-data` - Redis data (AOF persistence enabled)
-- `redisinsight-workshop-data` - Redis Insight configuration and preferences
+In production, Redis Insight belongs to each session runner and is reached through the session route.
 
 ## Troubleshooting
 
-### Port Already in Use
+Check helper status:
 
-If you get an error about ports already in use:
-
-**For Redis (port 6379):**
 ```bash
-# Find process using port 6379
-lsof -ti:6379
-
-# Kill the process
-lsof -ti:6379 | xargs kill -9
+./scripts/run-workshop.sh status 1_session_management
 ```
 
-**For Redis Insight (port 5540):**
-```bash
-# Find process using port 5540
-lsof -ti:5540
+Stop and restart the helper if local dependencies need to be recreated:
 
-# Kill the process
-lsof -ti:5540 | xargs kill -9
+```bash
+./scripts/run-workshop.sh down 1_session_management
+./scripts/run-workshop.sh up 1_session_management
 ```
 
-### Redis Connection Issues
-
-If Redis Insight can't connect to Redis:
-1. Make sure both containers are running: `docker-compose ps`
-2. Check Redis logs: `docker-compose logs redis`
-3. Try using `localhost` instead of `redis-workshop` as the host
-
-### Reset Everything
-
-To completely reset and start fresh:
-```bash
-docker-compose down -v
-docker-compose up -d
-```
-
-## Workshop Integration
-
-The Java Spring Boot workshop (`java-springboot/1_session_management`) is configured to connect to Redis at `localhost:6379`. Make sure the Docker services are running before starting the workshop application.
+If a port is already in use, stop the process that owns it before starting the workshop again.

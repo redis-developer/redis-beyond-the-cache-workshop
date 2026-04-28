@@ -15,6 +15,7 @@
     "./styles/*": "./src/styles/*",
     "./components/*": "./src/components/*",
     "./utils/basePath": "./src/utils/basePath.js",
+    "./utils/sessionContext": "./src/utils/sessionContext.js",
     "./utils/*": "./src/utils/*"
   },
   "files": [

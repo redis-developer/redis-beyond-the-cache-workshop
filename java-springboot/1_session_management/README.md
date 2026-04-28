@@ -8,17 +8,15 @@ Learn how to solve the problem of lost sessions using Redis and Spring Session.
 - How to configure Spring Session with Redis
 - How sessions persist across application restarts
 
-## Run with Docker
+## Local Development
 
 ```bash
-cd java-springboot/workshop-hub
-
-# Start the hub, Redis, and workshop 1
-docker compose -f docker-compose.local.yml --profile infrastructure up -d
-docker compose -f docker-compose.local.yml --profile workshop-1_session_management up -d
+./scripts/run-workshop.sh up 1_session_management
 ```
 
-Open **http://localhost:9000** and launch the **Session Management** workshop from the Hub.
+Open **http://localhost:8080**.
+These commands are for local maintainer use only.
+The public platform path launches this workshop through the control plane and execution plane.
 
 Login: `user` / `password`
 
@@ -59,14 +57,15 @@ Uncomment the `HttpSessionSecurityContextRepository` import, the `SecurityContex
 ## Verify The Fix
 
 1. Log in and note the current session ID.
-2. Restart the workshop backend from the Hub without rebuilding and confirm the session is lost.
+2. Restart the workshop backend from the workshop controls without rebuilding and confirm the session is lost.
 3. Make the three code changes above.
-4. Rebuild and restart the workshop backend from the Hub.
+4. Rebuild and restart the workshop backend from the workshop controls.
 5. Refresh the workshop and confirm you stay logged in with the same session ID.
 
 ## View Sessions In Redis Insight
 
-Use the **Open Redis Insight** action inside the workshop, or open **http://localhost:5540** directly.
+Use the **Open Redis Insight** action inside the workshop session when launched from the platform.
+For the local helper flow, open **http://localhost:5540** directly.
 
 Search for:
 
@@ -77,7 +76,7 @@ spring:session:*
 ## Stopping
 
 ```bash
-docker compose -f docker-compose.local.yml --profile workshop-1_session_management down
+./scripts/run-workshop.sh down 1_session_management
 ```
 
 ## Resources

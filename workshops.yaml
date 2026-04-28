@@ -20,6 +20,8 @@ workshops:
     backendDockerfile: java-springboot/1_session_management/Dockerfile
     infrastructureDependencies:
       - redis
+    sessionScopedInfrastructureDependencies:
+      - redis
     redisFlavor: standard
     frontendPrebuild: true
     topics:
@@ -27,6 +29,23 @@ workshops:
       - Spring Session
       - Distributed Systems
       - Scalability
+    releases:
+      - releaseId: session-management-2026.04.1
+        releaseVersion: 2026.04.1
+        mode: LAB
+        defaultForWorkshop: true
+        enabled: true
+        environments:
+          - local
+          - cloud-run
+        images:
+          frontend: registry.example.com/workshops/session-management-frontend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+          backend: registry.example.com/workshops/session-management-backend@sha256:2222222222222222222222222222222222222222222222222222222222222222
+          combined: registry.example.com/workshops/session-management-runner@sha256:9999999999999999999999999999999999999999999999999999999999999999
+        resourceClass: small
+        sessionTtlMinutes: 60
+        mutableDependencies:
+          - redis
   - id: 2_full_text_search
     title: Full-Text Search with Redis
     description: >-
@@ -46,6 +65,8 @@ workshops:
     backendDockerfile: java-springboot/2_full_text_search/Dockerfile
     infrastructureDependencies:
       - redis
+    sessionScopedInfrastructureDependencies:
+      - redis
     redisFlavor: stack
     frontendPrebuild: true
     topics:
@@ -53,6 +74,23 @@ workshops:
       - Full-Text Search
       - Redis OM
       - Secondary Index
+    releases:
+      - releaseId: full-text-search-2026.04.1
+        releaseVersion: 2026.04.1
+        mode: LAB
+        defaultForWorkshop: true
+        enabled: true
+        environments:
+          - local
+          - cloud-run
+        images:
+          frontend: registry.example.com/workshops/full-text-search-frontend@sha256:3333333333333333333333333333333333333333333333333333333333333333
+          backend: registry.example.com/workshops/full-text-search-backend@sha256:4444444444444444444444444444444444444444444444444444444444444444
+          combined: registry.example.com/workshops/full-text-search-runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+        resourceClass: small
+        sessionTtlMinutes: 60
+        mutableDependencies:
+          - redis
   - id: 3_distributed_locks
     title: Distributed Locks
     description: >-
@@ -73,6 +111,9 @@ workshops:
     infrastructureDependencies:
       - redis
       - postgres
+    sessionScopedInfrastructureDependencies:
+      - redis
+      - postgres
     envOverrides:
       backend:
         SPRING_DATASOURCE_URL: jdbc:postgresql://postgres:5432/workshop
@@ -85,6 +126,24 @@ workshops:
       - Concurrency
       - Redis
       - Postgres
+    releases:
+      - releaseId: distributed-locks-2026.04.1
+        releaseVersion: 2026.04.1
+        mode: LAB
+        defaultForWorkshop: true
+        enabled: true
+        environments:
+          - local
+          - cloud-run
+        images:
+          frontend: registry.example.com/workshops/distributed-locks-frontend@sha256:5555555555555555555555555555555555555555555555555555555555555555
+          backend: registry.example.com/workshops/distributed-locks-backend@sha256:6666666666666666666666666666666666666666666666666666666666666666
+          combined: registry.example.com/workshops/distributed-locks-runner@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+        resourceClass: medium
+        sessionTtlMinutes: 60
+        mutableDependencies:
+          - redis
+          - postgres
   - id: 4_agent_memory
     title: Agent Memory Server
     description: >-
@@ -104,6 +163,8 @@ workshops:
     backendPort: 18083
     backendDockerfile: java-springboot/4_agent_memory/Dockerfile
     infrastructureDependencies:
+      - redis
+    sessionScopedInfrastructureDependencies:
       - redis
     sidecars:
       - serviceName: agent-memory-server
@@ -152,3 +213,20 @@ workshops:
       - Memory Management
       - Semantic Search
       - Vector Embeddings
+    releases:
+      - releaseId: agent-memory-2026.04.1
+        releaseVersion: 2026.04.1
+        mode: LAB
+        defaultForWorkshop: true
+        enabled: true
+        environments:
+          - local
+          - cloud-run
+        images:
+          frontend: registry.example.com/workshops/agent-memory-frontend@sha256:7777777777777777777777777777777777777777777777777777777777777777
+          backend: registry.example.com/workshops/agent-memory-backend@sha256:8888888888888888888888888888888888888888888888888888888888888888
+          combined: registry.example.com/workshops/agent-memory-runner@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+        resourceClass: medium
+        sessionTtlMinutes: 60
+        mutableDependencies:
+          - redis

@@ -1,0 +1,55 @@
+schemaVersion: 1
+viewId: reentrant-demo
+route: /reentrant/demo
+pageType: stage-flow
+title: Verify the Reentrant Lock
+slot: instructions
+summary: Confirm the lock mode is enabled, then run the demo scenarios that prove the reentrant path works.
+header:
+  showHubLink: true
+  stageNav:
+    clickable: true
+    steps:
+      - stageId: status
+        label: Status
+      - stageId: scenarios
+        label: Scenarios
+      - stageId: complete
+        label: Complete
+stages:
+  - stageId: status
+    title: Check the lock status
+    sections:
+      - sectionId: status-overview
+        blocks:
+          - type: markdown
+            body: |
+              Open `/reentrant/demo` and refresh the lock status first.
+
+              The demo should report `redisson` after you enable the lock mode and rebuild the backend.
+  - stageId: scenarios
+    title: Run the verification scenarios
+    sections:
+      - sectionId: scenario-checks
+        blocks:
+          - type: stepList
+            listId: demo-checks
+            variant: ordered
+            items:
+              - itemId: job-check
+                title: Single runner job
+                body: Run the 5 worker job scenario and confirm only one worker gets the lock.
+              - itemId: inventory-check
+                title: Inventory oversell
+                body: Reset inventory to 5, run 8 purchases, and confirm accepted purchases never exceed the starting stock.
+              - itemId: checkout-check
+                title: Nested checkout flow
+                body: Run the checkout scenario and confirm nested validations and reservations succeed without deadlocking.
+  - stageId: complete
+    title: Finish the workshop
+    sections:
+      - sectionId: completion
+        blocks:
+          - type: callout
+            tone: info
+            body: Use the session scoped Redis Insight route from the Workshop Hub if you want to inspect the lock keys after the demo.

@@ -1,0 +1,19 @@
+spring:
+  application:
+    name: platform-control-plane
+
+platform:
+  controlplane:
+    release:
+      environment: local
+    execution:
+      base-url: ${EXECUTION_PLANE_BASE_URL:http://localhost:9001}
+      shared-secret: ${EXECUTION_PLANE_SHARED_SECRET:}
+      launch-timeout: 450s
+      restart-timeout: 450s
+      termination-timeout: 30s
+    runtime:
+      public-base-url:
+      provisioning-delay: 250ms
+      initialization-delay: 250ms
+      termination-delay: 100ms

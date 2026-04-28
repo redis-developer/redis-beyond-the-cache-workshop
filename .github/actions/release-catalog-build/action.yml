@@ -1,0 +1,65 @@
+name: Release Catalog Build
+description: Build or publish one release catalog image target
+
+inputs:
+  dockerfile:
+    required: true
+  context:
+    required: true
+  image_repository:
+    required: true
+  release_version:
+    required: true
+  source_revision:
+    required: true
+  build_args:
+    required: false
+    default: ""
+  publish:
+    required: false
+    default: "false"
+
+outputs:
+  image_tag:
+    description: Published or validated image tag
+    value: ${{ steps.vars.outputs.image_tag }}
+  published_digest:
+    description: Published image digest
+    value: ${{ steps.publish.outputs.digest }}
+
+runs:
+  using: composite
+  steps:
+    - id: vars
+      shell: bash
+      run: |
+        set -euo pipefail
+        image_tag="${{ inputs.image_repository }}:${{ inputs.release_version }}-${{ inputs.source_revision }}"
+        echo "image_tag=${image_tag}" >> "${GITHUB_OUTPUT}"
+
+    - name: Validate build
+      if: ${{ inputs.publish != 'true' }}
+      shell: bash
+      run: |
+        set -euo pipefail
+        build_args=()
+        while IFS= read -r arg; do
+          if [ -n "${arg}" ]; then
+            build_args+=("--build-arg" "${arg}")
+          fi
+        done <<< "${{ inputs.build_args }}"
+        docker build \
+          "${build_args[@]}" \
+          -f "${{ inputs.dockerfile }}" \
+          -t "${{ steps.vars.outputs.image_tag }}" \
+          "${{ inputs.context }}"
+
+    - id: publish
+      if: ${{ inputs.publish == 'true' }}
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ inputs.context }}
+        file: ${{ inputs.dockerfile }}
+        push: true
+        tags: ${{ steps.vars.outputs.image_tag }}
+        build-args: ${{ inputs.build_args }}

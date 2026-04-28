@@ -13,6 +13,7 @@
             />
             Test Your Search
           </h2>
+          <WorkshopSessionRestartControls />
         </div>
 
         <div class="workshop-content">
@@ -108,8 +109,12 @@
 </template>
 
 <script>
-import { getApiUrl, getRedisInsightUrl } from '../utils/basePath';
-import { WorkshopContentRenderer } from '../utils/components';
+import {
+  getApiUrl,
+  getRedisInsightUrl,
+  WorkshopContentRenderer,
+  WorkshopSessionRestartControls
+} from '../../../../../workshop-frontend-shared/src/index.js';
 import {
   fetchWorkshopContent,
   getContentStageIndex,
@@ -131,7 +136,8 @@ const LEGACY_TEST_STAGE_MAP = {
 export default {
   name: 'SearchDemo',
   components: {
-    WorkshopContentRenderer
+    WorkshopContentRenderer,
+    WorkshopSessionRestartControls
   },
   data() {
     return {
@@ -145,8 +151,7 @@ export default {
       searchTime: null,
       loading: false,
       error: null,
-      searched: false,
-      restartingLab: false
+      searched: false
     };
   },
   computed: {
@@ -157,7 +162,6 @@ export default {
       return {
         setStage: ({ args }) => this.setTestStage(args.stageId),
         openRedisInsight: () => this.openRedisInsight(),
-        restartLab: () => this.restartLab(),
         resetProgress: () => this.restartTests(),
         openRoute: ({ args }) => this.openRoute(args.route),
         openEditor: () => this.openRoute('/editor')
@@ -297,33 +301,6 @@ export default {
       } finally {
         this.loading = false;
       }
-    },
-    async restartLab() {
-      if (!confirm('Are you sure you want to restart the lab? This will restore all files to their original state. You will need to restart the application after this.')) {
-        return;
-      }
-
-      this.restartingLab = true;
-      try {
-        const response = await fetch(getApiUrl('/api/editor/restore'), {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-        const data = await response.json();
-        if (data.success) {
-          localStorage.removeItem(STORAGE_KEY);
-          this.currentTestStageId = resolveContentStageId(this.content);
-          alert('Lab reset! Please go to the Workshop Hub and rebuild the app, then refresh this page to start from the beginning.');
-        } else {
-          alert('Error: ' + (data.error || 'Failed to restore files'));
-        }
-      } catch (error) {
-        console.error('Error restarting lab:', error);
-        alert('Failed to restore files. Please try again.');
-      } finally {
-        this.restartingLab = false;
-      }
     }
   }
 };
@@ -357,6 +334,10 @@ export default {
   background: #252526;
   padding: var(--spacing-4);
   border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
 }
 
 .workshop-header h2 {

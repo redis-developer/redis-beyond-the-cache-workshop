@@ -4,11 +4,12 @@ import { getBasePath } from '../utils/basePath'
 const SessionLogin = () => import('../views/SessionLogin.vue')
 const SessionHome = () => import('../views/SessionHome.vue')
 const SessionEditor = () => import('../views/SessionEditor.vue')
+const SessionLearnerApp = () => import('../views/SessionLearnerApp.vue')
 
 const routes = [
   {
     path: '/',
-    redirect: '/login'
+    redirect: '/welcome'
   },
   {
     path: '/login',
@@ -19,6 +20,11 @@ const routes = [
     path: '/welcome',
     name: 'SessionHome',
     component: SessionHome
+  },
+  {
+    path: '/app',
+    name: 'SessionLearnerApp',
+    component: SessionLearnerApp
   },
   {
     path: '/editor',
@@ -35,7 +41,7 @@ const router = createRouter({
 // Navigation guard to check authentication before accessing protected routes
 router.beforeEach(async (to, from, next) => {
   // Public routes that don't require authentication
-  const publicRoutes = ['/login']
+  const publicRoutes = ['/login', '/welcome', '/app']
 
   if (publicRoutes.includes(to.path)) {
     next()

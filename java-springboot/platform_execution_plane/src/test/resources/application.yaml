@@ -1,0 +1,7 @@
+spring:
+  application:
+    name: platform-execution-plane-test
+
+platform:
+  execution-plane:
+    internal-api: {}

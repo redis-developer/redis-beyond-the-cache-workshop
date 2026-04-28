@@ -18,7 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest(
     classes = AgentMemoryFrontendApplication.class,
     webEnvironment = SpringBootTest.WebEnvironment.MOCK,
-    properties = "workshop.backend.url=http://127.0.0.1:1"
+    properties = "workshop.frontend.session-backend-url=http://127.0.0.1:1"
 )
 @AutoConfigureMockMvc
 class AgentMemoryFrontendIntegrationTest {

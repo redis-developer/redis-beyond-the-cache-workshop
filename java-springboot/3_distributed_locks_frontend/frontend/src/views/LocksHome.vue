@@ -4,6 +4,7 @@
       :hub-url="workshopHubUrl"
       :steps="stageLabels"
       :current-step="currentStageIndex"
+      show-session-restart-controls
       clickable
       @step-click="goToStage"
     />
@@ -47,7 +48,13 @@
 </template>
 
 <script>
-import { WorkshopContentRenderer } from '../../../../../workshop-frontend-shared/src/index.js';
+import {
+  WorkshopContentRenderer,
+  WorkshopHeader,
+  WorkshopModal,
+  getApiUrl,
+  getWorkshopHubUrl
+} from '../../../../../workshop-frontend-shared/src/index.js';
 import LocksHomeHubWidget from '../components/content/LocksHomeHubWidget.vue';
 import LocksHomeProblemDemoWidget from '../components/content/LocksHomeProblemDemoWidget.vue';
 import {
@@ -58,8 +65,6 @@ import {
   loadProgress,
   saveProgress
 } from '../utils/locksWorkshop';
-import { getApiUrl, getWorkshopHubUrl } from '../utils/basePath';
-import { WorkshopHeader, WorkshopModal } from '../utils/components';
 import { fetchWorkshopContentView } from '../utils/workshopContent';
 
 const DEFAULT_STAGES = [
@@ -83,7 +88,7 @@ export default {
     return {
       lockTypes: LOCK_TYPES,
       currentStage: 1,
-      restartingLab: false,
+      resettingProgress: false,
       runningJob: false,
       jobResult: null,
       lockProgress: {},
@@ -105,7 +110,7 @@ export default {
     contentActionHandlers() {
       return {
         setStage: ({ args }) => this.setStageById(args.stageId),
-        restartLab: () => this.confirmRestartLab()
+        resetProgress: () => this.confirmResetProgress()
       };
     },
     contentWidgetProps() {
@@ -119,9 +124,9 @@ export default {
           lockTypes: this.lockTypes,
           lockProgress: this.lockProgress,
           completedCount: this.completedCount,
-          restartingLab: this.restartingLab,
+          resettingProgress: this.resettingProgress,
           onBack: () => this.prevStage(),
-          onRestart: () => this.confirmRestartLab()
+          onResetProgress: () => this.confirmResetProgress()
         }
       };
     },
@@ -243,39 +248,33 @@ export default {
       this.modal.show = false;
       this.modal.onConfirm = null;
     },
-    confirmRestartLab() {
+    confirmResetProgress() {
       this.showModal(
         'confirm',
-        'Restart Workshop',
-        'Are you sure you want to restart the workshop? This will restore all files to their original state and reset your progress. You will need to restart the application after this.',
+        'Reset Progress',
+        'Reset local progress for this browser? Code files and runtime restarts are handled by the shared workshop controls.',
         () => {
-          this.restartLab();
+          this.resetProgress();
         }
       );
     },
-    async restartLab() {
-      this.restartingLab = true;
+    resetProgress() {
+      this.resettingProgress = true;
       try {
-        const response = await fetch(getApiUrl('/api/editor/restore'), { method: 'POST' });
-        const data = await response.json();
-        if (data.success) {
-          clearProgress();
-          this.currentStage = 1;
-          this.jobResult = null;
-          this.refreshLockProgress();
-          this.showModal(
-            'alert',
-            'Workshop Reset',
-            'Workshop reset! Please restart the application from the Workshop Hub.\n\nThen refresh this page to start from Stage 1.'
-          );
-        } else {
-          this.showModal('alert', 'Error', 'Error: ' + (data.error || 'Failed to restore files'));
-        }
+        clearProgress();
+        this.currentStage = 1;
+        this.jobResult = null;
+        this.refreshLockProgress();
+        this.showModal(
+          'alert',
+          'Progress Reset',
+          'Local progress has been reset. Use the shared restart controls if you also need to restart or rebuild the runtime.'
+        );
       } catch (error) {
-        console.error('Error restarting workshop:', error);
-        this.showModal('alert', 'Error', 'Failed to restore files. Please try again.');
+        console.error('Error resetting progress:', error);
+        this.showModal('alert', 'Error', 'Failed to reset progress. Please try again.');
       } finally {
-        this.restartingLab = false;
+        this.resettingProgress = false;
       }
     }
   }

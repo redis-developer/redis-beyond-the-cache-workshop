@@ -40,13 +40,17 @@ class SessionManagementFrontendIntegrationTest {
     void spaRoutesAreHandledByFrontendModule() throws Exception {
         mockMvc.perform(get("/"))
             .andExpect(status().is3xxRedirection())
-            .andExpect(redirectedUrl("/login"));
+            .andExpect(redirectedUrl("/welcome"));
 
         mockMvc.perform(get("/login"))
             .andExpect(status().isOk())
             .andExpect(forwardedUrl("/index.html"));
 
         mockMvc.perform(get("/welcome"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/app"))
             .andExpect(status().isOk())
             .andExpect(forwardedUrl("/index.html"));
 

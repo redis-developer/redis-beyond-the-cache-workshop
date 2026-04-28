@@ -211,6 +211,10 @@ sections:
   - sectionId: java-sdk
     title: Java SDK Reference
     blocks:
+      - type: callout
+        tone: info
+        title: Session Runtime Wiring
+        body: The migrated workshop runtime injects `AGENT_MEMORY_SERVER_URL` into the backend container and keeps Redis Insight behind the active session route. Use those injected session paths instead of fixed localhost ports.
       - type: codeSnippet
         language: kotlin
         title: Installation
@@ -221,7 +225,9 @@ sections:
         language: java
         title: Client Initialization
         code: |
-          MemoryAPIClient client = MemoryAPIClient.builder("http://localhost:8000")
+          String amsUrl = System.getenv().getOrDefault("AGENT_MEMORY_SERVER_URL", "http://agent-memory-server:8000");
+
+          MemoryAPIClient client = MemoryAPIClient.builder(amsUrl)
               .defaultNamespace("my-app")
               .timeout(30.0)
               .build();

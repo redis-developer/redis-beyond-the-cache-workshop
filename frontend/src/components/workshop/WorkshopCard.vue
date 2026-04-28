@@ -3,122 +3,116 @@
     <div class="workshop-header">
       <h3>{{ workshop.title }}</h3>
       <div class="header-icons">
-        <!-- Status Icon with Tooltip -->
         <div class="status-icon">
-          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <path d="M2 4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V4zm2-1a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1V4a1 1 0 0 0-1-1H4z"/>
             <path d="M8 5.5a.5.5 0 0 1 .5.5v3a.5.5 0 0 1-1 0V6a.5.5 0 0 1 .5-.5z"/>
           </svg>
           <div class="status-tooltip">
             <div class="status-tooltip-item">
-              <StatusIndicator :status="infrastructureStatus.redis" />
-              <span class="status-label">Redis</span>
-            </div>
-            <div class="status-tooltip-item">
-              <StatusIndicator :status="infrastructureStatus.redisInsight" />
-              <span class="status-label">Redis Insight</span>
-            </div>
-            <div class="status-tooltip-item">
-              <StatusIndicator :status="currentWorkshopStatus" />
+              <StatusIndicator :status="workshop.status" />
               <span class="status-label">Workshop App</span>
+              <span class="status-value">{{ statusLabel }}</span>
+            </div>
+            <div v-if="activeSession" class="status-tooltip-item">
+              <span class="session-dot"></span>
+              <span class="status-label">Session</span>
+              <span class="status-value">{{ shortSessionId }}</span>
+            </div>
+            <div v-if="activeSession?.expiresAt" class="status-tooltip-item">
+              <span class="session-dot"></span>
+              <span class="status-label">Expires</span>
+              <span class="status-value">{{ expiresLabel }}</span>
             </div>
           </div>
         </div>
 
-        <!-- Info Icon with Tooltip -->
         <div class="info-icon" :data-tooltip="workshop.description">
-          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor">
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
             <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM7 5v2h2V5H7zm0 4v4h2V9H7z"/>
           </svg>
         </div>
       </div>
     </div>
 
-    <!-- Restart Progress -->
-    <div v-if="isRestarting && restartProgress" class="restart-progress">
-      <div class="progress-stages">
-        <div
-          v-for="stage in progressStages"
-          :key="stage.id"
-          class="progress-stage"
-          :class="{
-            'active': restartProgress.stage === stage.id,
-            'completed': isStageCompleted(stage.id)
-          }"
-        >
-          <div class="stage-indicator">
-            <svg v-if="isStageCompleted(stage.id)" width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M13.78 4.22a.75.75 0 010 1.06l-7.25 7.25a.75.75 0 01-1.06 0L2.22 9.28a.75.75 0 011.06-1.06L6 10.94l6.72-6.72a.75.75 0 011.06 0z"/>
-            </svg>
-            <div v-else-if="restartProgress.stage === stage.id" class="stage-spinner"></div>
-            <div v-else class="stage-dot"></div>
-          </div>
-          <span class="stage-label">{{ stage.label }}</span>
-        </div>
+    <div class="workshop-meta">
+      <span v-if="workshop.difficulty">{{ workshop.difficulty }}</span>
+      <span v-if="workshop.estimatedMinutes">{{ workshop.estimatedMinutes }} min</span>
+      <span v-if="workshop.defaultMode">{{ workshop.defaultMode }}</span>
+    </div>
+
+    <div v-if="workshop.topics && workshop.topics.length" class="topic-list">
+      <span v-for="topic in workshop.topics" :key="topic">{{ topic }}</span>
+    </div>
+
+    <div v-if="activeSession" class="session-panel">
+      <div>
+        <strong>Session {{ shortSessionId }}</strong>
+        <span>{{ statusLabel }}</span>
       </div>
-      <div class="progress-bar">
-        <div class="progress-fill" :style="{ width: progressPercent + '%' }"></div>
+      <div v-if="activeSession.failureMessage" class="failure-message">
+        {{ activeSession.failureMessage }}
       </div>
     </div>
 
-    <!-- Control Buttons -->
-    <div v-else class="workshop-controls" :class="{ 'single-button': showOnlyDeploy }">
+    <div class="workshop-controls" :class="{ 'single-button': !activeSession }">
       <button
-        v-if="showDeployButton"
+        v-if="!activeSession"
         class="control-btn deploy-btn"
-        @click="handleDeploy"
-        :disabled="loading"
+        :disabled="isBusy"
+        @click="handleLaunch"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
           <path d="M8 0l8 8-8 8V0z"/>
         </svg>
-        Deploy Workshop
+        {{ deployLabel }}
       </button>
 
       <button
-        v-if="showRestartButton"
+        v-if="activeSession"
         class="control-btn restart-btn"
-        @click="handleRestart"
-        :disabled="loading"
+        :disabled="isBusy || !canRestart"
+        @click="handleRestart(true)"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
           <path d="M8 3V0L4 4l4 4V5a5 5 0 110 6v2a7 7 0 100-10z"/>
         </svg>
-        Restart & Rebuild
+        {{ rebuildLabel }}
       </button>
 
       <button
-        v-if="showRestartNoBuildButton"
+        v-if="activeSession"
         class="control-btn restart-btn"
-        @click="handleRestartNoBuild"
-        :disabled="loading"
+        :disabled="isBusy || !canRestart"
+        @click="handleRestart(false)"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
           <path d="M8 3V0L4 4l4 4V5a5 5 0 110 6v2a7 7 0 100-10z"/>
         </svg>
-        Restart App Only
+        {{ restartLabel }}
       </button>
 
       <button
-        v-if="showStopButton"
+        v-if="activeSession"
         class="control-btn stop-btn"
-        @click="handleStop"
-        :disabled="loading"
+        :disabled="isBusy"
+        @click="handleTerminate"
       >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
           <rect x="4" y="4" width="8" height="8"/>
         </svg>
-        Stop
+        {{ stopLabel }}
       </button>
 
       <a
-        v-if="showOpenButton"
-        :href="workshop.url"
+        v-if="canOpen"
+        :href="activeSession.publicEntryUrl"
         class="control-btn open-btn"
         target="_blank"
+        rel="noopener"
       >
         Open Workshop
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
           <path d="M8 0l8 8-8 8V0z"/>
         </svg>
       </a>
@@ -127,8 +121,10 @@
 </template>
 
 <script>
-import { mapGetters, mapActions } from 'vuex';
+import { mapActions } from 'vuex';
 import StatusIndicator from '@/components/base/StatusIndicator.vue';
+
+const RESTARTABLE_STATES = new Set(['READY', 'DEGRADED']);
 
 export default {
   name: 'WorkshopCard',
@@ -141,151 +137,74 @@ export default {
       required: true
     }
   },
-  data() {
-    return {
-      loading: false
-    };
-  },
   computed: {
-    ...mapGetters(['infrastructureStatus', 'workshopStatus', 'isWorkshopRestarting', 'getRestartProgress']),
-
-    currentWorkshopStatus() {
-      if (this.isRestarting) return 'restarting';
-      return this.workshopStatus(this.workshop.id);
+    activeSession() {
+      return this.workshop.activeSession;
     },
 
-    isRestarting() {
-      return this.isWorkshopRestarting(this.workshop.id);
+    isBusy() {
+      return Boolean(this.workshop.pendingAction);
     },
 
-    restartProgress() {
-      return this.getRestartProgress(this.workshop.id);
+    canOpen() {
+      return this.activeSession?.state === 'READY' && this.activeSession.publicEntryUrl;
     },
 
-    progressStages() {
-      if (!this.restartProgress) return [];
-      // Deploy: no stopping phase
-      if (this.restartProgress.isDeploy) {
-        return [
-          { id: 'building', label: 'Building' },
-          { id: 'starting', label: 'Starting' },
-          { id: 'initializing', label: 'Initializing' },
-          { id: 'ready', label: 'Ready' }
-        ];
-      } else if (this.restartProgress.isRebuild) {
-        return [
-          { id: 'stopping', label: 'Stopping' },
-          { id: 'building', label: 'Building' },
-          { id: 'starting', label: 'Starting' },
-          { id: 'initializing', label: 'Initializing' },
-          { id: 'ready', label: 'Ready' }
-        ];
-      } else {
-        return [
-          { id: 'stopping', label: 'Stopping' },
-          { id: 'starting', label: 'Starting' },
-          { id: 'initializing', label: 'Initializing' },
-          { id: 'ready', label: 'Ready' }
-        ];
+    canRestart() {
+      return this.activeSession && RESTARTABLE_STATES.has(this.activeSession.state);
+    },
+
+    statusLabel() {
+      if (this.workshop.pendingAction) {
+        return this.workshop.pendingAction;
       }
+      if (!this.activeSession) {
+        return 'not launched';
+      }
+      return this.activeSession.state.replace(/_/g, ' ').toLowerCase();
     },
 
-    progressPercent() {
-      if (!this.restartProgress) return 0;
-      const stageIndex = this.progressStages.findIndex(s => s.id === this.restartProgress.stage);
-      if (stageIndex === -1) return 0;
-      // Each stage represents equal progress, current stage is "in progress"
-      return Math.min(100, ((stageIndex + 0.5) / this.progressStages.length) * 100);
+    shortSessionId() {
+      return this.activeSession?.sessionId?.slice(0, 8) || '';
     },
 
-    workshopRunning() {
-      return this.workshopStatus(this.workshop.id) === 'running';
+    expiresLabel() {
+      const expiresAt = new Date(this.activeSession.expiresAt);
+      if (Number.isNaN(expiresAt.getTime())) {
+        return '';
+      }
+      return expiresAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
     },
 
-    allInfraRunning() {
-      return this.infrastructureStatus.allRunning;
+    deployLabel() {
+      return this.workshop.pendingAction === 'launching' ? 'Deploying...' : 'Deploy Workshop';
     },
 
-    showDeployButton() {
-      return !this.isRestarting && (!this.allInfraRunning || !this.workshopRunning);
+    rebuildLabel() {
+      return this.workshop.pendingAction === 'rebuilding' ? 'Rebuilding...' : 'Restart & Rebuild';
     },
 
-    showRestartButton() {
-      return !this.isRestarting && this.allInfraRunning && this.workshopRunning;
+    restartLabel() {
+      return this.workshop.pendingAction === 'restarting' ? 'Restarting...' : 'Restart App Only';
     },
 
-    showRestartNoBuildButton() {
-      return !this.isRestarting && this.allInfraRunning && this.workshopRunning;
-    },
-
-    showStopButton() {
-      return !this.isRestarting && this.allInfraRunning && this.workshopRunning;
-    },
-
-    showOpenButton() {
-      return !this.isRestarting && this.workshopRunning;
-    },
-
-    showOnlyDeploy() {
-      return this.showDeployButton && !this.showRestartButton && !this.showRestartNoBuildButton && !this.showStopButton && !this.showOpenButton;
+    stopLabel() {
+      return this.workshop.pendingAction === 'terminating' ? 'Stopping...' : 'Stop';
     }
   },
   methods: {
-    ...mapActions(['startInfrastructure', 'startWorkshop', 'stopInfrastructure', 'stopWorkshop', 'restartWorkshop', 'restartWorkshopNoBuild']),
+    ...mapActions(['launchWorkshop', 'restartWorkshop', 'terminateWorkshop']),
 
-    isStageCompleted(stageId) {
-      if (!this.restartProgress) return false;
-      const currentIndex = this.progressStages.findIndex(s => s.id === this.restartProgress.stage);
-      const stageIndex = this.progressStages.findIndex(s => s.id === stageId);
-      return stageIndex < currentIndex;
+    async handleLaunch() {
+      await this.launchWorkshop(this.workshop);
     },
 
-    async handleDeploy() {
-      this.loading = true;
-      try {
-        if (!this.allInfraRunning) {
-          await this.startInfrastructure();
-        }
-        await this.startWorkshop(this.workshop.id);
-      } catch (error) {
-        console.error('Error deploying workshop:', error);
-      } finally {
-        this.loading = false;
-      }
+    async handleRestart(rebuild) {
+      await this.restartWorkshop({ workshopId: this.workshop.id, rebuild });
     },
 
-    async handleRestart() {
-      this.loading = true;
-      try {
-        await this.restartWorkshop(this.workshop.id);
-      } catch (error) {
-        console.error('Error restarting workshop:', error);
-      } finally {
-        this.loading = false;
-      }
-    },
-
-	    async handleRestartNoBuild() {
-	      this.loading = true;
-	      try {
-	        await this.restartWorkshopNoBuild(this.workshop.id);
-	      } catch (error) {
-	        console.error('Error restarting workshop without rebuild:', error);
-	      } finally {
-	        this.loading = false;
-	      }
-	    },
-
-    async handleStop() {
-      this.loading = true;
-      try {
-        await this.stopWorkshop(this.workshop.id);
-        await this.stopInfrastructure();
-      } catch (error) {
-        console.error('Error stopping workshop:', error);
-      } finally {
-        this.loading = false;
-      }
+    async handleTerminate() {
+      await this.terminateWorkshop(this.workshop.id);
     }
   }
 };
@@ -296,46 +215,49 @@ export default {
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: var(--card-radius);
-  padding: var(--spacing-6);
-  transition: all var(--transition-base);
-  position: relative;
   overflow: visible;
+  padding: var(--spacing-6);
+  position: relative;
+  transition: all var(--transition-base);
 }
 
-
+.workshop-card:hover {
+  border-color: rgba(0, 188, 212, 0.35);
+  box-shadow: 0 18px 50px rgba(0, 188, 212, 0.08);
+}
 
 .workshop-header {
-  display: flex;
-  justify-content: space-between;
   align-items: flex-start;
-  margin-bottom: var(--spacing-6);
+  display: flex;
   gap: var(--spacing-4);
+  justify-content: space-between;
+  margin-bottom: var(--spacing-5);
 }
 
 .workshop-header h3 {
-  font-size: var(--font-size-xl);
   color: var(--color-text);
-  font-weight: var(--font-weight-semibold);
-  margin: 0;
   flex: 1;
-  line-height: 1.4;
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-semibold);
   letter-spacing: -0.01em;
+  line-height: 1.4;
+  margin: 0;
 }
 
 .header-icons {
-  display: flex;
-  gap: var(--spacing-3);
   align-items: center;
+  display: flex;
   flex-shrink: 0;
+  gap: var(--spacing-3);
 }
 
 .status-icon,
 .info-icon {
+  align-items: center;
   color: var(--color-text-secondary);
   cursor: help;
-  position: relative;
   display: flex;
-  align-items: center;
+  position: relative;
   transition: all var(--transition-fast);
 }
 
@@ -344,32 +266,20 @@ export default {
   color: var(--color-primary-400);
 }
 
-/* Status Tooltip */
 .status-tooltip {
-  display: none;
-  position: absolute;
-  top: 100%;
-  right: 0;
-  margin-top: var(--spacing-2);
+  animation: fadeIn var(--transition-fast);
   background-color: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: var(--spacing-3);
-  min-width: 180px;
-  z-index: var(--z-tooltip);
   box-shadow: var(--shadow-lg);
-  animation: fadeIn var(--transition-fast);
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  display: none;
+  margin-top: var(--spacing-2);
+  min-width: 220px;
+  padding: var(--spacing-3);
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: var(--z-tooltip);
 }
 
 .status-icon:hover .status-tooltip {
@@ -377,57 +287,106 @@ export default {
 }
 
 .status-tooltip-item {
-  display: flex;
   align-items: center;
+  display: grid;
   gap: var(--spacing-2);
+  grid-template-columns: auto 1fr auto;
   padding: var(--spacing-1) 0;
 }
 
-.status-label {
-  font-size: var(--font-size-sm);
+.status-label,
+.status-value {
   color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
+  text-transform: capitalize;
 }
 
-/* Info Tooltip */
+.status-value {
+  color: var(--color-text);
+}
+
+.session-dot {
+  background-color: rgba(148, 163, 184, 0.7);
+  border-radius: 999px;
+  display: inline-block;
+  height: 10px;
+  width: 10px;
+}
+
 .info-icon::after {
-  content: attr(data-tooltip);
-  display: none;
-  position: absolute;
-  top: calc(100% + var(--spacing-2));
-  right: 0;
+  animation: fadeIn var(--transition-fast);
   background-color: var(--color-surface-elevated);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
-  padding: var(--spacing-4);
-  width: 320px;
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
-  line-height: 1.6;
-  z-index: var(--z-tooltip);
   box-shadow: var(--shadow-lg);
-  white-space: normal;
-  animation: fadeIn var(--transition-fast);
+  color: var(--color-text-secondary);
+  content: attr(data-tooltip);
+  display: none;
+  font-size: var(--font-size-sm);
+  line-height: 1.6;
+  padding: var(--spacing-4);
   pointer-events: none;
+  position: absolute;
+  right: 0;
+  top: calc(100% + var(--spacing-2));
+  white-space: normal;
+  width: 320px;
+  z-index: var(--z-tooltip);
 }
 
 .info-icon:hover::after {
   display: block;
 }
 
-/* Responsive tooltip positioning */
-@media (max-width: 768px) {
-  .info-icon::after {
-    width: 280px;
-    right: -50px;
-  }
+.workshop-meta,
+.topic-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-4);
 }
 
-/* Workshop Controls */
+.workshop-meta span,
+.topic-list span {
+  background-color: var(--color-dark-700);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  padding: var(--spacing-1) var(--spacing-3);
+}
+
+.session-panel {
+  background-color: rgba(15, 23, 42, 0.55);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text-secondary);
+  display: flex;
+  flex-direction: column;
+  font-size: var(--font-size-sm);
+  gap: var(--spacing-2);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-4);
+}
+
+.session-panel strong {
+  color: var(--color-text);
+  margin-right: var(--spacing-2);
+}
+
+.session-panel span {
+  text-transform: capitalize;
+}
+
+.failure-message {
+  color: rgb(252, 165, 165);
+}
+
 .workshop-controls {
   display: flex;
-  gap: var(--spacing-2);
   flex-wrap: wrap;
+  gap: var(--spacing-2);
 }
 
 .workshop-controls.single-button {
@@ -435,30 +394,32 @@ export default {
 }
 
 .workshop-controls.single-button .control-btn {
-  width: 100%;
   justify-content: center;
+  width: 100%;
 }
 
 .control-btn {
-  display: inline-flex;
   align-items: center;
-  gap: var(--spacing-2);
-  padding: var(--spacing-3) var(--spacing-4);
-  border-radius: var(--radius-md);
+  background: transparent;
   border: 1px solid;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: inline-flex;
+  flex: 1;
+  font-family: inherit;
   font-size: var(--font-size-sm);
   font-weight: var(--font-weight-medium);
-  cursor: pointer;
-  transition: all var(--transition-base);
-  background: transparent;
-  font-family: inherit;
+  gap: var(--spacing-2);
+  justify-content: center;
+  min-height: 42px;
+  padding: var(--spacing-3) var(--spacing-4);
   text-decoration: none;
-  flex: 1;
+  transition: all var(--transition-base);
 }
 
 .control-btn:disabled {
-  opacity: 0.5;
   cursor: not-allowed;
+  opacity: 0.5;
 }
 
 .deploy-btn {
@@ -505,91 +466,17 @@ export default {
   border-color: rgba(0, 188, 212, 0.6);
 }
 
-/* Restart Progress */
-.restart-progress {
-  padding: var(--spacing-4);
-  background: rgba(59, 130, 246, 0.1);
-  border-radius: var(--radius-md);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.progress-stages {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: var(--spacing-3);
-}
-
-.progress-stage {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: var(--spacing-1);
-  flex: 1;
-}
-
-.stage-indicator {
-  width: 20px;
-  height: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.stage-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--color-text-secondary);
-  opacity: 0.4;
-}
-
-.stage-spinner {
-  width: 14px;
-  height: 14px;
-  border: 2px solid rgba(59, 130, 246, 0.3);
-  border-top-color: rgb(59, 130, 246);
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
-
-.progress-stage.completed .stage-indicator {
-  color: rgb(34, 197, 94);
-}
-
-.progress-stage.active .stage-label {
-  color: rgb(147, 197, 253);
-  font-weight: var(--font-weight-medium);
-}
-
-.stage-label {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  white-space: nowrap;
-}
-
-.progress-stage.completed .stage-label {
-  color: rgb(134, 239, 172);
-}
-
-.progress-bar {
-  height: 4px;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 2px;
-  overflow: hidden;
-}
-
-.progress-fill {
-  height: 100%;
-  background: rgb(34, 197, 94);
-  border-radius: 2px;
-  transition: width 0.3s ease;
-}
-
-/* Responsive Design */
 @media (max-width: 768px) {
   .workshop-card {
     padding: var(--spacing-4);
@@ -605,12 +492,11 @@ export default {
 
   .control-btn {
     width: 100%;
-    justify-content: center;
   }
 
-  .stage-label {
-    font-size: 10px;
+  .info-icon::after {
+    right: -50px;
+    width: 280px;
   }
 }
 </style>
-

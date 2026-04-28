@@ -179,7 +179,7 @@
 
 <script>
 import { fetchLockStatus, updateLockTypeProgress } from '../utils/locksWorkshop';
-import { getApiUrl } from '../utils/basePath';
+import { getApiUrl } from '../../../../../workshop-frontend-shared/src/utils/basePath.js';
 
 export default {
   name: 'LocksDemo',

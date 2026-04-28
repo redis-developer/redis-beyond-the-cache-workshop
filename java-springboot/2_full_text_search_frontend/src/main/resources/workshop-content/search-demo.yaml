@@ -147,12 +147,10 @@ stages:
           - type: callout
             tone: info
             title: Want to try again?
-            body: Reset the guided tests, restore the workshop files, or jump back to another screen.
+            body: Reset the guided tests or jump back to another screen.
             actions:
               - id: resetProgress
                 label: Restart Tests
-              - id: restartLab
-                label: Restart Lab
               - id: openRoute
                 label: Back to Workshop Home
                 args:

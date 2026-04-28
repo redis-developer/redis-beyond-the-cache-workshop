@@ -41,7 +41,7 @@ Generic Spring MVC controller that provides:
 Shared loader that:
 - resolves `src/main/resources/workshop-content/manifest.yaml` from the configured workshop source path when available
 - falls back to packaged `classpath:workshop-content/manifest.yaml`
-- validates content files against the shared content-driven views contract
+- validates content manifests and view files before serving them
 
 ### `editor.html` (Template)
 Thymeleaf template with:

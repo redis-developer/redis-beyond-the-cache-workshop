@@ -1,0 +1,18 @@
+spring:
+  datasource:
+    url: jdbc:h2:mem:platform-control-plane-local;MODE=PostgreSQL;DB_CLOSE_DELAY=-1
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  jpa:
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+
+platform:
+  controlplane:
+    execution:
+      base-url:
+      shared-secret:
+      restart-timeout: 450s

@@ -1,0 +1,47 @@
+schemaVersion: 1
+viewId: reentrant-learn
+route: /reentrant
+pageType: narrative
+title: Learn the Reentrant Lock Flow
+slot: instructions
+summary: Understand why nested checkout calls need a reentrant distributed lock before you implement the exercise.
+header:
+  showHubLink: true
+sections:
+  - sectionId: overview
+    title: Why reentrancy matters
+    blocks:
+      - type: markdown
+        body: |
+          The checkout flow acquires the same logical lock more than once inside a single request.
+
+          A reentrant lock lets the same thread reacquire that lock safely instead of deadlocking itself.
+      - type: codeSnippet
+        language: text
+        code: |
+          checkout() -> validateInventory() -> reserveItem()
+  - sectionId: learner-path
+    title: Route flow
+    blocks:
+      - type: stepList
+        listId: reentrant-flow
+        variant: ordered
+        items:
+          - itemId: learn
+            title: Learn the scenario
+            body: Start at `/reentrant` to understand the nested lock problem.
+          - itemId: implement
+            title: Review the implementation guide
+            body: Continue to `/reentrant/implement` for the guided Redisson steps.
+          - itemId: edit
+            title: Update the workshop files
+            body: Open `/reentrant/editor` or your IDE and change `build.gradle.kts`, `application.properties`, and `LockManager.java`.
+          - itemId: verify
+            title: Validate the result
+            body: Finish at `/reentrant/demo` and run the job, inventory, and checkout checks.
+  - sectionId: next-step
+    blocks:
+      - type: callout
+        tone: info
+        title: Ready to implement?
+        body: Move to the implementation route once you understand why the checkout flow needs a reentrant lock.

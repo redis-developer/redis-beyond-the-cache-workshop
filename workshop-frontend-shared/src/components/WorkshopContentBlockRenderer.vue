@@ -1,5 +1,5 @@
 <template>
-  <WorkshopMarkdownContent
+  <WorkshopMarkdownRenderer
     v-if="block.type === 'markdown'"
     class="content-block content-block--markdown"
     :body="block.body"
@@ -17,7 +17,7 @@
       <div class="content-status-panel__text">
         <span v-if="block.title" class="content-status-panel__title">{{ block.title }}:</span>
         <div class="content-status-panel__body">
-          <WorkshopMarkdownContent :body="block.body" />
+          <WorkshopMarkdownRenderer :body="block.body" />
         </div>
       </div>
       <div v-if="block.actions.length" class="content-action-row content-action-row--inline">
@@ -41,7 +41,7 @@
       <h4 v-if="block.title" class="content-callout__title">{{ block.title }}</h4>
     </div>
     <div class="content-callout__body">
-      <WorkshopMarkdownContent :body="block.body" />
+      <WorkshopMarkdownRenderer :body="block.body" />
     </div>
     <div v-if="block.actions.length" class="content-action-row">
       <WorkshopContentAction
@@ -70,7 +70,7 @@
     <div v-if="block.title" class="content-code-snippet__title">{{ block.title }}</div>
     <div v-if="block.language" class="content-code-snippet__language">{{ block.language }}</div>
     <pre><code>{{ block.code }}</code></pre>
-    <WorkshopMarkdownContent v-if="block.caption" :body="block.caption" />
+    <WorkshopMarkdownRenderer v-if="block.caption" :body="block.caption" />
   </article>
 
   <div
@@ -93,11 +93,11 @@
         </div>
         <div class="content-step-item__heading">
           <h4 v-if="item.title">{{ item.title }}</h4>
-          <WorkshopMarkdownContent :body="item.body" />
+          <WorkshopMarkdownRenderer :body="item.body" />
         </div>
       </div>
       <div v-if="item.hint" class="content-step-item__hint">
-        <WorkshopMarkdownContent :body="item.hint" />
+        <WorkshopMarkdownRenderer :body="item.hint" />
       </div>
       <div v-if="item.actions.length" class="content-action-row">
         <WorkshopContentAction
@@ -127,7 +127,7 @@
   <div v-else-if="block.type === 'editorStepList'" class="content-block content-editor-step-list">
     <div class="content-editor-step-list__header">
       <h4 class="content-editor-step-list__title">{{ block.title }}</h4>
-      <WorkshopMarkdownContent v-if="block.description" :body="block.description" />
+      <WorkshopMarkdownRenderer v-if="block.description" :body="block.description" />
     </div>
     <article
       v-for="(item, index) in block.items"
@@ -138,7 +138,7 @@
         {{ block.startAt + index }}
       </div>
       <div class="content-editor-step-item__body">
-        <WorkshopMarkdownContent :body="item.body" />
+        <WorkshopMarkdownRenderer :body="item.body" />
       </div>
       <div v-if="item.hint || item.action" class="content-editor-step-item__controls">
         <div v-if="item.hint" class="content-editor-step-item__hint-control">
@@ -150,7 +150,7 @@
             i
           </button>
           <div class="content-editor-step-item__hint-popover">
-            <WorkshopMarkdownContent :body="item.hint" />
+            <WorkshopMarkdownRenderer :body="item.hint" />
           </div>
         </div>
         <button
@@ -170,9 +170,9 @@
   <WorkshopContentWidget
     v-else-if="block.type === 'widget'"
     class="content-block"
-    :widget="widgets[block.widgetId]"
+    :widget="resolveWidget(block.widgetId)"
     :widget-id="block.widgetId"
-    :widget-props="widgetProps[block.widgetId] || {}"
+    :widget-props="resolveWidgetProps(block.widgetId)"
     :context-props="{
       widgetId: block.widgetId,
       content,
@@ -186,14 +186,14 @@
 <script>
 import WorkshopContentAction from './WorkshopContentAction.vue';
 import WorkshopContentWidget from './WorkshopContentWidget.vue';
-import WorkshopMarkdownContent from './WorkshopMarkdownContent.vue';
+import WorkshopMarkdownRenderer from './WorkshopMarkdownRenderer.vue';
 
 export default {
   name: 'WorkshopContentBlockRenderer',
   components: {
     WorkshopContentAction,
     WorkshopContentWidget,
-    WorkshopMarkdownContent
+    WorkshopMarkdownRenderer
   },
   props: {
     block: { type: Object, required: true },
@@ -205,6 +205,16 @@ export default {
   },
   emits: ['action'],
   methods: {
+    resolveWidget(widgetId) {
+      return Object.prototype.hasOwnProperty.call(this.widgets, widgetId)
+        ? this.widgets[widgetId]
+        : null;
+    },
+    resolveWidgetProps(widgetId) {
+      return Object.prototype.hasOwnProperty.call(this.widgetProps, widgetId)
+        ? this.widgetProps[widgetId]
+        : {};
+    },
     emitAction(action, item = null) {
       this.$emit('action', {
         action,

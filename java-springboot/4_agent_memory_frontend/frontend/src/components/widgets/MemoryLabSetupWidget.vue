@@ -5,7 +5,7 @@
         <span class="check-icon">{{ checks.ams ? '[x]' : '[ ]' }}</span>
         <div class="check-content">
           <strong>Agent Memory Server</strong>
-          <p>Running on port 8000</p>
+          <p>Resolved from the current workshop session</p>
         </div>
         <button @click="checkAMS" class="btn btn-sm">Check</button>
       </div>
@@ -13,15 +13,13 @@
         <span class="check-icon">{{ checks.redis ? '[x]' : '[ ]' }}</span>
         <div class="check-content">
           <strong>Redis</strong>
-          <p>Required by AMS for storage</p>
+          <p>Started alongside this workshop session</p>
         </div>
       </div>
     </div>
 
     <div v-if="!checks.ams" class="alert alert-info">
-      <strong>Not Connected?</strong> Start the services with:
-      <pre><code>cd java-springboot/4_agent_memory
-docker-compose up -d</code></pre>
+      <strong>Not Connected?</strong> Make sure the workshop session is running from the Workshop Hub, then refresh this check. The session runtime wires the frontend, backend, Redis, Redis Insight, and AMS sidecar automatically.
     </div>
   </div>
 </template>
@@ -105,17 +103,4 @@ export default {
   border-left: 3px solid #3b82f6;
 }
 
-.alert pre {
-  background: var(--color-dark-900);
-  padding: var(--spacing-2);
-  border-radius: var(--radius-sm);
-  margin-top: var(--spacing-2);
-  overflow-x: auto;
-}
-
-.alert code {
-  color: #e0e0e0;
-  background: transparent;
-  padding: 0;
-}
 </style>

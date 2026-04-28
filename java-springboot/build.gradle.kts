@@ -61,6 +61,10 @@ fun registerFrontendBuildTask(
             frontendDir.resolve("package-lock.json"),
             frontendDir.resolve("vue.config.js")
         )
+        inputs.property("VUE_APP_API_URL", System.getenv("VUE_APP_API_URL") ?: "")
+        inputs.property("VUE_APP_ACTOR_ID", System.getenv("VUE_APP_ACTOR_ID") ?: "")
+        inputs.property("VUE_APP_ACTOR_TYPE", System.getenv("VUE_APP_ACTOR_TYPE") ?: "")
+        inputs.property("VUE_APP_ACTOR_ROLES", System.getenv("VUE_APP_ACTOR_ROLES") ?: "")
         outputs.dir(outputDir)
         doFirst {
             if (npmExecutable == null) {
@@ -87,17 +91,9 @@ subprojects {
         useJUnitPlatform()
     }
 
-    val frontendDir = if (name == "workshop-hub") {
-        rootProject.file("../frontend")
-    } else {
-        projectDir.resolve("frontend")
-    }
+    val frontendDir = projectDir.resolve("frontend")
     if (frontendDir.exists()) {
-        val outputDir = if (name == "workshop-hub") {
-            frontendDir.resolve("dist")
-        } else {
-            projectDir.resolve("src/main/resources/static")
-        }
+        val outputDir = projectDir.resolve("src/main/resources/static")
         val buildFrontend = registerFrontendBuildTask(this, frontendDir, outputDir)
         tasks.matching { it.name == "bootRun" }.configureEach {
             dependsOn(buildFrontend)
@@ -111,7 +107,7 @@ subprojects {
 
 tasks.register<Exec>("workshopStandardizationCheck") {
     group = "verification"
-    description = "Validate workshop registry, module structure, compose freshness, and scaffold output."
+    description = "Validate workshop registry, module structure, and scaffold output."
     workingDir = rootProject.projectDir.parentFile
     commandLine("bash", "scripts/validate-workshops.sh")
 }

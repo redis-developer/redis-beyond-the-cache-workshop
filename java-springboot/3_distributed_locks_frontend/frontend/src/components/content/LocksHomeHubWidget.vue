@@ -43,8 +43,8 @@
 
     <div class="hub-footer">
       <button class="btn btn-secondary" @click="onBack">See Problem Demo</button>
-      <button class="btn btn-warning" :disabled="restartingLab" @click="onRestart">
-        {{ restartingLab ? 'Restoring...' : 'Restart Workshop' }}
+      <button class="btn btn-warning" :disabled="resettingProgress" @click="onResetProgress">
+        {{ resettingProgress ? 'Resetting...' : 'Reset Progress' }}
       </button>
     </div>
   </div>
@@ -57,9 +57,9 @@ export default {
     lockTypes: { type: Array, required: true },
     lockProgress: { type: Object, default: () => ({}) },
     completedCount: { type: Number, default: 0 },
-    restartingLab: { type: Boolean, default: false },
+    resettingProgress: { type: Boolean, default: false },
     onBack: { type: Function, required: true },
-    onRestart: { type: Function, required: true }
+    onResetProgress: { type: Function, required: true }
   },
   methods: {
     getLockStatus(lockTypeId) {

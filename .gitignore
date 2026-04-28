@@ -17,6 +17,15 @@
 **/.gradle/
 **/build/
 
+# Terraform
+**/.terraform/
+infra/terraform/**/*.tfstate
+infra/terraform/**/*.tfstate.*
+infra/terraform/**/*.tfvars
+infra/terraform/**/*.tfvars.json
+!infra/terraform/**/*.tfvars.example
+!**/.terraform.lock.hcl
+
 # IDE
 .idea/
 *.iml

@@ -3,6 +3,7 @@
     ref="layout"
     :title="editorTitle"
     :files="files"
+    show-session-restart-controls
     @file-loaded="onFileLoaded"
   >
     <template #instructions>
@@ -25,9 +26,13 @@
 </template>
 
 <script>
-import { WorkshopContentRenderer, WorkshopEditorLayout } from '../../../../../workshop-frontend-shared/src/index.js';
+import {
+  WorkshopContentRenderer,
+  WorkshopEditorLayout,
+  getApiUrl,
+  getWorkshopHubUrl
+} from '../../../../../workshop-frontend-shared/src/index.js';
 import LocksEditorReferenceWidget from '../components/content/LocksEditorReferenceWidget.vue';
-import { getApiUrl, getWorkshopHubUrl } from '../utils/basePath';
 import { fetchWorkshopContentView } from '../utils/workshopContent';
 
 const CONTENT_WIDGETS = {
@@ -82,7 +87,7 @@ export default {
       return this.editorContent?.title || 'Implement the Reentrant Lock';
     },
     workshopHubUrl() {
-      return this.$refs.layout?.workshopHubUrl || getWorkshopHubUrl();
+      return getWorkshopHubUrl();
     }
   },
   async mounted() {

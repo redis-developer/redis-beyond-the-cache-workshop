@@ -1,77 +1,48 @@
 <template>
   <div class="session-home">
-    <WorkshopHeader :hub-url="workshopHubUrl" />
-
-    <div class="welcome-container">
-      <div class="instructions-column">
-        <div class="instructions">
-          <div v-if="contentError" class="content-state content-state--error">
-            {{ contentError }}
-          </div>
-          <div v-else-if="!homeContent" class="content-state">
-            Loading workshop instructions...
-          </div>
-          <WorkshopContentRenderer
-            v-else
-            :content="resolvedHomeContent"
-            :tokens="contentTokens"
-            :active-stage-id="activeStageId"
-            :action-handlers="contentActionHandlers"
-            :widgets="contentWidgets"
-            :widget-props="contentWidgetProps"
-            :show-title="false"
-            :show-summary="false"
-            @render-error="handleContentRenderError"
-          />
+    <WorkshopShell
+      title="Distributed Session Management with Redis"
+      eyebrow="Session Management"
+      summary="Follow the instructions on the left while the learner application runs in the stable app frame."
+      :runtime="shellRuntime"
+      :links="shellLinks"
+      :actions="shellActions"
+      :learner-app="learnerApp"
+      :runtime-actions-disabled="runtimeBusy"
+      @runtime-action="handleRuntimeAction"
+    >
+      <template #hero-right>
+        <div class="session-shell-card">
+          <span class="session-shell-card__label">Current session</span>
+          <code>{{ sessionInfo.sessionId }}</code>
+          <span class="session-shell-card__storage" :class="{ 'session-shell-card__storage--redis': redisEnabled }">
+            {{ sessionInfo.storageType }}
+          </span>
         </div>
-      </div>
+      </template>
 
-      <div class="details-column">
-        <div class="details-card">
-          <div class="header">
-            <img src="@/assets/logo/small.png" alt="Redis Logo" width="32" height="32" />
-            <h2>Session Details</h2>
-          </div>
-
-          <div class="session-info">
-            <div class="info-item">
-              <span class="info-label">Session ID</span>
-              <span class="info-value">{{ sessionInfo.sessionId }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Storage Type</span>
-              <span class="info-value" :class="{ 'redis-enabled': redisEnabled }">{{ sessionInfo.storageType }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Username</span>
-              <span class="info-value">{{ sessionInfo.username }}</span>
-            </div>
-            <div class="info-item">
-              <span class="info-label">Created At</span>
-              <span class="info-value">{{ sessionInfo.createdAt }}</span>
-            </div>
-          </div>
-
-          <div class="actions">
-            <button @click="refreshSession" class="btn btn-secondary">
-              Refresh Session
-            </button>
-            <button @click="handleLogout" class="btn btn-danger">
-              Logout
-            </button>
-          </div>
-
-          <button @click="resetProgress" class="btn btn-link">
-            Reset Test Progress
-          </button>
-
-          <div class="footer-info">
-            <p v-if="redisEnabled"><strong>Tip:</strong> Session data persists in Redis even if the application restarts!</p>
-            <p v-else><strong>Tip:</strong> In-memory sessions are lost when the application restarts.</p>
-          </div>
+      <template #instructions>
+        <div v-if="contentError" class="content-state content-state--error">
+          {{ contentError }}
         </div>
-      </div>
-    </div>
+        <div v-else-if="!homeContent" class="content-state">
+          Loading workshop instructions...
+        </div>
+        <WorkshopContentRenderer
+          v-else
+          :content="resolvedHomeContent"
+          :tokens="contentTokens"
+          :context="contentContext"
+          :active-stage-id="activeStageId"
+          :action-handlers="contentActionHandlers"
+          :widgets="contentWidgets"
+          :widget-props="contentWidgetProps"
+          :show-title="false"
+          :show-summary="false"
+          @render-error="handleContentRenderError"
+        />
+      </template>
+    </WorkshopShell>
 
     <WorkshopModal
       v-model="modal.show"
@@ -85,16 +56,23 @@
 </template>
 
 <script>
-import { WorkshopContentRenderer } from '../../../../../workshop-frontend-shared/src/index.js';
 import {
   getApiUrl,
   getBasePath,
   getRedisInsightUrl,
   getWorkshopHubUrl
 } from '../utils/basePath';
-import { WorkshopModal, WorkshopHeader } from '../utils/components';
+import {
+  WorkshopContentRenderer,
+  WorkshopModal,
+  WorkshopShell
+} from '../utils/components';
 import SessionComparisonWidget from '../components/content/SessionComparisonWidget.vue';
 import { loadWorkshopContentView } from '../utils/workshopContent';
+
+const READY_STATES = new Set(['CHILD_READY', 'READY', 'ready', 'running']);
+const POLL_INTERVAL_MS = 2000;
+const POLL_TIMEOUT_MS = 180000;
 
 function createStage1Defaults() {
   return {
@@ -114,8 +92,8 @@ function createStage3Defaults() {
   };
 }
 
-function loadSavedProgress(storageKey, defaults) {
-  const saved = localStorage.getItem(storageKey);
+function loadSavedProgress(storageKey, legacyKey, defaults) {
+  const saved = localStorage.getItem(storageKey) || localStorage.getItem(legacyKey);
   if (!saved) {
     return { ...defaults };
   }
@@ -191,25 +169,30 @@ export default {
   components: {
     WorkshopContentRenderer,
     WorkshopModal,
-    WorkshopHeader
+    WorkshopShell
   },
   data() {
     return {
       homeContent: null,
       contentError: '',
       sessionInfo: {
-        sessionId: 'ABC123DEF456',
-        storageType: 'In-Memory',
-        username: 'user',
-        createdAt: new Date().toLocaleString()
+        sessionId: 'Sign in inside the app',
+        storageType: 'Unknown',
+        username: '',
+        createdAt: ''
       },
       redisEnabled: false,
       stage1Completed: false,
       manualStageId: '',
-      restartingLab: false,
       previousSessionId: null,
       stage1Tests: createStage1Defaults(),
       stage3Tests: createStage3Defaults(),
+      runtimeState: 'READY',
+      frontendState: 'READY',
+      backendState: 'READY',
+      runtimeBusy: false,
+      runtimeStatusMessage: '',
+      appFrameVersion: 0,
       modal: {
         show: false,
         type: 'alert',
@@ -234,6 +217,11 @@ export default {
     activeStageId() {
       return this.manualStageId || this.automaticStageId;
     },
+    appFrameMessage() {
+      return this.runtimeBusy
+        ? 'The learner runtime is restarting or rebuilding. The shell remains available while the app comes back.'
+        : '';
+    },
     basePath() {
       return getBasePath();
     },
@@ -243,14 +231,38 @@ export default {
         openEditor: () => this.$router.push('/editor'),
         openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
         openRedisInsight: () => window.open(this.redisInsightUrl, '_blank', 'noopener'),
-        restartLab: () => this.restartLab(),
+        rebuildRuntime: () => this.restartRuntime(true),
         resetProgress: () => this.resetProgress(),
+        restartRuntime: () => this.restartRuntime(false),
         setStage: ({ args }) => this.handleStageChange(args.stageId)
+      };
+    },
+    contentContext() {
+      return {
+        session: {
+          id: this.sessionInfo.sessionId,
+          previousId: this.previousSessionId || '',
+          changed: this.sessionIdChanged
+        },
+        links: {
+          hub: this.workshopHubUrl,
+          learnerApp: this.learnerAppUrl,
+          redisInsight: this.redisInsightUrl,
+          workshopHub: this.workshopHubUrl
+        },
+        runtime: {
+          state: this.runtimeState,
+          status: this.runtimeStatusMessage || this.runtimeState,
+          backendStatus: this.backendState,
+          frontendStatus: this.frontendState
+        }
       };
     },
     contentTokens() {
       return {
-        sessionId: this.sessionInfo.sessionId
+        sessionId: this.sessionInfo.sessionId,
+        previousSessionId: this.previousSessionId || '',
+        sessionIdChanged: this.sessionIdChanged
       };
     },
     contentWidgetProps() {
@@ -286,6 +298,18 @@ export default {
         'session-home.session-comparison': SessionComparisonWidget
       };
     },
+    learnerApp() {
+      return {
+        title: 'Session management app',
+        url: this.learnerAppUrl,
+        message: this.appFrameMessage
+      };
+    },
+    learnerAppUrl() {
+      const route = this.buildRouteUrl('/app');
+      const separator = route.includes('?') ? '&' : '?';
+      return `${route}${separator}frame=${this.appFrameVersion}`;
+    },
     redisInsightUrl() {
       return getRedisInsightUrl();
     },
@@ -299,18 +323,56 @@ export default {
     sessionIdChanged() {
       return Boolean(this.previousSessionId) && this.previousSessionId !== this.sessionInfo.sessionId;
     },
+    shellActions() {
+      return ['restartRuntime', 'rebuildRuntime', 'openRedisInsight', 'openHub', 'refreshStatus'];
+    },
+    shellLinks() {
+      return {
+        hub: this.workshopHubUrl,
+        learnerApp: this.learnerAppUrl,
+        redisInsight: this.redisInsightUrl,
+        workshopHub: this.workshopHubUrl
+      };
+    },
+    shellRuntime() {
+      return {
+        state: this.runtimeState,
+        frontendState: this.frontendState,
+        backendState: this.backendState,
+        status: this.runtimeStatusMessage,
+        rebuildAvailable: true
+      };
+    },
+    storagePrefix() {
+      return `session-management:${this.basePath || 'standalone'}`;
+    },
     workshopHubUrl() {
       return getWorkshopHubUrl();
     }
   },
   async mounted() {
+    window.addEventListener('message', this.handleAppMessage);
     this.loadTestProgress();
     await Promise.all([
       this.fetchSessionInfo(),
-      this.loadHomeContent()
+      this.loadHomeContent(),
+      this.refreshRuntimeState()
     ]);
   },
+  beforeUnmount() {
+    window.removeEventListener('message', this.handleAppMessage);
+  },
   methods: {
+    buildRouteUrl(route) {
+      const normalizedRoute = route.startsWith('/') ? route : `/${route}`;
+      if (!this.basePath || this.basePath === '/') {
+        return normalizedRoute;
+      }
+      return `${this.basePath}${normalizedRoute}`;
+    },
+    buildRunnerUrl(endpointPath) {
+      return this.buildRouteUrl(endpointPath);
+    },
     completeContentItem(groupId, itemId) {
       if (itemId === 'test1') {
         this.saveSessionId();
@@ -337,35 +399,50 @@ export default {
         const response = await fetch(getApiUrl('/api/session-info'), {
           credentials: 'include'
         });
+
         if (response.status === 401 || response.status === 403) {
-          window.location.href = `${this.basePath}/login`;
+          this.sessionInfo = {
+            sessionId: 'Sign in inside the app',
+            storageType: 'Unauthenticated',
+            username: '',
+            createdAt: ''
+          };
+          this.redisEnabled = false;
           return;
         }
+
         if (response.ok) {
           const data = await response.json();
-          this.sessionInfo = {
-            sessionId: data.sessionId,
-            storageType: data.sessionStorage,
-            username: data.username,
-            createdAt: new Date(data.creationTime).toLocaleString()
-          };
-          this.redisEnabled = data.redisEnabled;
-          this.stage1Completed = data.stage1Completed;
+          this.applySessionInfo(data);
         }
       } catch (error) {
         console.error('Error fetching session info:', error);
       }
     },
-    async handleLogout() {
-      try {
-        await fetch(`${this.basePath}/logout`, {
-          method: 'POST',
-          credentials: 'include'
-        });
-      } catch (error) {
-        console.error('Error during logout:', error);
-      } finally {
-        window.location.href = `${this.basePath}/login?logout`;
+    applySessionInfo(data) {
+      this.sessionInfo = {
+        sessionId: data.sessionId,
+        storageType: data.sessionStorage,
+        username: data.username,
+        createdAt: new Date(data.creationTime).toLocaleString()
+      };
+      this.redisEnabled = data.redisEnabled;
+      this.stage1Completed = data.stage1Completed;
+    },
+    handleAppMessage(event) {
+      if (event.origin !== window.location.origin || !event.data?.type) {
+        return;
+      }
+
+      if (event.data.type === 'session-app-authenticated') {
+        if (event.data.payload?.sessionId) {
+          this.fetchSessionInfo();
+        }
+        return;
+      }
+
+      if (event.data.type === 'session-app-unauthenticated') {
+        this.fetchSessionInfo();
       }
     },
     handleContentRenderError(issues) {
@@ -382,6 +459,21 @@ export default {
       this.modal.show = false;
       this.modal.onConfirm = null;
     },
+    handleRuntimeAction(action) {
+      if (action.type === 'restart') {
+        this.restartRuntime(false);
+      }
+
+      if (action.type === 'rebuild') {
+        this.restartRuntime(true);
+      }
+
+      if (action.type === 'refresh') {
+        this.refreshRuntimeState();
+        this.fetchSessionInfo();
+        this.appFrameVersion += 1;
+      }
+    },
     async handleStageChange(stageId) {
       if (stageId === 'enable-redis') {
         await this.markStage1Complete();
@@ -390,9 +482,18 @@ export default {
       this.manualStageId = stageId;
     },
     loadTestProgress() {
-      this.stage1Tests = loadSavedProgress('stage1Tests', createStage1Defaults());
-      this.stage3Tests = loadSavedProgress('stage3Tests', createStage3Defaults());
-      this.previousSessionId = localStorage.getItem('previousSessionId');
+      this.stage1Tests = loadSavedProgress(
+        this.storageKey('stage1Tests'),
+        'stage1Tests',
+        createStage1Defaults()
+      );
+      this.stage3Tests = loadSavedProgress(
+        this.storageKey('stage3Tests'),
+        'stage3Tests',
+        createStage3Defaults()
+      );
+      this.previousSessionId = localStorage.getItem(this.storageKey('previousSessionId'))
+        || localStorage.getItem('previousSessionId');
     },
     async loadHomeContent() {
       try {
@@ -415,8 +516,85 @@ export default {
         console.error('Error marking stage 1 complete:', error);
       }
     },
-    refreshSession() {
-      this.fetchSessionInfo();
+    async refreshRuntimeState() {
+      const state = await this.fetchSessionState();
+      if (state) {
+        this.runtimeState = state;
+        this.backendState = state;
+        this.frontendState = 'READY';
+      }
+    },
+    async restartRuntime(rebuild) {
+      if (this.runtimeBusy) {
+        return;
+      }
+
+      this.runtimeBusy = true;
+      this.runtimeState = rebuild ? 'REBUILDING' : 'RESTARTING';
+      this.backendState = this.runtimeState;
+      this.runtimeStatusMessage = rebuild ? 'Rebuilding learner runtime...' : 'Restarting learner runtime...';
+
+      try {
+        await this.sendRestartRequest(rebuild);
+        await this.waitForReadyState();
+        this.runtimeState = 'READY';
+        this.backendState = 'READY';
+        this.frontendState = 'READY';
+        this.runtimeStatusMessage = 'Runtime is ready';
+        this.appFrameVersion += 1;
+        await this.fetchSessionInfo();
+      } catch (error) {
+        this.runtimeState = 'FAILED';
+        this.backendState = 'FAILED';
+        this.runtimeStatusMessage = error?.message || 'Restart failed';
+      } finally {
+        this.runtimeBusy = false;
+      }
+    },
+    async sendRestartRequest(rebuild) {
+      const response = await fetch(this.buildRunnerUrl('/internal/session-runner/restart'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ rebuild })
+      });
+
+      if (!response.ok) {
+        throw new Error(await this.readErrorMessage(response, 'Failed to restart session'));
+      }
+    },
+    async waitForReadyState() {
+      const startedAt = Date.now();
+
+      while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
+        const state = await this.fetchSessionState();
+
+        if (READY_STATES.has(state)) {
+          return;
+        }
+
+        await this.sleep(POLL_INTERVAL_MS);
+      }
+
+      throw new Error('Timed out waiting for the session to restart');
+    },
+    async fetchSessionState() {
+      try {
+        const response = await fetch(this.buildRunnerUrl('/internal/session-runner/status'), {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          return null;
+        }
+
+        const data = await response.json();
+        return data?.state || null;
+      } catch {
+        return null;
+      }
     },
     resetProgress() {
       this.showModal('confirm', 'Reset Progress', 'Reset all test progress? You will start from the first test again.', () => {
@@ -424,49 +602,24 @@ export default {
         this.stage3Tests = createStage3Defaults();
         this.manualStageId = '';
         this.previousSessionId = null;
+        localStorage.removeItem(this.storageKey('stage1Tests'));
+        localStorage.removeItem(this.storageKey('stage3Tests'));
+        localStorage.removeItem(this.storageKey('previousSessionId'));
         localStorage.removeItem('stage1Tests');
         localStorage.removeItem('stage3Tests');
         localStorage.removeItem('previousSessionId');
       });
     },
-    async restartLab() {
-      this.showModal('confirm', 'Restart Lab', 'Are you sure you want to restart the lab? This will restore all files to their original state and reset your progress. You will need to restart the workshop backend after this.', async () => {
-        this.restartingLab = true;
-        try {
-          const response = await fetch(getApiUrl('/api/editor/restore'), {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            credentials: 'include'
-          });
-          const data = await response.json();
-
-          if (data.success) {
-            this.stage1Tests = createStage1Defaults();
-            this.stage3Tests = createStage3Defaults();
-            this.manualStageId = '';
-            this.previousSessionId = null;
-            localStorage.removeItem('stage1Tests');
-            localStorage.removeItem('stage3Tests');
-            localStorage.removeItem('previousSessionId');
-            this.showModal('alert', 'Lab Reset', 'Lab reset! Please restart the workshop backend from the Workshop Hub.\n\nThen refresh this page to start from Stage 1.');
-          } else {
-            this.showModal('alert', 'Error', `Error: ${data.error || 'Failed to restore files'}`);
-          }
-        } catch (error) {
-          console.error('Error restarting lab:', error);
-          this.showModal('alert', 'Error', 'Failed to restore files. Please try again.');
-        } finally {
-          this.restartingLab = false;
-        }
-      });
-    },
     saveSessionId() {
-      localStorage.setItem('previousSessionId', this.sessionInfo.sessionId);
+      localStorage.setItem(this.storageKey('previousSessionId'), this.sessionInfo.sessionId);
       this.previousSessionId = this.sessionInfo.sessionId;
     },
     saveTestProgress() {
-      localStorage.setItem('stage1Tests', JSON.stringify(this.stage1Tests));
-      localStorage.setItem('stage3Tests', JSON.stringify(this.stage3Tests));
+      localStorage.setItem(this.storageKey('stage1Tests'), JSON.stringify(this.stage1Tests));
+      localStorage.setItem(this.storageKey('stage3Tests'), JSON.stringify(this.stage3Tests));
+    },
+    storageKey(name) {
+      return `${this.storagePrefix}:${name}`;
     },
     showModal(type, title, message, onConfirm = null) {
       this.modal = {
@@ -476,6 +629,33 @@ export default {
         message,
         onConfirm
       };
+    },
+    async readErrorMessage(response, fallbackMessage) {
+      const text = await response.text();
+
+      if (!text) {
+        return fallbackMessage;
+      }
+
+      try {
+        const data = JSON.parse(text);
+        if (data?.message) {
+          return `${fallbackMessage}: ${data.message}`;
+        }
+        if (data?.detail) {
+          return `${fallbackMessage}: ${data.detail}`;
+        }
+        if (data?.error) {
+          return `${fallbackMessage}: ${data.error}`;
+        }
+      } catch {
+        return `${fallbackMessage}: ${text}`;
+      }
+
+      return fallbackMessage;
+    },
+    sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms));
     }
   }
 };
@@ -484,40 +664,47 @@ export default {
 <style scoped>
 .session-home {
   min-height: 100vh;
-  background: linear-gradient(135deg, var(--color-dark-900) 0%, var(--color-dark-800) 100%);
+}
+
+.session-shell-card {
   display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: var(--spacing-6);
-}
-
-.welcome-container {
-  width: 100%;
-  max-width: 1200px;
-  display: grid;
-  grid-template-columns: 1fr 350px;
-  gap: var(--spacing-6);
-  align-items: start;
-  padding-top: var(--spacing-6);
-}
-
-/* Left Column - Instructions */
-.instructions-column {
-  min-width: 0;
-}
-
-.instructions {
-  background: var(--color-surface);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-6);
-  box-shadow: var(--shadow-xl);
+  min-width: min(100%, 18rem);
+  flex-direction: column;
+  gap: var(--spacing-2);
+  padding: var(--spacing-4);
   border: 1px solid var(--color-border);
+  border-radius: var(--radius-xl);
+  background: rgba(16, 26, 33, 0.88);
 }
 
-.btn-link {
-  width: 100%;
-  text-align: center;
-  margin-bottom: var(--spacing-3);
+.session-shell-card__label {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.session-shell-card code {
+  color: var(--color-text);
+  font-family: var(--font-family-mono);
+  font-size: var(--font-size-sm);
+  word-break: break-all;
+}
+
+.session-shell-card__storage {
+  align-self: flex-start;
+  padding: 0.2rem 0.55rem;
+  border: 1px solid rgba(251, 191, 36, 0.4);
+  border-radius: 999px;
+  color: var(--color-warning);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+
+.session-shell-card__storage--redis {
+  border-color: rgba(74, 222, 128, 0.4);
+  color: var(--color-success);
 }
 
 .content-state {
@@ -529,190 +716,81 @@ export default {
   color: #fca5a5;
 }
 
-.instructions :deep(.content-renderer-header__stage) {
+:deep(.content-renderer-header__stage) {
   color: var(--color-text);
   font-size: var(--font-size-xl);
   font-weight: var(--font-weight-semibold);
 }
 
-.instructions :deep(.content-step-item),
-.instructions :deep(.content-widget) {
+:deep(.content-step-item),
+:deep(.content-widget) {
   background: var(--color-dark-800);
 }
 
-.instructions :deep(.content-step-item__heading h4),
-.instructions :deep(.content-section__header h3) {
+:deep(.content-step-item__heading h4),
+:deep(.content-section__header h3) {
   color: var(--color-text);
 }
 
-.instructions :deep(.content-section__header .workshop-markdown),
-.instructions :deep(.workshop-markdown),
-.instructions :deep(.content-step-item__heading .workshop-markdown) {
+:deep(.content-section__header .workshop-markdown),
+:deep(.workshop-markdown),
+:deep(.content-step-item__heading .workshop-markdown) {
   color: var(--color-text-secondary);
 }
 
-.instructions :deep(.session-comparison) {
-  background: rgba(239, 68, 68, 0.1);
+:deep(.session-comparison) {
+  margin: var(--spacing-4) 0 0 calc(2rem + var(--spacing-3));
+  padding: var(--spacing-3);
   border: 1px solid #ef4444;
   border-radius: var(--radius-md);
-  padding: var(--spacing-3);
-  margin: var(--spacing-4) 0 0 calc(2rem + var(--spacing-3));
+  background: rgba(239, 68, 68, 0.1);
 }
 
-.instructions :deep(.session-comparison.success) {
-  background: rgba(16, 185, 129, 0.1);
+:deep(.session-comparison.success) {
   border-color: #10b981;
+  background: rgba(16, 185, 129, 0.1);
 }
 
-.instructions :deep(.session-old),
-.instructions :deep(.session-new) {
+:deep(.session-old),
+:deep(.session-new) {
   display: flex;
   align-items: center;
   gap: var(--spacing-2);
   margin-bottom: var(--spacing-2);
 }
 
-.instructions :deep(.session-comparison .label) {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
+:deep(.session-comparison .label) {
   min-width: 120px;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
 }
 
-.instructions :deep(.session-comparison code) {
-  background: var(--color-surface);
+:deep(.session-comparison code) {
   padding: 0.2rem 0.4rem;
   border-radius: var(--radius-sm);
+  background: var(--color-surface);
   font-size: var(--font-size-xs);
   word-break: break-all;
 }
 
-.instructions :deep(.comparison-note) {
-  margin: var(--spacing-2) 0 0 0;
+:deep(.comparison-note) {
+  margin: var(--spacing-2) 0 0;
+  color: #ef4444;
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
-  color: #ef4444;
 }
 
-.instructions :deep(.comparison-note.success) {
+:deep(.comparison-note.success) {
   color: #10b981;
 }
 
-.instructions :deep(.comparison-note.warning) {
+:deep(.comparison-note.warning) {
   color: #f59e0b;
 }
 
 @media (max-width: 768px) {
-  .instructions :deep(.session-comparison) {
+  :deep(.session-comparison) {
     margin-left: 0;
-  }
-}
-
-/* Right Column - Details */
-.details-column {
-  position: sticky;
-  top: var(--spacing-6);
-}
-
-.details-card {
-  background: var(--color-surface);
-  border-radius: var(--radius-xl);
-  padding: var(--spacing-6);
-  box-shadow: var(--shadow-xl);
-  border: 1px solid var(--color-border);
-}
-
-.header {
-  display: flex;
-  align-items: center;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-5);
-  padding-bottom: var(--spacing-4);
-  border-bottom: 1px solid var(--color-border);
-}
-
-.header h2 {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  color: var(--color-text);
-}
-
-.session-info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-5);
-}
-
-.info-item {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-1);
-  padding: var(--spacing-3);
-  background: var(--color-dark-800);
-  border-radius: var(--radius-md);
-}
-
-.info-label {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.info-value {
-  color: var(--color-text);
-  font-family: 'Courier New', monospace;
-  font-size: var(--font-size-sm);
-  word-break: break-all;
-}
-
-.info-value.redis-enabled {
-  color: #10b981;
-}
-
-.actions {
-  display: flex;
-  flex-direction: column;
-  gap: var(--spacing-3);
-  margin-bottom: var(--spacing-4);
-}
-
-.footer-info {
-  background: var(--color-dark-800);
-  border-radius: var(--radius-md);
-  padding: var(--spacing-3);
-  text-align: center;
-}
-
-.footer-info p {
-  margin: 0;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  line-height: 1.5;
-}
-
-.footer-info strong {
-  color: #DC382C;
-}
-
-/* Responsive */
-@media (max-width: 900px) {
-  .welcome-container {
-    grid-template-columns: 1fr;
-  }
-
-  .details-column {
-    order: -1;
-    position: static;
-  }
-
-  .actions {
-    flex-direction: row;
-  }
-
-  .actions .btn {
-    flex: 1;
   }
 }
 </style>

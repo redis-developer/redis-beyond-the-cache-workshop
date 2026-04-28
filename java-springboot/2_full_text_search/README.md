@@ -4,18 +4,29 @@ Learn how to add Redis Query Engine indexes to movie documents and query them wi
 
 ## What You'll Build
 
-- A movie search API backed by Redis JSON documents
-- Full-text search over `title` and `extract`
-- Exact-match filters over `cast`, `genres`, and `year`
-- A frontend that lets you edit the starter code and verify the results
+1. A movie search API backed by Redis JSON documents.
+2. Full-text search over `title` and `extract`.
+3. Exact-match filters over `cast`, `genres`, and `year`.
+4. A frontend that lets you edit the starter code and verify the results.
 
-## Run with Docker
+## Release Runtime
+
+The release path for this workshop uses immutable images and session scoped runtime injection:
+
+1. Frontend port: `8081`
+2. Backend port: `18081`
+3. Redis Stack port: `6379`
+4. Redis Insight port: `5540`
+
+The frontend and backend images do not depend on a repo mount at runtime. Session specific backend and workspace paths are injected by the launcher.
+
+## Local Development
+
+These commands are for local maintainer use only.
+The public platform path launches this workshop through the control plane and execution plane.
 
 ```bash
-cd java-springboot/workshop-hub
-
-docker compose -f docker-compose.local.yml --profile infrastructure up -d
-docker compose -f docker-compose.local.yml --profile workshop-2_full_text_search up -d
+./scripts/run-workshop.sh up 2_full_text_search
 ```
 
 Open [http://localhost:8081](http://localhost:8081).
@@ -121,7 +132,8 @@ After rebuilding and restarting the workshop:
 
 ## Inspect the Index in Redis Insight
 
-Open [http://localhost:5540](http://localhost:5540) and run:
+Open the session scoped Redis Insight link when you launch this workshop from the platform.
+For the local helper flow, open [http://localhost:5540](http://localhost:5540) and run:
 
 ```text
 FT._LIST
@@ -131,7 +143,7 @@ FT.INFO "com.redis.workshop.search.domain.MovieIdx"
 ## Stop the Workshop
 
 ```bash
-docker compose -f docker-compose.local.yml --profile workshop-2_full_text_search down
+./scripts/run-workshop.sh down 2_full_text_search
 ```
 
 ## Resources

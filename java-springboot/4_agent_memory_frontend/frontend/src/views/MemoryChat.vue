@@ -68,6 +68,7 @@
             <button @click="showConsole = !showConsole" class="btn btn-sm btn-console">
               {{ showConsole ? 'Hide' : 'Show' }} Console
             </button>
+            <WorkshopSessionRestartControls />
           </div>
         </div>
 
@@ -147,7 +148,7 @@
 </template>
 
 <script>
-import { WorkshopContentRenderer } from '../utils/components';
+import { WorkshopContentRenderer, WorkshopSessionRestartControls } from '../utils/components';
 import { getApiUrl, getRedisInsightUrl } from '../utils/basePath';
 import MemoryChatApiKeyWidget from '../components/widgets/MemoryChatApiKeyWidget.vue';
 import MemoryChatObservationWidget from '../components/widgets/MemoryChatObservationWidget.vue';
@@ -157,7 +158,7 @@ const STORAGE_KEY = 'agentMemoryWorkshop';
 
 export default {
   name: 'MemoryChat',
-  components: { WorkshopContentRenderer },
+  components: { WorkshopContentRenderer, WorkshopSessionRestartControls },
   computed: {
     redisInsightUrl() {
       return getRedisInsightUrl();

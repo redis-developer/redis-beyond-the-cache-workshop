@@ -46,7 +46,8 @@ public class SessionAuthProxyController {
         "transfer-encoding",
         "upgrade",
         "host",
-        "content-length"
+        "content-length",
+        "x-forwarded-prefix"
     );
 
     private final FrontendRuntimeProperties runtimeProperties;
@@ -99,6 +100,8 @@ public class SessionAuthProxyController {
     }
 
     private void copyInboundHeaders(HttpServletRequest request, HttpRequest.Builder builder) {
+        String requestPrefix = resolveRequestPrefix(request);
+
         Enumeration<String> headerNames = request.getHeaderNames();
         while (headerNames.hasMoreElements()) {
             String headerName = headerNames.nextElement();
@@ -120,8 +123,8 @@ public class SessionAuthProxyController {
         }
         builder.header("X-Forwarded-Host", forwardedHost);
         builder.header("X-Forwarded-Port", String.valueOf(request.getServerPort()));
-        if (StringUtils.hasText(request.getContextPath())) {
-            builder.header("X-Forwarded-Prefix", request.getContextPath());
+        if (StringUtils.hasText(requestPrefix)) {
+            builder.header("X-Forwarded-Prefix", requestPrefix);
         }
         builder.header("X-Forwarded-For", request.getRemoteAddr());
     }
@@ -143,6 +146,29 @@ public class SessionAuthProxyController {
             return encodedForm.getBytes(StandardCharsets.UTF_8);
         }
         return body;
+    }
+
+    private String resolveRequestPrefix(HttpServletRequest request) {
+        String forwardedPrefix = request.getHeader("X-Forwarded-Prefix");
+        if (StringUtils.hasText(forwardedPrefix)) {
+            return normalizePathPrefix(forwardedPrefix);
+        }
+
+        if (StringUtils.hasText(request.getContextPath())) {
+            return normalizePathPrefix(request.getContextPath());
+        }
+
+        String servletPath = request.getServletPath();
+        if (!StringUtils.hasText(servletPath)) {
+            return "";
+        }
+
+        String requestUri = request.getRequestURI();
+        if (!StringUtils.hasText(requestUri) || !requestUri.endsWith(servletPath)) {
+            return "";
+        }
+
+        return normalizePathPrefix(requestUri.substring(0, requestUri.length() - servletPath.length()));
     }
 
     private String urlEncode(String value) {
@@ -168,7 +194,7 @@ public class SessionAuthProxyController {
             }
             if (HttpHeaders.SET_COOKIE.equalsIgnoreCase(headerName)) {
                 for (String value : entry.getValue()) {
-                    responseHeaders.add(HttpHeaders.SET_COOKIE, rewriteSetCookie(value));
+                    responseHeaders.add(HttpHeaders.SET_COOKIE, rewriteSetCookie(value, request));
                 }
                 continue;
             }
@@ -200,15 +226,18 @@ public class SessionAuthProxyController {
             return location;
         }
 
+        String requestPrefix = resolveRequestPrefix(request);
         return ServletUriComponentsBuilder.fromRequestUri(request)
-            .replacePath(locationUri.getPath())
+            .replacePath(joinPath(requestPrefix, locationUri.getPath()))
             .replaceQuery(locationUri.getRawQuery())
             .fragment(locationUri.getRawFragment())
             .build(true)
             .toUriString();
     }
 
-    private String rewriteSetCookie(String setCookieHeader) {
+    private String rewriteSetCookie(String setCookieHeader, HttpServletRequest request) {
+        String requestPrefix = resolveRequestPrefix(request);
+        String cookiePath = StringUtils.hasText(requestPrefix) ? requestPrefix : "/";
         String[] parts = setCookieHeader.split(";");
         List<String> rewritten = new ArrayList<>();
         boolean hasPath = false;
@@ -225,7 +254,7 @@ public class SessionAuthProxyController {
                 continue;
             }
             if (lowerPart.startsWith("path=")) {
-                rewritten.add("Path=/");
+                rewritten.add("Path=" + cookiePath);
                 hasPath = true;
                 continue;
             }
@@ -233,9 +262,41 @@ public class SessionAuthProxyController {
         }
 
         if (!hasPath) {
-            rewritten.add("Path=/");
+            rewritten.add("Path=" + cookiePath);
         }
         return String.join("; ", rewritten);
+    }
+
+    private String joinPath(String prefix, String path) {
+        String normalizedPrefix = normalizePathPrefix(prefix);
+        String normalizedPath = StringUtils.hasText(path) ? path : "/";
+
+        if (!StringUtils.hasText(normalizedPrefix)) {
+            return normalizedPath;
+        }
+
+        if (normalizedPath.startsWith("/")) {
+            return normalizedPrefix + normalizedPath;
+        }
+
+        return normalizedPrefix + "/" + normalizedPath;
+    }
+
+    private String normalizePathPrefix(String pathPrefix) {
+        if (!StringUtils.hasText(pathPrefix)) {
+            return "";
+        }
+
+        String normalized = pathPrefix.trim();
+        if (!normalized.startsWith("/")) {
+            normalized = "/" + normalized;
+        }
+
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+
+        return normalized;
     }
 
     private boolean isExcludedHeader(String headerName) {

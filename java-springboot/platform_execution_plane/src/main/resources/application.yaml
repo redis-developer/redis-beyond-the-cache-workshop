@@ -1,0 +1,8 @@
+spring:
+  application:
+    name: platform-execution-plane
+
+platform:
+  execution-plane:
+    runtime-provider: ${EXECUTION_PLANE_RUNTIME_PROVIDER:cloud-run}
+    internal-api: {}

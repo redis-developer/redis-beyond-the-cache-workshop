@@ -3,7 +3,8 @@
  * 
  * Dynamically detects the workshop base path from the URL.
  * Works both when running standalone (localhost:8080) and when
- * proxied through the Workshop Hub (/workshop/{service-name}/).
+ * proxied through the Workshop Hub (/workshop/{service-name}/)
+ * or a session route (/session/{sessionId}/).
  * 
  * This replaces the hardcoded path regex that was previously
  * duplicated in each workshop's basePath.js.
@@ -13,7 +14,7 @@
  * Get the base path for the current workshop.
  * 
  * Automatically detects if running under the Hub proxy by checking
- * for /workshop/{service-name} in the URL path.
+ * for /workshop/{service-name} or /session/{sessionId} in the URL path.
  * 
  * @returns {string} The base path (e.g., '/workshop/session-management' or '/')
  */
@@ -63,29 +64,47 @@ function getRuntimeLocation(location = globalThis.window?.location) {
   return location || { pathname: '', protocol: 'http:', hostname: 'localhost' };
 }
 
+function getRuntimeOrigin(location = globalThis.window?.location) {
+  const runtimeLocation = getRuntimeLocation(location);
+
+  if (runtimeLocation.origin && runtimeLocation.origin !== 'null') {
+    return runtimeLocation.origin.replace(/\/$/, '');
+  }
+
+  const protocol = runtimeLocation.protocol || 'http:';
+  const host = runtimeLocation.host || runtimeLocation.hostname || 'localhost';
+
+  return `${protocol}//${host}`;
+}
+
 function getWorkshopProxyContext(pathname = '') {
-  const workshopMarker = '/workshop/';
-  const workshopIndex = pathname.indexOf(workshopMarker);
+  const markers = ['/workshop/', '/session/'];
 
-  if (workshopIndex === -1) {
-    return null;
+  for (const marker of markers) {
+    const markerIndex = pathname.indexOf(marker);
+    if (markerIndex === -1) {
+      continue;
+    }
+
+    const routeToken = pathname
+      .slice(markerIndex + marker.length)
+      .split('/')[0];
+
+    if (!routeToken) {
+      continue;
+    }
+
+    const prefix = pathname.slice(0, markerIndex).replace(/\/$/, '');
+    const basePath = `${prefix}${marker}${routeToken}`;
+
+    return {
+      routeType: marker === '/session/' ? 'session' : 'workshop',
+      basePath,
+      hubUrl: prefix ? `${prefix}/` : '/'
+    };
   }
 
-  const serviceName = pathname
-    .slice(workshopIndex + workshopMarker.length)
-    .split('/')[0];
-
-  if (!serviceName) {
-    return null;
-  }
-
-  const prefix = pathname.slice(0, workshopIndex).replace(/\/$/, '');
-  const basePath = `${prefix}${workshopMarker}${serviceName}`;
-
-  return {
-    basePath,
-    hubUrl: prefix ? `${prefix}/` : '/'
-  };
+  return null;
 }
 
 function resolveRuntimeUrl({ location, port, getProxyUrl }) {
@@ -122,10 +141,10 @@ export function getWorkshopHubUrl(options = {}) {
 /**
  * Resolve the Redis Insight URL for the current runtime.
  *
- * Redis Insight must be accessed directly on its own port because it does not
- * work correctly behind the workshop proxy. This always resolves to the local
- * Redis Insight port on the current origin so workshop UIs do not need to
- * hardcode `:5540`.
+ * When a workshop is running inside a launched session, Redis Insight should
+ * be accessed through the session scoped hub route so learners only inspect
+ * their own runtime data. Outside session routes, this falls back to the
+ * explicit local Redis Insight port for standalone development.
  *
  * @param {Object} [options]
  * @param {Location} [options.location] - Override location, mainly for tests
@@ -134,5 +153,11 @@ export function getWorkshopHubUrl(options = {}) {
  */
 export function getRedisInsightUrl(options = {}) {
   const runtimeLocation = getRuntimeLocation(options.location);
+  const proxyContext = getWorkshopProxyContext(runtimeLocation.pathname || '');
+
+  if (proxyContext?.routeType === 'session') {
+    return `${getRuntimeOrigin(options.location)}${proxyContext.basePath}/redis-insight/`;
+  }
+
   return `${runtimeLocation.protocol}//${runtimeLocation.hostname}:${options.port || 5540}/`;
 }

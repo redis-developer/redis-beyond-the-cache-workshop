@@ -88,6 +88,40 @@ class SessionAuthProxyControllerTest {
     }
 
     @Test
+    void rewritesRedirectsAndCookiesForSessionScopedRoutes() throws Exception {
+        HttpResponse<byte[]> backendResponse = mockBackendResponse(
+            302,
+            new byte[0],
+            Map.of(
+                "location", List.of("http://backend.internal:18080/welcome"),
+                "set-cookie", List.of("JSESSIONID=abc; Path=/; Domain=backend.internal; HttpOnly")
+            )
+        );
+
+        when(httpClient.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any()))
+            .thenReturn(backendResponse);
+
+        mockMvc.perform(
+                post("/login")
+                    .contentType(MediaType.APPLICATION_FORM_URLENCODED)
+                    .param("username", "user")
+                    .param("password", "password")
+                    .header(HttpHeaders.HOST, "frontend.local:8080")
+                    .header("X-Forwarded-Prefix", "/session/alpha")
+            )
+            .andExpect(status().isFound())
+            .andExpect(header().string(HttpHeaders.LOCATION, "http://frontend.local:8080/session/alpha/welcome"))
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Path=/session/alpha")))
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, not(containsString("Domain="))));
+
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).send(requestCaptor.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any());
+        HttpRequest outboundRequest = requestCaptor.getValue();
+
+        assertThat(outboundRequest.headers().firstValue("X-Forwarded-Prefix")).contains("/session/alpha");
+    }
+
+    @Test
     void handlesBackendUrlWithTrailingSlash() throws Exception {
         runtimeProperties.setBackendUrl("http://backend.internal:18080/");
 

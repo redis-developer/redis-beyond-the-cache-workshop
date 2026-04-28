@@ -39,7 +39,7 @@ public class WorkshopContentLoader {
 
     private final Environment environment;
     private final ResourceLoader resourceLoader;
-    private final FrontendRuntimeProperties runtimeProperties;
+    private final SessionRuntimeResolver runtimeResolver;
     private final Supplier<Set<String>> editableFileNamesSupplier;
 
     @Autowired
@@ -66,7 +66,7 @@ public class WorkshopContentLoader {
     ) {
         this.environment = environment;
         this.resourceLoader = resourceLoader;
-        this.runtimeProperties = runtimeProperties;
+        this.runtimeResolver = new SessionRuntimeResolver(runtimeProperties);
         this.editableFileNamesSupplier = editableFileNamesSupplier;
     }
 
@@ -146,8 +146,7 @@ public class WorkshopContentLoader {
 
     private List<String> candidateLocations() {
         List<String> candidates = new ArrayList<>();
-        runtimeProperties.resolveSourcePath().ifPresent(sourcePath -> {
-            Path contentRoot = sourcePath.resolve("src/main/resources/workshop-content");
+        runtimeResolver.resolveContentRoot().ifPresent(contentRoot -> {
             candidates.add(contentRoot.resolve("manifest.yaml").toString());
             candidates.add(contentRoot.resolve("manifest.yml").toString());
         });

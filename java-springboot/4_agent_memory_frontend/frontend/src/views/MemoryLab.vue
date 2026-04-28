@@ -5,6 +5,7 @@
       :steps="headerSteps"
       :current-step="currentStage - 1"
       clickable
+      show-session-restart-controls
       @step-click="goToStage"
     />
 
@@ -184,10 +185,14 @@ export default {
     async checkHealth() {
       try {
         const response = await fetch(getApiUrl('/api/memory/health'));
+        if (!response.ok) {
+          throw new Error(`Health check failed with status ${response.status}`);
+        }
         const data = await response.json();
-        this.serverStatus = data.status === 'ok' ? 'connected' : 'error';
-        this.checks.ams = data.status === 'ok';
-        this.checks.redis = data.status === 'ok';
+        const isConnected = data.status === 'connected';
+        this.serverStatus = data.status || 'error';
+        this.checks.ams = isConnected;
+        this.checks.redis = isConnected;
       } catch {
         this.serverStatus = 'disconnected';
         this.checks.ams = false;

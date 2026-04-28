@@ -20,9 +20,11 @@
 </template>
 
 <script>
-import { WorkshopContentRenderer } from '../../../../../workshop-frontend-shared/src/index.js';
+import {
+  WorkshopContentRenderer,
+  getWorkshopHubUrl
+} from '../../../../../workshop-frontend-shared/src/index.js';
 import LocksImplementStatusWidget from '../components/content/LocksImplementStatusWidget.vue';
-import { getWorkshopHubUrl } from '../utils/basePath';
 import { fetchLockStatus, updateLockTypeProgress } from '../utils/locksWorkshop';
 import { fetchWorkshopContentView } from '../utils/workshopContent';
 

@@ -1,11 +1,10 @@
 {
-  "name": "workshop-hub-frontend",
+  "name": "platform-control-plane-frontend",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "serve": "vue-cli-service serve",
-    "build": "vue-cli-service build && cp -r dist/* ../java-springboot/workshop-hub/src/main/resources/static/vue/",
-    "lint": "vue-cli-service lint"
+    "build": "vue-cli-service build"
   },
   "dependencies": {
     "@redis-workshop/shared": "file:../workshop-frontend-shared",
@@ -20,4 +19,3 @@
     "vue-template-compiler": "^2.7.14"
   }
 }
-

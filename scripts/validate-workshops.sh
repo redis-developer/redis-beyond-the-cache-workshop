@@ -6,8 +6,6 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 python3 - "$ROOT_DIR" <<'PY'
 from __future__ import annotations
 
-import difflib
-import os
 import re
 import shutil
 import stat
@@ -22,13 +20,25 @@ JAVA_DIR = ROOT / "java-springboot"
 BUILD_GRADLE_PATH = JAVA_DIR / "build.gradle.kts"
 REGISTRY_PATH = ROOT / "workshops.yaml"
 SETTINGS_PATH = JAVA_DIR / "settings.gradle.kts"
-LOCAL_COMPOSE_PATH = JAVA_DIR / "workshop-hub" / "docker-compose.local.yml"
-INTERNAL_COMPOSE_PATH = JAVA_DIR / "workshop-hub" / "docker-compose.internal.yml"
 ALLOWED_INFRASTRUCTURE_DEPENDENCIES = {"redis", "postgres"}
 ALLOWED_REDIS_FLAVORS = {"standard", "stack"}
 ALLOWED_FRONTEND_PREBUILD_VALUES = {"true", "false"}
+ALLOWED_RELEASE_IMAGE_ROLES = {"frontend", "backend", "combined", "init"}
 ALLOWED_CONTENT_PAGE_TYPES = {"narrative", "stage-flow", "editor"}
 CONTENT_ROOT_RELATIVE = Path("src/main/resources/workshop-content")
+TEXT_SOURCE_SUFFIXES = {".css", ".html", ".js", ".jsx", ".ts", ".tsx", ".vue"}
+LEGACY_NONSTANDARD_CONTENT_LAYOUT_IDS = {"2_full_text_search"}
+APP_SOURCE_FORBIDDEN_MARKERS = [
+    (
+        "$refs.layout?.workshopHubUrl",
+        "must not read removed WorkshopEditorLayout internals; use getWorkshopHubUrl instead",
+    ),
+    (
+        "/api/editor/restore",
+        "must not call editor restore transport directly; restore is shell-owned",
+    ),
+]
+SHARED_EDITOR_LAYOUT_LOGO_MARKER = "@/assets/logo/small.png"
 
 REGISTRY_REQUIRED_FIELDS = [
     "id",
@@ -50,6 +60,20 @@ REGISTRY_REQUIRED_FIELDS = [
     "redisFlavor",
     "frontendPrebuild",
     "topics",
+    "releases",
+]
+
+RELEASE_REQUIRED_FIELDS = [
+    "releaseId",
+    "releaseVersion",
+    "mode",
+    "defaultForWorkshop",
+    "enabled",
+    "environments",
+    "images",
+    "resourceClass",
+    "sessionTtlMinutes",
+    "mutableDependencies",
 ]
 
 BACKEND_REQUIRED_FILES = [
@@ -73,6 +97,17 @@ FRONTEND_REQUIRED_FILES = [
     "src/main/resources/workshop-manifest.yaml",
 ]
 
+SHELL_REQUIRED_MAIN_MARKERS = [
+    "__webpack_public_path__",
+    "workshop-frontend-shared/src/styles/tokens.css",
+    "workshop-frontend-shared/src/styles/dark-theme.css",
+    "workshop-frontend-shared/src/styles/components.css",
+]
+
+SHELL_REQUIRED_ROUTER_MARKERS = [
+    "createWebHistory(getBasePath() || '/')",
+]
+
 
 def fail(message: str) -> None:
     print(message, file=sys.stderr)
@@ -85,6 +120,8 @@ def parse_registry(path: Path) -> tuple[int | None, list[dict[str, object]]]:
     workshops: list[dict[str, object]] = []
     current: dict[str, object] | None = None
     active_section: str | None = None
+    current_release: dict[str, object] | None = None
+    active_release_section: str | None = None
 
     for line_number, line in enumerate(lines, start=1):
         version_match = re.match(r"^version:\s*(\d+)\s*$", line)
@@ -94,6 +131,11 @@ def parse_registry(path: Path) -> tuple[int | None, list[dict[str, object]]]:
 
         workshop_match = re.match(r"^  - id:\s*(.+?)\s*$", line)
         if workshop_match:
+            if current_release is not None and current is not None:
+                cast_releases = current["releases"]
+                assert isinstance(cast_releases, list)
+                cast_releases.append(current_release)
+                current_release = None
             if current is not None:
                 workshops.append(current)
             current = {
@@ -101,15 +143,74 @@ def parse_registry(path: Path) -> tuple[int | None, list[dict[str, object]]]:
                 "_line": line_number,
                 "_keys": {"id"},
                 "_sections": {},
+                "releases": [],
             }
             active_section = None
+            active_release_section = None
             continue
 
         if current is None:
             continue
 
+        release_match = re.match(r"^      - releaseId:\s*(.+?)\s*$", line)
+        if release_match and active_section == "releases":
+            if current_release is not None:
+                cast_releases = current["releases"]
+                assert isinstance(cast_releases, list)
+                cast_releases.append(current_release)
+            current_release = {
+                "releaseId": release_match.group(1).strip(),
+                "_line": line_number,
+                "_keys": {"releaseId"},
+                "_sections": {},
+                "images": {},
+            }
+            active_release_section = None
+            continue
+
+        release_field_match = re.match(r"^        ([A-Za-z][A-Za-z0-9]*)\s*:\s*(.*)$", line)
+        if release_field_match and current_release is not None:
+            key = release_field_match.group(1)
+            value = release_field_match.group(2).strip()
+            current_release[key] = value
+            cast_keys = current_release["_keys"]
+            assert isinstance(cast_keys, set)
+            cast_keys.add(key)
+            if value == "":
+                active_release_section = key
+                cast_sections = current_release["_sections"]
+                assert isinstance(cast_sections, dict)
+                cast_sections.setdefault(key, [])
+                if key == "images":
+                    current_release["images"] = {}
+            else:
+                active_release_section = None
+            continue
+
+        release_list_item_match = re.match(r"^          -\s*(.+?)\s*$", line)
+        if release_list_item_match and current_release is not None and active_release_section is not None:
+            cast_sections = current_release["_sections"]
+            assert isinstance(cast_sections, dict)
+            cast_sections.setdefault(active_release_section, []).append(
+                release_list_item_match.group(1).strip()
+            )
+            continue
+
+        image_match = re.match(r"^          ([A-Za-z][A-Za-z0-9]*)\s*:\s*(.+?)\s*$", line)
+        if image_match and current_release is not None and active_release_section == "images":
+            images = current_release["images"]
+            assert isinstance(images, dict)
+            images[image_match.group(1)] = image_match.group(2).strip()
+            continue
+
         field_match = re.match(r"^    ([A-Za-z][A-Za-z0-9]*)\s*:\s*(.*)$", line)
         if field_match:
+            if current_release is not None:
+                cast_releases = current["releases"]
+                assert isinstance(cast_releases, list)
+                cast_releases.append(current_release)
+                current_release = None
+                active_release_section = None
             key = field_match.group(1)
             value = field_match.group(2).strip()
             current[key] = value
@@ -121,6 +222,8 @@ def parse_registry(path: Path) -> tuple[int | None, list[dict[str, object]]]:
                 cast_sections = current["_sections"]
                 assert isinstance(cast_sections, dict)
                 cast_sections.setdefault(key, [])
+                if key == "releases":
+                    current["releases"] = []
             else:
                 active_section = None
             continue
@@ -136,6 +239,10 @@ def parse_registry(path: Path) -> tuple[int | None, list[dict[str, object]]]:
             active_section = None
 
     if current is not None:
+        if current_release is not None:
+            cast_releases = current["releases"]
+            assert isinstance(cast_releases, list)
+            cast_releases.append(current_release)
         workshops.append(current)
 
     return version, workshops
@@ -187,15 +294,6 @@ def parse_manifest(manifest_path: Path) -> dict[str, object]:
     }
 
 
-def parse_included_projects(settings_path: Path) -> list[str]:
-    included_projects: list[str] = []
-    for line in settings_path.read_text(encoding="utf-8").splitlines():
-        match = re.match(r'^\s*include\("([^"]+)"\)\s*$', line)
-        if match:
-            included_projects.append(match.group(1))
-    return included_projects
-
-
 def normalize_scalar(value: str) -> str:
     normalized = value.strip()
     if len(normalized) >= 2 and normalized[0] == normalized[-1] and normalized[0] in {'"', "'"}:
@@ -208,6 +306,42 @@ def display_path(path: Path, relative_to: Path) -> str:
         return path.relative_to(relative_to).as_posix()
     except ValueError:
         return path.as_posix()
+
+
+def iter_text_source_files(root: Path):
+    if not root.is_dir():
+        return
+
+    for path in sorted(root.rglob("*")):
+        if path.is_file() and path.suffix in TEXT_SOURCE_SUFFIXES:
+            yield path
+
+
+def collect_shell_app_boundary_errors() -> list[str]:
+    errors: list[str] = []
+
+    for app_source_root in sorted(JAVA_DIR.glob("*_frontend/frontend/src")):
+        for source_path in iter_text_source_files(app_source_root):
+            source_text = source_path.read_text(encoding="utf-8")
+            for marker, reason in APP_SOURCE_FORBIDDEN_MARKERS:
+                for line_number, line in enumerate(source_text.splitlines(), start=1):
+                    if marker in line:
+                        errors.append(
+                            f"{display_path(source_path, ROOT)}:{line_number} {reason} "
+                            f"(found {marker!r})"
+                        )
+
+    editor_layout_path = ROOT / "workshop-frontend-shared/src/components/WorkshopEditorLayout.vue"
+    if editor_layout_path.is_file():
+        editor_layout_text = editor_layout_path.read_text(encoding="utf-8")
+        if SHARED_EDITOR_LAYOUT_LOGO_MARKER in editor_layout_text:
+            errors.append(
+                "workshop-frontend-shared/src/components/WorkshopEditorLayout.vue "
+                f"must not reference app logo asset {SHARED_EDITOR_LAYOUT_LOGO_MARKER!r}; "
+                "use logo props or slots instead"
+            )
+
+    return errors
 
 
 def parse_workshop_content_manifest(manifest_path: Path) -> dict[str, object]:
@@ -324,10 +458,40 @@ def parse_workshop_content_view(view_path: Path) -> dict[str, object]:
     }
 
 
+def parse_vue_router_paths(router_path: Path) -> list[tuple[str, int]]:
+    if not router_path.is_file():
+        return []
+
+    paths: list[tuple[str, int]] = []
+    for line_number, line in enumerate(router_path.read_text(encoding="utf-8").splitlines(), start=1):
+        path_match = re.search(r"\bpath\s*:\s*['\"]([^'\"]+)['\"]", line)
+        if path_match:
+            paths.append((path_match.group(1), line_number))
+
+    return paths
+
+
+def collect_duplicate_router_path_errors(router_path: Path, module_label: str, *, relative_to: Path) -> list[str]:
+    errors: list[str] = []
+    seen_paths: dict[str, int] = {}
+
+    for route_path, line_number in parse_vue_router_paths(router_path):
+        first_line = seen_paths.get(route_path)
+        if first_line is not None:
+            errors.append(
+                f"{module_label} router declares duplicate route {route_path!r} at "
+                f"{display_path(router_path, relative_to)}:{line_number}; first declared at line {first_line}"
+            )
+            continue
+        seen_paths[route_path] = line_number
+
+    return errors
+
+
 def collect_workshop_content_errors(
     module_root: Path,
     module_label: str,
-    allowed_workshop_ids: set[str],
+    expected_workshop_id: str,
     *,
     relative_to: Path,
     require_views_directory: bool = False,
@@ -360,11 +524,10 @@ def collect_workshop_content_errors(
             f"{module_label} workshop content manifest is missing workshopId: "
             f"{display_path(manifest_path, relative_to)}"
         )
-    elif workshop_content_id not in allowed_workshop_ids:
-        allowed_ids_display = ", ".join(sorted(allowed_workshop_ids))
+    elif workshop_content_id != expected_workshop_id:
         errors.append(
             f"{module_label} workshop content manifest has workshopId {workshop_content_id!r}; "
-            f"expected one of {allowed_ids_display}"
+            f"expected {expected_workshop_id!r} from workshops.yaml"
         )
 
     views = manifest["views"]
@@ -567,7 +730,7 @@ def collect_workshop_content_errors(
 def validate_workshop_content(
     module_root: Path,
     module_label: str,
-    allowed_workshop_ids: set[str],
+    expected_workshop_id: str,
     *,
     relative_to: Path,
     require_views_directory: bool = False,
@@ -576,7 +739,7 @@ def validate_workshop_content(
     content_errors = collect_workshop_content_errors(
         module_root,
         module_label,
-        allowed_workshop_ids,
+        expected_workshop_id,
         relative_to=relative_to,
         require_views_directory=require_views_directory,
         expected_views=expected_views,
@@ -598,6 +761,142 @@ def assert_contains(path: Path, required_substrings: list[str], *, label: str, r
             f"- {label} is missing expected content markers in {display_path(path, relative_to)}: "
             f"{formatted_missing}"
         )
+
+
+def assert_not_contains(path: Path, forbidden_substrings: list[str], *, label: str, relative_to: Path) -> None:
+    content = path.read_text(encoding="utf-8")
+    present = [substring for substring in forbidden_substrings if substring in content]
+    if present:
+        formatted_present = ", ".join(repr(item) for item in present)
+        fail(
+            "Workshop standardization check failed:\n"
+            f"- {label} contains forbidden content markers in {display_path(path, relative_to)}: "
+            f"{formatted_present}"
+        )
+
+
+def parse_bool_scalar(value: object) -> bool | None:
+    normalized = str(value).strip().lower()
+    if normalized == "true":
+        return True
+    if normalized == "false":
+        return False
+    return None
+
+
+def collect_release_errors(
+    workshop_id: str,
+    releases: list[dict[str, object]],
+    *,
+    seen_release_ids: set[str],
+) -> list[str]:
+    errors: list[str] = []
+
+    if not releases:
+        return [f"workshops.yaml entry for {workshop_id} must declare at least one release"]
+
+    default_count = 0
+    seen_versions: set[str] = set()
+
+    for release in releases:
+        release_id = str(release.get("releaseId", "")).strip()
+        release_line = release.get("_line", "?")
+        release_keys = release.get("_keys", set())
+        release_sections = release.get("_sections", {})
+        images = release.get("images", {})
+        assert isinstance(release_keys, set)
+        assert isinstance(release_sections, dict)
+        assert isinstance(images, dict)
+
+        missing_fields = [field for field in RELEASE_REQUIRED_FIELDS if field not in release_keys]
+        if missing_fields:
+            errors.append(
+                f"{workshop_id} release {release_id or '<unknown>'} (line {release_line}) is missing required fields: "
+                + ", ".join(missing_fields)
+            )
+
+        if not release_id:
+            errors.append(f"{workshop_id} release at line {release_line} is missing releaseId")
+        elif release_id in seen_release_ids:
+            errors.append(f"Duplicate releaseId in workshops.yaml: {release_id}")
+        else:
+            seen_release_ids.add(release_id)
+
+        release_version = str(release.get("releaseVersion", "")).strip()
+        if not release_version:
+            errors.append(f"{workshop_id} release {release_id or '<unknown>'} is missing releaseVersion")
+        elif release_version in seen_versions:
+            errors.append(
+                f"{workshop_id} declares duplicate releaseVersion {release_version!r}"
+            )
+        else:
+            seen_versions.add(release_version)
+
+        for field_name in ["mode", "resourceClass"]:
+            if not str(release.get(field_name, "")).strip():
+                errors.append(f"{workshop_id} release {release_id or '<unknown>'} is missing {field_name}")
+
+        default_for_workshop = parse_bool_scalar(release.get("defaultForWorkshop", ""))
+        if default_for_workshop is None:
+            errors.append(
+                f"{workshop_id} release {release_id or '<unknown>'} defaultForWorkshop must be true or false"
+            )
+        elif default_for_workshop:
+            default_count += 1
+
+        enabled = parse_bool_scalar(release.get("enabled", ""))
+        if enabled is None:
+            errors.append(f"{workshop_id} release {release_id or '<unknown>'} enabled must be true or false")
+
+        session_ttl = str(release.get("sessionTtlMinutes", "")).strip()
+        if not session_ttl.isdigit() or int(session_ttl) <= 0:
+            errors.append(
+                f"{workshop_id} release {release_id or '<unknown>'} must define a positive sessionTtlMinutes"
+            )
+
+        environments = release_sections.get("environments", [])
+        if not isinstance(environments, list) or not environments:
+            errors.append(f"{workshop_id} release {release_id or '<unknown>'} must declare at least one environment")
+
+        mutable_dependencies = release_sections.get("mutableDependencies", [])
+        if not isinstance(mutable_dependencies, list):
+            errors.append(f"{workshop_id} release {release_id or '<unknown>'} mutableDependencies must be a list")
+        else:
+            unknown_dependencies = sorted(
+                dependency
+                for dependency in mutable_dependencies
+                if dependency not in ALLOWED_INFRASTRUCTURE_DEPENDENCIES
+            )
+            if unknown_dependencies:
+                errors.append(
+                    f"{workshop_id} release {release_id or '<unknown>'} declares unsupported mutableDependencies: "
+                    + ", ".join(unknown_dependencies)
+                )
+
+        if not images:
+            errors.append(f"{workshop_id} release {release_id or '<unknown>'} must define at least one image")
+        for image_role, image_reference in images.items():
+            role = str(image_role)
+            reference = str(image_reference).strip()
+            if role not in ALLOWED_RELEASE_IMAGE_ROLES:
+                errors.append(
+                    f"{workshop_id} release {release_id or '<unknown>'} uses unsupported image role {role!r}"
+                )
+            if not reference:
+                errors.append(
+                    f"{workshop_id} release {release_id or '<unknown>'} image {role!r} must not be blank"
+                )
+            elif not re.match(r"^[^@\s]+@sha256:[0-9a-f]{64}$", reference):
+                errors.append(
+                    f"{workshop_id} release {release_id or '<unknown>'} image {role!r} must be digest pinned"
+                )
+
+    if default_count != 1:
+        errors.append(
+            f"{workshop_id} must declare exactly one release with defaultForWorkshop true; found {default_count}"
+        )
+
+    return errors
 
 
 def validate_existing_workshops() -> None:
@@ -635,6 +934,7 @@ def validate_existing_workshops() -> None:
     seen_backend_service_names: set[str] = set()
     seen_frontend_ports: set[int] = set()
     seen_backend_ports: set[int] = set()
+    seen_release_ids: set[str] = set()
 
     for workshop in workshops:
         workshop_id = str(workshop["id"])
@@ -654,6 +954,18 @@ def validate_existing_workshops() -> None:
         topics = sections.get("topics", [])
         if not isinstance(topics, list) or not topics:
             errors.append(f"workshops.yaml entry for {workshop_id} must declare at least one topic")
+
+        releases = workshop.get("releases", [])
+        if isinstance(releases, list):
+            errors.extend(
+                collect_release_errors(
+                    workshop_id,
+                    releases,
+                    seen_release_ids=seen_release_ids,
+                )
+            )
+        else:
+            errors.append(f"workshops.yaml entry for {workshop_id} releases must be a list")
 
         infrastructure_dependencies = sections.get("infrastructureDependencies", [])
         if not isinstance(infrastructure_dependencies, list) or not infrastructure_dependencies:
@@ -770,6 +1082,52 @@ def validate_existing_workshops() -> None:
         for relative_path in FRONTEND_REQUIRED_FILES:
             ensure_file(frontend_dir / relative_path, errors, f"{workshop_id} frontend file")
 
+        frontend_main_path = frontend_dir / "frontend/src/main.js"
+        if frontend_main_path.is_file():
+            frontend_main_text = frontend_main_path.read_text(encoding="utf-8")
+            for marker in SHELL_REQUIRED_MAIN_MARKERS:
+                if marker not in frontend_main_text:
+                    errors.append(
+                        f"{workshop_id} frontend shell wiring is missing {marker!r} in "
+                        f"{frontend_main_path.relative_to(ROOT)}"
+                    )
+
+        frontend_router_path = frontend_dir / "frontend/src/router/index.js"
+        if frontend_router_path.is_file():
+            frontend_router_text = frontend_router_path.read_text(encoding="utf-8")
+            for marker in SHELL_REQUIRED_ROUTER_MARKERS:
+                if marker not in frontend_router_text:
+                    errors.append(
+                        f"{workshop_id} frontend router is missing shell base path marker {marker!r} in "
+                        f"{frontend_router_path.relative_to(ROOT)}"
+                    )
+            errors.extend(
+                collect_duplicate_router_path_errors(
+                    frontend_router_path,
+                    f"{workshop_id} frontend module",
+                    relative_to=ROOT,
+                )
+            )
+
+        frontend_view_text = ""
+        if frontend_dir.is_dir():
+            frontend_view_text = "\n".join(
+                path.read_text(encoding="utf-8")
+                for path in sorted((frontend_dir / "frontend/src/views").glob("*.vue"))
+                if path.is_file()
+            )
+        if frontend_view_text and "WorkshopHeader" not in frontend_view_text and "WorkshopShell" not in frontend_view_text:
+            errors.append(
+                f"{workshop_id} frontend shell readiness check failed: "
+                "must use the shared shell or shared header in at least one app view"
+            )
+        for marker, reason in [
+            ("WorkshopEditorLayout", "must use the shared editor shell"),
+            ("show-session-restart-controls", "must expose shared restart and rebuild controls"),
+        ]:
+            if frontend_view_text and marker not in frontend_view_text:
+                errors.append(f"{workshop_id} frontend shell readiness check failed: {reason}")
+
         if not list(backend_dir.glob("src/main/java/**/*.java")):
             errors.append(f"{workshop_id} backend module does not contain any src/main/java sources")
 
@@ -838,12 +1196,19 @@ def validate_existing_workshops() -> None:
                     )
 
         if frontend_dir.is_dir():
+            require_standard_content_layout = workshop_id not in LEGACY_NONSTANDARD_CONTENT_LAYOUT_IDS
+            expected_content_workshop_id = (
+                f"{workshop_id}_frontend"
+                if workshop_id in LEGACY_NONSTANDARD_CONTENT_LAYOUT_IDS
+                else workshop_id
+            )
             errors.extend(
                 collect_workshop_content_errors(
                     frontend_dir,
                     f"{workshop_id} frontend module",
-                    {workshop_id, f"{workshop_id}_frontend"},
+                    expected_content_workshop_id,
                     relative_to=ROOT,
+                    require_views_directory=require_standard_content_layout,
                 )
             )
 
@@ -852,9 +1217,7 @@ def validate_existing_workshops() -> None:
             if include_line not in settings_text:
                 errors.append(f"java-springboot/settings.gradle.kts is missing {include_line}")
 
-    for compose_path in [LOCAL_COMPOSE_PATH, INTERNAL_COMPOSE_PATH]:
-        if not compose_path.is_file():
-            errors.append(f"Generated compose file is missing: {compose_path.relative_to(ROOT)}")
+    errors.extend(collect_shell_app_boundary_errors())
 
     if errors:
         fail(
@@ -863,101 +1226,7 @@ def validate_existing_workshops() -> None:
         )
 
 
-def prepare_gradle_env() -> dict[str, str]:
-    env = os.environ.copy()
-    if not env.get("JAVA_HOME"):
-        java_home_helper = Path("/usr/libexec/java_home")
-        if java_home_helper.is_file() and os.access(java_home_helper, os.X_OK):
-            result = subprocess.run(
-                [str(java_home_helper), "-v", "21"],
-                check=False,
-                capture_output=True,
-                text=True,
-            )
-            if result.returncode == 0:
-                env["JAVA_HOME"] = result.stdout.strip()
-    return env
-
-
-def validate_compose_freshness() -> None:
-    gradle_env = prepare_gradle_env()
-
-    with tempfile.TemporaryDirectory(prefix="compose-validation.") as temp_dir_name:
-        temp_dir = Path(temp_dir_name)
-        temp_java_dir = temp_dir / "java-springboot"
-        temp_hub_dir = temp_java_dir / "workshop-hub"
-
-        temp_java_dir.mkdir(parents=True, exist_ok=True)
-        temp_hub_dir.mkdir(parents=True, exist_ok=True)
-
-        shutil.copy2(REGISTRY_PATH, temp_dir / "workshops.yaml")
-        shutil.copy2(JAVA_DIR / "build.gradle.kts", temp_java_dir / "build.gradle.kts")
-        shutil.copy2(JAVA_DIR / "settings.gradle.kts", temp_java_dir / "settings.gradle.kts")
-        shutil.copy2(JAVA_DIR / "gradle.properties", temp_java_dir / "gradle.properties")
-        shutil.copy2(JAVA_DIR / "gradlew", temp_java_dir / "gradlew")
-        (temp_java_dir / "gradlew").chmod((temp_java_dir / "gradlew").stat().st_mode | stat.S_IXUSR)
-        shutil.copytree(JAVA_DIR / "gradle", temp_java_dir / "gradle", dirs_exist_ok=True)
-        shutil.copytree(JAVA_DIR / "buildSrc", temp_java_dir / "buildSrc", dirs_exist_ok=True)
-        for project_name in parse_included_projects(JAVA_DIR / "settings.gradle.kts"):
-            (temp_java_dir / project_name).mkdir(parents=True, exist_ok=True)
-        shutil.copy2(JAVA_DIR / "workshop-hub" / "build.gradle.kts", temp_hub_dir / "build.gradle.kts")
-        shutil.copytree(JAVA_DIR / "workshop-hub" / "src", temp_hub_dir / "src", dirs_exist_ok=True)
-
-        command = [
-            "./java-springboot/gradlew",
-            "-p",
-            "java-springboot",
-            "--no-daemon",
-            ":workshop-hub:generateCompose",
-        ]
-        result = subprocess.run(
-            command,
-            cwd=temp_dir,
-            env=gradle_env,
-            capture_output=True,
-            text=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            output = (result.stdout + "\n" + result.stderr).strip()
-            fail(
-                "Workshop standardization check failed:\n"
-                "- Unable to regenerate compose files in a temporary workspace.\n"
-                + (output if output else "- Gradle returned a non-zero exit code with no output.")
-            )
-
-        generated_pairs = [
-            (LOCAL_COMPOSE_PATH, temp_hub_dir / "docker-compose.local.yml"),
-            (INTERNAL_COMPOSE_PATH, temp_hub_dir / "docker-compose.internal.yml"),
-        ]
-
-        for actual_path, generated_path in generated_pairs:
-            if not generated_path.is_file():
-                fail(
-                    "Workshop standardization check failed:\n"
-                    f"- Compose regeneration did not produce {generated_path.name}."
-                )
-            actual_text = actual_path.read_text(encoding="utf-8").splitlines()
-            generated_text = generated_path.read_text(encoding="utf-8").splitlines()
-            if actual_text != generated_text:
-                diff = "\n".join(
-                    difflib.unified_diff(
-                        actual_text,
-                        generated_text,
-                        fromfile=str(actual_path.relative_to(ROOT)),
-                        tofile=f"generated/{generated_path.name}",
-                        lineterm="",
-                    )
-                )
-                fail(
-                    "Workshop standardization check failed:\n"
-                    f"- Generated compose output is stale for {actual_path.relative_to(ROOT)}.\n"
-                    f"{diff}"
-                )
-
-
 def validate_scaffold_smoke() -> None:
-    gradle_env = prepare_gradle_env()
     smoke_id = "99_validation_smoke"
     smoke_title = "Validation Smoke"
     smoke_service = "validation-smoke"
@@ -997,7 +1266,6 @@ def validate_scaffold_smoke() -> None:
         result = subprocess.run(
             command,
             cwd=temp_dir,
-            env=gradle_env,
             capture_output=True,
             text=True,
             check=False,
@@ -1011,20 +1279,25 @@ def validate_scaffold_smoke() -> None:
             )
 
         output = result.stdout.strip()
-        if "workshop-hub/Dockerfile" in output:
+        if "bash scripts/validate-workshops.sh" not in output:
             fail(
                 "Workshop standardization check failed:\n"
-                "- Scaffold output still references manual workshop-hub Dockerfile edits."
+                "- Scaffold output no longer tells contributors to run workshop validation."
             )
-        if ":workshop-hub:generateCompose" not in output:
+        if f"bash scripts/run-workshop.sh up {smoke_id}" not in output:
             fail(
                 "Workshop standardization check failed:\n"
-                "- Scaffold output no longer tells contributors to regenerate compose files."
+                "- Scaffold output no longer tells contributors how to start the workshop locally."
             )
         if "content manifest:" not in output or "content views:" not in output:
             fail(
                 "Workshop standardization check failed:\n"
                 "- Scaffold output no longer calls out the generated workshop-content files."
+            )
+        if "learner app iframe" not in output:
+            fail(
+                "Workshop standardization check failed:\n"
+                "- Scaffold output no longer calls out the generated learner app iframe."
             )
 
         generated_backend_dir = temp_java_dir / smoke_id
@@ -1038,6 +1311,8 @@ def validate_scaffold_smoke() -> None:
             generated_backend_dir / "src/main/resources/application.properties",
             generated_backend_dir
             / f"src/main/java/com/redis/workshop/{package_name}/{pascal_case}Application.java",
+            generated_backend_dir
+            / f"src/main/java/com/redis/workshop/{package_name}/{pascal_case}LearnerAppController.java",
             generated_frontend_dir / "Dockerfile",
             generated_frontend_dir / "build.gradle.kts",
             generated_frontend_dir / "settings.gradle.kts",
@@ -1046,8 +1321,6 @@ def validate_scaffold_smoke() -> None:
             generated_frontend_dir / "frontend/public/index.html",
             generated_frontend_dir / "frontend/src/main.js",
             generated_frontend_dir / "frontend/src/router/index.js",
-            generated_frontend_dir / "frontend/src/utils/basePath.js",
-            generated_frontend_dir / "frontend/src/utils/components.js",
             generated_frontend_dir / "frontend/src/utils/workshopContent.js",
             generated_frontend_dir / f"frontend/src/views/{pascal_case}Home.vue",
             generated_frontend_dir / f"frontend/src/views/{pascal_case}Editor.vue",
@@ -1080,6 +1353,23 @@ def validate_scaffold_smoke() -> None:
                 "Workshop standardization check failed:\n"
                 "- Scaffold smoke test is missing expected files:\n"
                 + "\n".join(f"  - {path}" for path in missing_smoke_files)
+            )
+
+        forbidden_smoke_files = [
+            generated_frontend_dir / "frontend/src/utils/basePath.js",
+            generated_frontend_dir / "frontend/src/utils/components.js",
+            generated_frontend_dir / "frontend/src/assets/logo/small.png",
+        ]
+        unexpected_smoke_files = [
+            path.relative_to(temp_dir).as_posix()
+            for path in forbidden_smoke_files
+            if path.exists()
+        ]
+        if unexpected_smoke_files:
+            fail(
+                "Workshop standardization check failed:\n"
+                "- Scaffold smoke test generated files that should now be shell-owned or app-provided:\n"
+                + "\n".join(f"  - {path}" for path in unexpected_smoke_files)
             )
 
         settings_text = (temp_java_dir / "settings.gradle.kts").read_text(encoding="utf-8")
@@ -1140,6 +1430,63 @@ def validate_scaffold_smoke() -> None:
                 f"- Scaffold infrastructureDependencies expected ['redis'], found {infrastructure_dependencies!r}."
             )
 
+        scaffold_releases = scaffold_entry.get("releases", [])
+        if not isinstance(scaffold_releases, list):
+            fail(
+                "Workshop standardization check failed:\n"
+                "- Scaffold registry releases must be a list."
+            )
+        release_errors = collect_release_errors(
+            smoke_id,
+            scaffold_releases,
+            seen_release_ids=set(),
+        )
+        if release_errors:
+            fail(
+                "Workshop standardization check failed:\n"
+                + "\n".join(f"- {error}" for error in release_errors)
+            )
+        scaffold_release = scaffold_releases[0] if scaffold_releases else {}
+        scaffold_release_sections = scaffold_release.get("_sections", {})
+        scaffold_release_images = scaffold_release.get("images", {})
+        assert isinstance(scaffold_release_sections, dict)
+        assert isinstance(scaffold_release_images, dict)
+        expected_release_fields = {
+            "releaseId": f"{smoke_service}-0.1.0",
+            "releaseVersion": "0.1.0",
+            "mode": "LAB",
+            "defaultForWorkshop": "true",
+            "enabled": "true",
+            "resourceClass": "small",
+            "sessionTtlMinutes": "60",
+        }
+        for field_name, expected_value in expected_release_fields.items():
+            actual_value = str(scaffold_release.get(field_name, "")).strip()
+            if actual_value != expected_value:
+                fail(
+                    "Workshop standardization check failed:\n"
+                    f"- Scaffold release field {field_name} expected {expected_value!r}, found {actual_value!r}."
+                )
+        if scaffold_release_sections.get("environments") != ["local", "cloud-run"]:
+            fail(
+                "Workshop standardization check failed:\n"
+                f"- Scaffold release environments expected ['local', 'cloud-run'], found {scaffold_release_sections.get('environments')!r}."
+            )
+        if scaffold_release_sections.get("mutableDependencies") != ["redis"]:
+            fail(
+                "Workshop standardization check failed:\n"
+                f"- Scaffold release mutableDependencies expected ['redis'], found {scaffold_release_sections.get('mutableDependencies')!r}."
+            )
+        expected_combined_image = (
+            f"registry.example.com/workshops/{smoke_service}-runner@sha256:"
+            "0000000000000000000000000000000000000000000000000000000000000000"
+        )
+        if scaffold_release_images.get("combined") != expected_combined_image:
+            fail(
+                "Workshop standardization check failed:\n"
+                f"- Scaffold release combined image expected {expected_combined_image!r}, found {scaffold_release_images.get('combined')!r}."
+            )
+
         backend_props = (
             generated_backend_dir / "src/main/resources/application.properties"
         ).read_text(encoding="utf-8")
@@ -1168,7 +1515,7 @@ def validate_scaffold_smoke() -> None:
         validate_workshop_content(
             generated_frontend_dir,
             "Scaffold smoke frontend module",
-            {smoke_id},
+            smoke_id,
             relative_to=temp_dir,
             require_views_directory=True,
             expected_views={
@@ -1190,29 +1537,75 @@ def validate_scaffold_smoke() -> None:
                 },
             },
         )
+        assert_contains(
+            generated_frontend_dir / f"src/main/resources/workshop-content/views/{smoke_service}-home.yaml",
+            [
+                "type: markdown",
+                "{{sessionId}}",
+                "{{links.redisInsight}}",
+                "{{links.learnerApp}}",
+                "id: openApp",
+            ],
+            label="Scaffold markdown-first home content",
+            relative_to=temp_dir,
+        )
+
+        generated_router_path = generated_frontend_dir / "frontend/src/router/index.js"
+        router_paths = [route_path for route_path, _ in parse_vue_router_paths(generated_router_path)]
+        for expected_route in ["/", "/editor"]:
+            if expected_route not in router_paths:
+                fail(
+                    "Workshop standardization check failed:\n"
+                    f"- Scaffold router is missing expected route {expected_route!r}."
+                )
+        duplicate_router_errors = collect_duplicate_router_path_errors(
+            generated_router_path,
+            "Scaffold smoke frontend module",
+            relative_to=temp_dir,
+        )
+        if duplicate_router_errors:
+            fail(
+                "Workshop standardization check failed:\n"
+                + "\n".join(f"- {error}" for error in duplicate_router_errors)
+            )
 
         assert_contains(
             generated_frontend_dir / "frontend/src/utils/workshopContent.js",
             [
+                "getApiUrl",
+                "../../../../../workshop-frontend-shared/src/",
                 "export async function fetchWorkshopContent(viewId)",
                 "/api/content/views/${encodeURIComponent(viewId)}",
             ],
             label="Scaffold workshop content client",
             relative_to=temp_dir,
         )
-        assert_contains(
-            generated_frontend_dir / "frontend/src/utils/components.js",
-            ["WorkshopContentRenderer", "WorkshopEditorLayout"],
-            label="Scaffold component exports",
+        assert_not_contains(
+            generated_frontend_dir / "frontend/src/utils/workshopContent.js",
+            ["from './basePath'", 'from "./basePath"'],
+            label="Scaffold workshop content client",
             relative_to=temp_dir,
         )
         assert_contains(
             generated_frontend_dir / f"frontend/src/views/{pascal_case}Home.vue",
             [
-                "WorkshopContentRenderer",
+                "WorkshopShell",
+                "getApiUrl",
+                "getRedisInsightUrl",
+                "getWorkshopHubUrl",
+                "../../../../../workshop-frontend-shared/src/",
+                "learnerAppUrl",
+                "/api/learner-app",
                 "fetchWorkshopContent",
                 f"this.content = await fetchWorkshopContent('{smoke_service}-home')",
+                "openApp",
             ],
+            label="Scaffold home view",
+            relative_to=temp_dir,
+        )
+        assert_not_contains(
+            generated_frontend_dir / f"frontend/src/views/{pascal_case}Home.vue",
+            ["../utils/components", "../utils/basePath"],
             label="Scaffold home view",
             relative_to=temp_dir,
         )
@@ -1221,10 +1614,30 @@ def validate_scaffold_smoke() -> None:
             [
                 "WorkshopEditorLayout",
                 "WorkshopContentRenderer",
+                "getWorkshopHubUrl",
+                "../../../../../workshop-frontend-shared/src/",
+                "show-session-restart-controls",
                 "fetchWorkshopContent",
                 f"this.content = await fetchWorkshopContent('{smoke_service}-editor')",
             ],
             label="Scaffold editor view",
+            relative_to=temp_dir,
+        )
+        assert_not_contains(
+            generated_frontend_dir / f"frontend/src/views/{pascal_case}Editor.vue",
+            ["../utils/components", "../utils/basePath"],
+            label="Scaffold editor view",
+            relative_to=temp_dir,
+        )
+        assert_contains(
+            generated_backend_dir
+            / f"src/main/java/com/redis/workshop/{package_name}/{pascal_case}LearnerAppController.java",
+            [
+                "/api/learner-app",
+                "MediaType.TEXT_HTML_VALUE",
+                "Replace this endpoint with the actual app UI for your workshop.",
+            ],
+            label="Scaffold learner app controller",
             relative_to=temp_dir,
         )
 
@@ -1232,7 +1645,6 @@ def validate_scaffold_smoke() -> None:
 def main() -> None:
     validate_existing_workshops()
     validate_scaffold_smoke()
-    validate_compose_freshness()
     print("Workshop standardization check passed.")
 
 

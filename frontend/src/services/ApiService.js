@@ -1,54 +1,66 @@
-const apiUrl = process.env.VUE_APP_API_URL;
+function actorHeaders() {
+  const actorId = process.env.VUE_APP_ACTOR_ID || 'local-learner';
+  const actorType = process.env.VUE_APP_ACTOR_TYPE || 'LEARNER';
+  const actorRoles = process.env.VUE_APP_ACTOR_ROLES || 'platform:learner';
+  const headers = {};
+
+  if (actorId) {
+    headers['X-Platform-Actor-Id'] = actorId;
+  }
+  if (actorType) {
+    headers['X-Platform-Actor-Type'] = actorType;
+  }
+  if (actorRoles) {
+    headers['X-Platform-Roles'] = actorRoles;
+  }
+
+  return headers;
+}
 
 export default {
   async request(url, options = {}) {
     const requestOptions = {
       ...options,
-      credentials: 'include',  // Important for authentication cookies
+      credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
+        ...actorHeaders(),
         ...options.headers
       }
     };
 
-    try {
-      const response = await fetch(url, requestOptions);
+    const response = await fetch(url, requestOptions);
 
-      if (response.status === 401) {
-        console.error('Unauthorized request');
-        throw new Error('Unauthorized');
-      }
-
-      if (!response.ok) {
-        const contentType = response.headers.get('content-type');
-        let errorMessage = `API error: ${response.status}`;
-
-        if (contentType && contentType.includes('application/json')) {
-          const errorData = await response.json();
-          errorMessage = errorData.message || errorData.error || errorMessage;
-        }
-
-        const error = new Error(errorMessage);
-        error.status = response.status;
-        throw error;
-      }
-
+    if (!response.ok) {
       const contentType = response.headers.get('content-type');
+      let errorMessage = `API error: ${response.status}`;
+
       if (contentType && contentType.includes('application/json')) {
-        return await response.json();
+        const errorData = await response.json();
+        errorMessage = errorData.detail || errorData.message || errorData.error || errorMessage;
       }
-      return await response.text();
-    } catch (error) {
-      console.error('API request error:', error);
+
+      const error = new Error(errorMessage);
+      error.status = response.status;
       throw error;
     }
+
+    if (response.status === 204) {
+      return null;
+    }
+
+    const contentType = response.headers.get('content-type');
+    if (contentType && contentType.includes('application/json')) {
+      return await response.json();
+    }
+    return await response.text();
   },
 
   async get(url, options = {}) {
     return this.request(url, { ...options, method: 'GET' });
   },
 
-  async post(url, data, options = {}) {
+  async post(url, data = {}, options = {}) {
     return this.request(url, {
       ...options,
       method: 'POST',
@@ -56,16 +68,7 @@ export default {
     });
   },
 
-  async put(url, data, options = {}) {
-    return this.request(url, {
-      ...options,
-      method: 'PUT',
-      body: JSON.stringify(data)
-    });
-  },
-
   async delete(url, options = {}) {
     return this.request(url, { ...options, method: 'DELETE' });
   }
-}
-
+};

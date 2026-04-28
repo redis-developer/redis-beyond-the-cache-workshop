@@ -8,11 +8,17 @@
       >
         <div class="workshop-header">
           <h2>
-            <div class="logo-small">
-              <img src="@/assets/logo/small.png" alt="Redis Logo" width="24" height="24" />
+            <div v-if="$slots.logo || logoSrc" class="logo-small">
+              <slot name="logo">
+                <img :src="logoSrc" :alt="logoAlt" :width="logoWidth" :height="logoHeight" />
+              </slot>
             </div>
             {{ title }}
           </h2>
+          <div v-if="$slots['header-actions'] || showSessionRestartControls" class="workshop-header-actions">
+            <slot name="header-actions"></slot>
+            <WorkshopSessionRestartControls v-if="showSessionRestartControls" />
+          </div>
         </div>
         <div class="workshop-content">
           <slot name="instructions"></slot>
@@ -41,11 +47,11 @@
 
 <script>
 import CodeEditor from './CodeEditor.vue';
-import { getWorkshopHubUrl } from '../utils/basePath.js';
+import WorkshopSessionRestartControls from './WorkshopSessionRestartControls.vue';
 
 export default {
   name: 'WorkshopEditorLayout',
-  components: { CodeEditor },
+  components: { CodeEditor, WorkshopSessionRestartControls },
   data() {
     return {
       panelWidth: 400,
@@ -55,7 +61,12 @@ export default {
   props: {
     title: { type: String, required: true },
     files: { type: Array, required: true },
-    diagnostics: { type: Array, default: () => [] }
+    diagnostics: { type: Array, default: () => [] },
+    logoSrc: { type: String, default: '' },
+    logoAlt: { type: String, default: 'Workshop logo' },
+    logoWidth: { type: [Number, String], default: 24 },
+    logoHeight: { type: [Number, String], default: 24 },
+    showSessionRestartControls: { type: Boolean, default: false }
   },
   emits: ['file-loaded', 'file-saved', 'content-changed'],
   computed: {
@@ -63,9 +74,6 @@ export default {
       return {
         width: `${this.panelWidth}px`
       };
-    },
-    workshopHubUrl() {
-      return getWorkshopHubUrl();
     }
   },
   mounted() {
@@ -142,9 +150,10 @@ export default {
 .main-container { display: flex; height: 100vh; width: 100vw; }
 .workshop-panel { width: 400px; min-width: 320px; background: #1e1e1e; border-right: 1px solid var(--color-border); display: flex; flex-direction: column; overflow: hidden; flex-shrink: 0; }
 .workshop-panel--resizing { pointer-events: none; }
-.workshop-header { background: #252526; padding: var(--spacing-4); border-bottom: 1px solid var(--color-border); }
+.workshop-header { background: #252526; padding: var(--spacing-4); border-bottom: 1px solid var(--color-border); display: flex; align-items: center; justify-content: space-between; gap: var(--spacing-3); }
 .workshop-header h2 { margin: 0; color: #DC382C; font-size: var(--font-size-lg); display: flex; align-items: center; gap: var(--spacing-2); }
-.logo-small { display: inline-block; }
+.logo-small { display: inline-flex; align-items: center; }
+.workshop-header-actions { display: flex; align-items: center; gap: var(--spacing-2); }
 .workshop-panel-resize-handle { width: 10px; min-width: 10px; padding: 0; border: 0; background: linear-gradient(180deg, rgba(59, 130, 246, 0) 0%, rgba(59, 130, 246, 0.2) 50%, rgba(59, 130, 246, 0) 100%); cursor: col-resize; position: relative; flex-shrink: 0; }
 .workshop-panel-resize-handle::before { content: ''; position: absolute; inset: 0 3px; background: rgba(59, 130, 246, 0.18); transition: background 150ms ease; }
 .workshop-panel-resize-handle:hover::before,

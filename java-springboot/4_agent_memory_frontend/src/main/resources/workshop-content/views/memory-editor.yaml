@@ -358,8 +358,8 @@ sections:
         widgetId: memory-editor.completion-banner
       - type: callout
         tone: info
-        title: Reset Workshop
-        body: Restore all files to their original state if you want to repeat the exercise.
+        title: Reset Progress
+        body: Reset the guided editor progress if you want to repeat the exercise. Use the shared restart controls if you also need to restart or rebuild the runtime.
         actions:
-          - id: restartLab
-            label: Reset Lab
+          - id: resetProgress
+            label: Reset Progress

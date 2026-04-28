@@ -1,49 +1,81 @@
 import { createStore } from 'vuex'
 import WorkshopService from '@/services/WorkshopService'
 
+const ACTIVE_SESSION_STATES = new Set([
+  'REQUESTED',
+  'ADMITTED',
+  'PROVISIONING',
+  'INITIALIZING',
+  'READY',
+  'DEGRADED',
+  'TERMINATING',
+  'CLEANUP_PENDING'
+]);
+
+const TERMINAL_SESSION_STATES = new Set(['TERMINATED', 'FAILED', 'EXPIRED']);
+
+function isActiveSession(session) {
+  return session && ACTIVE_SESSION_STATES.has(session.state);
+}
+
+function sessionSortValue(session) {
+  return Date.parse(session.createdAt || '') || 0;
+}
+
+function activeSessionFor(workshopId, sessions) {
+  return sessions
+    .filter(session => session.workshopId === workshopId && isActiveSession(session))
+    .sort((left, right) => sessionSortValue(right) - sessionSortValue(left))[0] || null;
+}
+
+function displayStatus(session) {
+  if (!session) {
+    return 'stopped';
+  }
+  return String(session.state || 'stopped').toLowerCase();
+}
+
+function upsertSession(sessions, updatedSession) {
+  const index = sessions.findIndex(session => session.sessionId === updatedSession.sessionId);
+  if (index === -1) {
+    return [updatedSession, ...sessions];
+  }
+
+  return sessions.map(session => (
+    session.sessionId === updatedSession.sessionId ? updatedSession : session
+  ));
+}
+
 export default createStore({
   state: {
     workshops: [],
-    services: [],
-    restartingWorkshops: new Set(),
-    // Track restart progress: { workshopId: { stage, startTime, isRebuild } }
-    restartProgress: {},
+    sessions: [],
+    pendingActions: {},
     loading: false,
     error: null
   },
 
   getters: {
-    allWorkshops: (state) => state.workshops,
-    
-    getWorkshopById: (state) => (id) => {
-      return state.workshops.find(w => w.id === id);
+    allWorkshops: (state) => {
+      return state.workshops.map(workshop => {
+        const activeSession = activeSessionFor(workshop.workshopId, state.sessions);
+        return {
+          ...workshop,
+          id: workshop.workshopId,
+          activeSession,
+          status: displayStatus(activeSession),
+          url: activeSession?.publicEntryUrl || workshop.path || '#',
+          pendingAction: state.pendingActions[workshop.workshopId] || null
+        };
+      });
     },
 
-    getServiceByName: (state) => (name) => {
-      return state.services.find(s => s.name === name);
+    activeSessionByWorkshopId: (state) => (workshopId) => {
+      return activeSessionFor(workshopId, state.sessions);
     },
 
-    isWorkshopRestarting: (state) => (workshopId) => {
-      return state.restartingWorkshops.has(workshopId);
-    },
-
-    getRestartProgress: (state) => (workshopId) => {
-      return state.restartProgress[workshopId] || null;
-    },
-
-    infrastructureStatus: (state) => {
-      const redis = state.services.find(s => s.name === 'redis');
-      const redisInsight = state.services.find(s => s.name === 'redis-insight');
-      return {
-        redis: redis?.status || 'stopped',
-        redisInsight: redisInsight?.status || 'stopped',
-        allRunning: redis?.status === 'running' && redisInsight?.status === 'running'
-      };
-    },
-
-    workshopStatus: (state) => (workshopId) => {
-      const service = state.services.find(s => s.name === workshopId);
-      return service?.status || 'stopped';
+    isWorkshopBusy: (state) => (workshopId) => {
+      return Boolean(state.pendingActions[workshopId]);
     }
   },
 
@@ -51,8 +83,26 @@ export default createStore({
     setWorkshops(state, workshops) {
       state.workshops = workshops;
     },
-    setServices(state, services) {
-      state.services = services;
+
+    setSessions(state, sessions) {
+      state.sessions = sessions;
+    },
+
+    upsertSession(state, session) {
+      state.sessions = upsertSession(state.sessions, session);
+    },
+
+    setPendingAction(state, { workshopId, action }) {
+      state.pendingActions = {
+        ...state.pendingActions,
+        [workshopId]: action
+      };
+    },
+
+    clearPendingAction(state, workshopId) {
+      const next = { ...state.pendingActions };
+      delete next[workshopId];
+      state.pendingActions = next;
     },
 
     setLoading(state, loading) {
@@ -61,196 +111,102 @@ export default createStore({
 
     setError(state, error) {
       state.error = error;
-    },
-
-    addRestartingWorkshop(state, workshopId) {
-      state.restartingWorkshops.add(workshopId);
-    },
-
-    removeRestartingWorkshop(state, workshopId) {
-      state.restartingWorkshops.delete(workshopId);
-    },
-
-    setRestartProgress(state, { workshopId, stage, isRebuild }) {
-      state.restartProgress[workshopId] = {
-        stage,
-        isRebuild,
-        startTime: state.restartProgress[workshopId]?.startTime || Date.now()
-      };
-    },
-
-    clearRestartProgress(state, workshopId) {
-      delete state.restartProgress[workshopId];
     }
   },
 
   actions: {
+    async refreshAll({ dispatch }) {
+      await Promise.all([
+        dispatch('fetchWorkshops'),
+        dispatch('fetchSessions')
+      ]);
+    },
+
     async fetchWorkshops({ commit }) {
       try {
         const workshops = await WorkshopService.getWorkshops();
         commit('setWorkshops', workshops);
+        commit('setError', null);
       } catch (error) {
         console.error('Error fetching workshops:', error);
         commit('setError', error.message);
       }
     },
-    async fetchStatus({ commit }) {
+
+    async fetchSessions({ commit }) {
       try {
-        const services = await WorkshopService.getAllStatus();
-        commit('setServices', services);
+        const sessions = await WorkshopService.getSessions();
+        commit('setSessions', sessions);
+        commit('setError', null);
       } catch (error) {
-        console.error('Error fetching status:', error);
+        console.error('Error fetching sessions:', error);
         commit('setError', error.message);
       }
     },
 
-    async startInfrastructure({ dispatch }) {
+    async launchWorkshop({ commit, dispatch }, workshop) {
+      const workshopId = workshop.workshopId || workshop.id;
+      commit('setPendingAction', { workshopId, action: 'launching' });
+
       try {
-        await WorkshopService.startInfrastructure();
-        await dispatch('fetchStatus');
-      } catch (error) {
-        console.error('Error starting infrastructure:', error);
-        throw error;
+        const session = await WorkshopService.createSession(
+          workshopId,
+          workshop.defaultMode,
+          workshop.defaultReleaseVersion
+        );
+        commit('upsertSession', session);
+        await dispatch('pollSessionUntilSettled', session.sessionId);
+      } finally {
+        commit('clearPendingAction', workshopId);
       }
     },
 
-    async stopInfrastructure({ dispatch }) {
+    async restartWorkshop({ commit, dispatch, getters }, { workshopId, rebuild }) {
+      const session = getters.activeSessionByWorkshopId(workshopId);
+      if (!session) {
+        throw new Error('No active session found');
+      }
+
+      commit('setPendingAction', {
+        workshopId,
+        action: rebuild ? 'rebuilding' : 'restarting'
+      });
+
       try {
-        await WorkshopService.stopInfrastructure();
-        await dispatch('fetchStatus');
-      } catch (error) {
-        console.error('Error stopping infrastructure:', error);
-        throw error;
+        const updatedSession = await WorkshopService.restartSession(session.sessionId, rebuild);
+        commit('upsertSession', updatedSession);
+        await dispatch('pollSessionUntilSettled', updatedSession.sessionId);
+      } finally {
+        commit('clearPendingAction', workshopId);
       }
     },
 
-    async startWorkshop({ commit, dispatch }, workshopId) {
+    async terminateWorkshop({ commit, dispatch, getters }, workshopId) {
+      const session = getters.activeSessionByWorkshopId(workshopId);
+      if (!session) {
+        return;
+      }
+
+      commit('setPendingAction', { workshopId, action: 'terminating' });
+
       try {
-        commit('addRestartingWorkshop', workshopId);
-        commit('setRestartProgress', { workshopId, stage: 'building', isRebuild: true, isDeploy: true });
-
-        // Fire and forget - don't wait for backend
-        WorkshopService.startWorkshop(workshopId).catch(error => {
-          console.error('Start workshop request failed:', error);
-        });
-
-        // Wait for workshop to start
-        await dispatch('waitForWorkshopStart', { workshopId });
-
-        commit('clearRestartProgress', workshopId);
-        commit('removeRestartingWorkshop', workshopId);
-      } catch (error) {
-        console.error('Error starting workshop:', error);
-        commit('clearRestartProgress', workshopId);
-        commit('removeRestartingWorkshop', workshopId);
-        throw error;
+        const updatedSession = await WorkshopService.terminateSession(session.sessionId);
+        commit('upsertSession', updatedSession);
+        await dispatch('pollSessionUntilSettled', updatedSession.sessionId);
+      } finally {
+        commit('clearPendingAction', workshopId);
       }
     },
 
-    async stopWorkshop({ dispatch }, workshopId) {
-      try {
-        await WorkshopService.stopWorkshop(workshopId);
-        await dispatch('fetchStatus');
-      } catch (error) {
-        console.error('Error stopping workshop:', error);
-        throw error;
-      }
-    },
-
-    async restartWorkshop({ commit, dispatch }, workshopId) {
-      try {
-        commit('addRestartingWorkshop', workshopId);
-        commit('setRestartProgress', { workshopId, stage: 'stopping', isRebuild: true });
-
-        // Fire and forget - don't wait for backend
-        WorkshopService.restartWorkshop(workshopId).catch(error => {
-          console.error('Restart request failed:', error);
-        });
-
-        // Wait for workshop to go down then come back up
-        await dispatch('waitForWorkshopReady', { workshopId, isRebuild: true });
-
-        commit('clearRestartProgress', workshopId);
-        commit('removeRestartingWorkshop', workshopId);
-      } catch (error) {
-        console.error('Error restarting workshop:', error);
-        commit('clearRestartProgress', workshopId);
-        commit('removeRestartingWorkshop', workshopId);
-        throw error;
-      }
-    },
-
-    async restartWorkshopNoBuild({ commit, dispatch }, workshopId) {
-      try {
-        commit('addRestartingWorkshop', workshopId);
-        commit('setRestartProgress', { workshopId, stage: 'stopping', isRebuild: false });
-
-        // Fire and forget - don't wait for backend
-        WorkshopService.restartWorkshopNoBuild(workshopId).catch(error => {
-          console.error('Restart (no-build) request failed:', error);
-        });
-
-        // Wait for workshop to go down then come back up
-        await dispatch('waitForWorkshopReady', { workshopId, isRebuild: false });
-
-        commit('clearRestartProgress', workshopId);
-        commit('removeRestartingWorkshop', workshopId);
-      } catch (error) {
-        console.error('Error restarting workshop without rebuild:', error);
-        commit('clearRestartProgress', workshopId);
-        commit('removeRestartingWorkshop', workshopId);
-        throw error;
-      }
-    },
-
-    async waitForWorkshopReady({ commit, dispatch, getters }, { workshopId, isRebuild }) {
-      // Wait for workshop to go down and come back up (max 120 seconds)
-      for (let i = 0; i < 60; i++) {
+    async pollSessionUntilSettled({ commit }, sessionId) {
+      for (let attempt = 0; attempt < 90; attempt += 1) {
         await new Promise(resolve => setTimeout(resolve, 2000));
 
-        await dispatch('fetchStatus');
+        const session = await WorkshopService.getSession(sessionId);
+        commit('upsertSession', session);
 
-        // Get deployment stage from backend
-        const service = getters.getServiceByName(workshopId);
-        const deploymentStage = service?.deploymentStage;
-
-        console.log(`[${workshopId}] Backend stage:`, deploymentStage, 'Service:', service);
-
-        // Update progress with backend's actual stage
-        if (deploymentStage) {
-          commit('setRestartProgress', { workshopId, stage: deploymentStage, isRebuild });
-        }
-
-        // Check if deployment is complete
-        const status = getters.workshopStatus(workshopId);
-        if (deploymentStage === 'ready' && status === 'running') {
-          break;
-        }
-      }
-    },
-
-    async waitForWorkshopStart({ commit, dispatch, getters }, { workshopId }) {
-      // Wait for workshop to come up (max 120 seconds)
-      for (let i = 0; i < 60; i++) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
-
-        await dispatch('fetchStatus');
-
-        // Get deployment stage from backend
-        const service = getters.getServiceByName(workshopId);
-        const deploymentStage = service?.deploymentStage;
-
-        console.log(`[deploy:${workshopId}] Backend stage:`, deploymentStage, 'Service:', service);
-
-        // Update progress with backend's actual stage
-        if (deploymentStage) {
-          commit('setRestartProgress', { workshopId, stage: deploymentStage, isRebuild: true, isDeploy: true });
-        }
-
-        // Check if deployment is complete
-        const status = getters.workshopStatus(workshopId);
-        if (deploymentStage === 'ready' && status === 'running') {
-          break;
+        if (session.state === 'READY' || TERMINAL_SESSION_STATES.has(session.state)) {
+          return session;
         }
       }
     }

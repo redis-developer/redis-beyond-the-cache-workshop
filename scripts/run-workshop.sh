@@ -10,6 +10,9 @@ STATE_ROOT="${TMPDIR:-/tmp}/redis-workshops"
 
 usage() {
   cat <<'EOF'
+Local maintainer helper only.
+This script is not the public runtime path.
+
 Usage:
   ./scripts/run-workshop.sh up <workshop>
   ./scripts/run-workshop.sh down <workshop>
@@ -182,7 +185,7 @@ wait_for_port() {
 print_urls() {
   echo "Frontend: ${frontend_url}"
   echo "Backend:  ${backend_url}"
-  echo "Redis Insight: http://localhost:5540/"
+  echo "Local Redis Insight: http://localhost:5540/"
   if [[ -n "${extra_url:-}" ]]; then
     echo "${extra_url}"
   fi
@@ -311,6 +314,7 @@ up() {
   ensure_java_home
   mkdir -p "${state_dir}"
 
+  echo "Running local maintainer workflow for ${display_name}."
   check_local_ports
 
   echo "Starting ${display_name} infrastructure..."
@@ -327,6 +331,7 @@ up() {
 }
 
 down() {
+  echo "Stopping local maintainer workflow for ${display_name}."
   stop_service "${frontend_port}" "${frontend_pid_file}" "frontend"
   stop_service "${backend_port}" "${backend_pid_file}" "backend"
   echo "Stopping infrastructure..."
@@ -370,7 +375,7 @@ status() {
   cleanup_stale_pidfile "${frontend_pid_file}"
   cleanup_stale_pidfile "${backend_pid_file}"
 
-  echo "${display_name}"
+  echo "${display_name} local maintainer workflow"
   if port_in_use "${frontend_port}"; then
     echo "frontend: running on port ${frontend_port}"
   else

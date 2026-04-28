@@ -10,4 +10,5 @@ export { default as WorkshopStageNav } from '../../../../../workshop-frontend-sh
 export { default as WorkshopProgressIndicator } from '../../../../../workshop-frontend-shared/src/components/WorkshopProgressIndicator.vue';
 export { default as WorkshopHubLink } from '../../../../../workshop-frontend-shared/src/components/WorkshopHubLink.vue';
 export { default as WorkshopHeader } from '../../../../../workshop-frontend-shared/src/components/WorkshopHeader.vue';
-
+export { default as WorkshopContentRenderer } from '../../../../../workshop-frontend-shared/src/components/WorkshopContentRenderer.vue';
+export { default as WorkshopShell } from '../../../../../workshop-frontend-shared/src/components/WorkshopShell.vue';

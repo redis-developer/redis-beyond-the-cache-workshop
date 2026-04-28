@@ -5,6 +5,10 @@ views:
     route: /
     pageType: stage-flow
     file: views/locks-home.yaml
+  - viewId: reentrant-learn
+    route: /reentrant
+    pageType: narrative
+    file: views/reentrant-learn.yaml
   - viewId: locks-implement
     route: /reentrant/implement
     pageType: narrative
@@ -13,3 +17,7 @@ views:
     route: /reentrant/editor
     pageType: editor
     file: views/locks-editor.yaml
+  - viewId: reentrant-demo
+    route: /reentrant/demo
+    pageType: stage-flow
+    file: views/reentrant-demo.yaml

@@ -3,6 +3,7 @@
     ref="layout"
     :title="editorTitle"
     :files="files"
+    :show-session-restart-controls="true"
   >
     <template #instructions>
       <div v-if="contentError" class="content-state content-state--error">
@@ -74,7 +75,7 @@ export default {
       return this.editorContent?.title || 'Stage 2: Enable Redis';
     },
     workshopHubUrl() {
-      return this.$refs.layout?.workshopHubUrl || getWorkshopHubUrl();
+      return getWorkshopHubUrl();
     }
   },
   async mounted() {

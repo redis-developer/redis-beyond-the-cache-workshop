@@ -2,7 +2,7 @@ package com.redis.workshop.infrastructure;
 
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
@@ -30,8 +30,17 @@ import java.util.Optional;
 import java.util.Set;
 
 @RestController
-@ConditionalOnProperty(name = "workshop.backend.url")
+@ConditionalOnExpression(
+    "T(org.springframework.util.StringUtils).hasText('${workshop.frontend.session-backend-url:}')"
+        + " || T(org.springframework.util.StringUtils).hasText('${workshop.frontend.backend-url:}')"
+        + " || T(org.springframework.util.StringUtils).hasText('${workshop.backend.url:}')"
+        + " || T(org.springframework.util.StringUtils).hasText('${WORKSHOP_SESSION_BACKEND_URL:}')"
+        + " || T(org.springframework.util.StringUtils).hasText('${WORKSHOP_BACKEND_URL:}')"
+        + " || '${workshop.session-runner.enabled:false}' == 'true'"
+)
 public class BackendProxyController {
+
+    private static final String REDIS_INSIGHT_BASE_PATH = "/redis-insight";
 
     private static final Set<String> EXCLUDED_HEADERS = Set.of(
         "connection",
@@ -46,17 +55,46 @@ public class BackendProxyController {
         "content-length"
     );
 
-    private final FrontendRuntimeProperties runtimeProperties;
+    private final SessionRuntimeResolver runtimeResolver;
     private final HttpClient httpClient;
+    private final SessionRunnerProperties runnerProperties;
+    private final Optional<LocalSessionRunnerManager> runnerManager;
 
     @Autowired
-    public BackendProxyController(FrontendRuntimeProperties runtimeProperties) {
-        this(runtimeProperties, HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build());
+    public BackendProxyController(
+        FrontendRuntimeProperties runtimeProperties,
+        SessionRunnerProperties runnerProperties,
+        Optional<LocalSessionRunnerManager> runnerManager
+    ) {
+        this(
+            new SessionRuntimeResolver(runtimeProperties, runnerProperties),
+            HttpClient.newBuilder()
+                .followRedirects(HttpClient.Redirect.NEVER)
+                .version(HttpClient.Version.HTTP_1_1)
+                .build(),
+            runnerProperties,
+            runnerManager
+        );
     }
 
     BackendProxyController(FrontendRuntimeProperties runtimeProperties, HttpClient httpClient) {
-        this.runtimeProperties = runtimeProperties;
+        this(new SessionRuntimeResolver(runtimeProperties), httpClient, null, Optional.empty());
+    }
+
+    BackendProxyController(SessionRuntimeResolver runtimeResolver, HttpClient httpClient) {
+        this(runtimeResolver, httpClient, null, Optional.empty());
+    }
+
+    BackendProxyController(
+        SessionRuntimeResolver runtimeResolver,
+        HttpClient httpClient,
+        SessionRunnerProperties runnerProperties,
+        Optional<LocalSessionRunnerManager> runnerManager
+    ) {
+        this.runtimeResolver = runtimeResolver;
         this.httpClient = httpClient;
+        this.runnerProperties = runnerProperties;
+        this.runnerManager = runnerManager == null ? Optional.empty() : runnerManager;
     }
 
     @RequestMapping(
@@ -80,12 +118,17 @@ public class BackendProxyController {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
         }
 
-        Optional<URI> backendUri = runtimeProperties.resolveBackendUri();
+        Optional<URI> backendUri = runtimeResolver.resolveBackendUri();
         if (backendUri.isEmpty()) {
             byte[] errorBody = "{\"error\":\"Backend URL is not configured\"}".getBytes(StandardCharsets.UTF_8);
             return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(errorBody);
+        }
+
+        Optional<ResponseEntity<byte[]>> runnerUnavailable = runnerUnavailableResponse(backendUri.get());
+        if (runnerUnavailable.isPresent()) {
+            return runnerUnavailable.get();
         }
 
         URI targetUri = buildTargetUri(backendUri.get(), request, requestPath);
@@ -94,6 +137,51 @@ public class BackendProxyController {
         try {
             HttpResponse<byte[]> backendResponse = httpClient.send(outboundRequest, HttpResponse.BodyHandlers.ofByteArray());
             return toResponseEntity(backendResponse, backendUri.get(), request);
+        } catch (IOException e) {
+            return proxyFailureResponse();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return proxyFailureResponse();
+        }
+    }
+
+    @RequestMapping(
+        value = {
+            "/redis-insight",
+            "/redis-insight/",
+            "/redis-insight/**"
+        },
+        method = {
+            RequestMethod.GET,
+            RequestMethod.POST,
+            RequestMethod.PUT,
+            RequestMethod.PATCH,
+            RequestMethod.DELETE,
+            RequestMethod.OPTIONS,
+            RequestMethod.HEAD
+        }
+    )
+    public ResponseEntity<byte[]> proxyRedisInsight(
+        HttpServletRequest request,
+        @RequestBody(required = false) byte[] body
+    ) {
+        if (runnerProperties == null || !runnerProperties.isEnabled()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+        Optional<URI> redisInsightUri = runnerProperties.resolveLocalRedisInsightUri();
+        if (redisInsightUri.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).build();
+        }
+
+        URI targetUri = buildTargetUri(redisInsightUri.get(), request, extractPath(request));
+        HttpRequest outboundRequest = buildOutboundRequest(request, targetUri, body);
+
+        try {
+            HttpResponse<byte[]> redisInsightResponse = httpClient.send(
+                outboundRequest,
+                HttpResponse.BodyHandlers.ofByteArray()
+            );
+            return toRedisInsightResponse(redisInsightResponse, request);
         } catch (IOException e) {
             return proxyFailureResponse();
         } catch (InterruptedException e) {
@@ -193,6 +281,44 @@ public class BackendProxyController {
         return new ResponseEntity<>(backendResponse.body(), responseHeaders, status);
     }
 
+    private ResponseEntity<byte[]> toRedisInsightResponse(
+        HttpResponse<byte[]> redisInsightResponse,
+        HttpServletRequest request
+    ) {
+        HttpHeaders responseHeaders = new HttpHeaders();
+        for (Map.Entry<String, List<String>> entry : redisInsightResponse.headers().map().entrySet()) {
+            String headerName = entry.getKey();
+            if (isExcludedHeader(headerName)) {
+                continue;
+            }
+            if (HttpHeaders.LOCATION.equalsIgnoreCase(headerName)) {
+                for (String value : entry.getValue()) {
+                    responseHeaders.add(HttpHeaders.LOCATION, rewriteRedisInsightLocation(value, request));
+                }
+                continue;
+            }
+            if (HttpHeaders.SET_COOKIE.equalsIgnoreCase(headerName)) {
+                for (String value : entry.getValue()) {
+                    responseHeaders.add(
+                        HttpHeaders.SET_COOKIE,
+                        rewriteCookie(value, externalRedisInsightBasePath(request))
+                    );
+                }
+                continue;
+            }
+            for (String value : entry.getValue()) {
+                responseHeaders.add(headerName, value);
+            }
+        }
+
+        byte[] responseBody = rewriteRedisInsightBody(redisInsightResponse.body(), responseHeaders, request);
+        HttpStatus status = HttpStatus.resolve(redisInsightResponse.statusCode());
+        if (status == null) {
+            status = HttpStatus.BAD_GATEWAY;
+        }
+        return new ResponseEntity<>(responseBody, responseHeaders, status);
+    }
+
     private String rewriteLocation(String location, URI backendBaseUri, HttpServletRequest request) {
         if (!StringUtils.hasText(location)) {
             return location;
@@ -218,6 +344,10 @@ public class BackendProxyController {
     }
 
     private String rewriteSetCookie(String setCookieHeader) {
+        return rewriteCookie(setCookieHeader, "/");
+    }
+
+    private String rewriteCookie(String setCookieHeader, String path) {
         String[] parts = setCookieHeader.split(";");
         List<String> rewritten = new ArrayList<>();
         boolean hasPath = false;
@@ -234,7 +364,7 @@ public class BackendProxyController {
                 continue;
             }
             if (lowerPart.startsWith("path=")) {
-                rewritten.add("Path=/");
+                rewritten.add("Path=" + pathWithTrailingSlash(path));
                 hasPath = true;
                 continue;
             }
@@ -242,9 +372,57 @@ public class BackendProxyController {
         }
 
         if (!hasPath) {
-            rewritten.add("Path=/");
+            rewritten.add("Path=" + pathWithTrailingSlash(path));
         }
         return String.join("; ", rewritten);
+    }
+
+    private String rewriteRedisInsightLocation(String location, HttpServletRequest request) {
+        if (!StringUtils.hasText(location)) {
+            return location;
+        }
+        String externalBasePath = externalRedisInsightBasePath(request);
+        if (location.startsWith(REDIS_INSIGHT_BASE_PATH) && !location.startsWith(externalBasePath)) {
+            return externalBasePath + location.substring(REDIS_INSIGHT_BASE_PATH.length());
+        }
+        return location;
+    }
+
+    private byte[] rewriteRedisInsightBody(byte[] body, HttpHeaders responseHeaders, HttpServletRequest request) {
+        if (body == null) {
+            return null;
+        }
+        String contentType = responseHeaders.getFirst(HttpHeaders.CONTENT_TYPE);
+        if (contentType == null
+            || !(contentType.contains("text/html")
+            || contentType.contains("javascript")
+            || contentType.contains("application/json"))) {
+            return body;
+        }
+        String externalBasePath = externalRedisInsightBasePath(request);
+        if (REDIS_INSIGHT_BASE_PATH.equals(externalBasePath)) {
+            return body;
+        }
+        String rewritten = new String(body, StandardCharsets.UTF_8)
+            .replace(REDIS_INSIGHT_BASE_PATH, externalBasePath);
+        byte[] bytes = rewritten.getBytes(StandardCharsets.UTF_8);
+        responseHeaders.setContentLength(bytes.length);
+        return bytes;
+    }
+
+    private String externalRedisInsightBasePath(HttpServletRequest request) {
+        String forwardedPrefix = request.getHeader("X-Forwarded-Prefix");
+        if (!StringUtils.hasText(forwardedPrefix) || "/".equals(forwardedPrefix.trim())) {
+            return REDIS_INSIGHT_BASE_PATH;
+        }
+        return trimTrailingSlash(forwardedPrefix.trim()) + REDIS_INSIGHT_BASE_PATH;
+    }
+
+    private String pathWithTrailingSlash(String path) {
+        if (!StringUtils.hasText(path)) {
+            return "/";
+        }
+        return path.endsWith("/") ? path : path + "/";
     }
 
     private boolean isSameAuthority(URI candidate, URI backendBaseUri) {
@@ -269,6 +447,23 @@ public class BackendProxyController {
             .body(errorBody);
     }
 
+    private Optional<ResponseEntity<byte[]>> runnerUnavailableResponse(URI backendUri) {
+        if (runnerProperties == null || !runnerProperties.isEnabled()) {
+            return Optional.empty();
+        }
+        Optional<URI> childBackendUri = runnerProperties.resolveChildBackendUri();
+        if (childBackendUri.isEmpty() || !isSameAuthority(backendUri, childBackendUri.get())) {
+            return Optional.empty();
+        }
+        if (runnerManager.map(LocalSessionRunnerManager::isChildReady).orElse(false)) {
+            return Optional.empty();
+        }
+        byte[] errorBody = "{\"error\":\"Session runner child process is not ready\"}".getBytes(StandardCharsets.UTF_8);
+        return Optional.of(ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE)
+            .contentType(MediaType.APPLICATION_JSON)
+            .body(errorBody));
+    }
+
     private String extractPath(HttpServletRequest request) {
         String requestUri = request.getRequestURI();
         if (!StringUtils.hasText(request.getContextPath())) {
@@ -279,5 +474,13 @@ public class BackendProxyController {
 
     private boolean isExcludedHeader(String headerName) {
         return EXCLUDED_HEADERS.contains(headerName.toLowerCase(Locale.ROOT));
+    }
+
+    private String trimTrailingSlash(String value) {
+        String normalized = value.trim();
+        while (normalized.endsWith("/") && normalized.length() > 1) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        return normalized;
     }
 }

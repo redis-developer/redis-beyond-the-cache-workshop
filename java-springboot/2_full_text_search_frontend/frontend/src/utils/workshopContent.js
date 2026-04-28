@@ -1,4 +1,4 @@
-import { getApiUrl } from './basePath';
+import { getApiUrl } from '../../../../../workshop-frontend-shared/src/utils/basePath.js';
 
 export async function fetchWorkshopContent(viewId) {
   const response = await fetch(getApiUrl(`/api/content/views/${encodeURIComponent(viewId)}`), {

@@ -1,10 +1,14 @@
 rootProject.name = "redis-springboot-workshop"
 
-// Workshop hub (main landing page)
-include("workshop-hub")
-
 // Shared infrastructure module (used by all workshops)
 include("workshop-infrastructure")
+
+// Platform control plane
+include("platform_control_plane")
+
+// Platform execution plane and shared internal contracts
+include("platform_contracts")
+include("platform_execution_plane")
 
 // Individual workshop modules
 include("1_session_management")

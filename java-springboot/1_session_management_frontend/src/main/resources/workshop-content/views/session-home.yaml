@@ -33,10 +33,10 @@ stages:
                       itemId: test1
               - itemId: test2
                 title: "Test 2: Restart the Backend"
-                body: Restart the workshop backend without rebuilding. This simulates a server restart or deployment.
+                body: Use the shell toolbar to restart the learner runtime without rebuilding.
                 actions:
-                  - id: openHub
-                    label: Open Workshop Hub
+                  - id: restartRuntime
+                    label: Restart Runtime
                   - id: markItemComplete
                     label: I've restarted the backend
                     args:
@@ -91,14 +91,14 @@ stages:
                 body: "Open `SecurityConfig.java` and uncomment the `HttpSessionSecurityContextRepository` configuration (imports, bean, and filter chain config)."
               - itemId: rebuild-backend
                 title: "Step 4: Restart and Verify"
-                body: Rebuild and restart the workshop backend, then come back to see the difference.
+                body: Use the shell toolbar to rebuild and restart the learner runtime, then come back to see the difference.
                 actions:
-                  - id: openHub
-                    label: Open Workshop Hub
+                  - id: rebuildRuntime
+                    label: Rebuild Runtime
           - type: actionRow
             actions:
-              - id: restartLab
-                label: Reset Code
+              - id: resetProgress
+                label: Reset Test Progress
               - id: setStage
                 label: Back to Stage 1
                 args:
@@ -129,10 +129,10 @@ stages:
                       itemId: test1
               - itemId: test2
                 title: "Test 2: Restart the Backend"
-                body: Restart the workshop backend again without rebuilding.
+                body: Use the shell toolbar to restart the learner runtime again without rebuilding.
                 actions:
-                  - id: openHub
-                    label: Open Workshop Hub
+                  - id: restartRuntime
+                    label: Restart Runtime
                   - id: markItemComplete
                     label: I've restarted the backend
                     args:
@@ -191,7 +191,7 @@ stages:
           - type: callout
             tone: info
             title: Want to try again?
-            body: Restore all files to their original state.
+            body: Reset the guided test progress and use the shared restart controls or Workshop Hub if you need to restart the backend.
             actions:
-              - id: restartLab
-                label: Restart Lab
+              - id: resetProgress
+                label: Reset Progress

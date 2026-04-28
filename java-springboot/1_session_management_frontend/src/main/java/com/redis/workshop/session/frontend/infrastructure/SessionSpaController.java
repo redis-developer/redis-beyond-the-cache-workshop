@@ -11,11 +11,11 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class SessionSpaController {
 
     /**
-     * Root path - send learners to the login route.
+     * Root path - send learners to the stable workshop shell.
      */
     @GetMapping("/")
     public String root() {
-        return "redirect:/login";
+        return "redirect:/welcome";
     }
 
     /**
@@ -31,6 +31,14 @@ public class SessionSpaController {
      */
     @GetMapping("/welcome")
     public String welcome() {
+        return "forward:/index.html";
+    }
+
+    /**
+     * Learner app frame - served by Vue.js SPA.
+     */
+    @GetMapping("/app")
+    public String app() {
         return "forward:/index.html";
     }
 }

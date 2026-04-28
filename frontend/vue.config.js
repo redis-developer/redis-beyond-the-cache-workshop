@@ -1,5 +1,3 @@
-const webpack = require('webpack');
-
 module.exports = {
   publicPath: '/',
   lintOnSave: false,
@@ -7,20 +5,14 @@ module.exports = {
   devServer: {
     port: 3000,
     proxy: {
-      '/manager/api': {
-        target: 'http://localhost:9000',
+      '/api': {
+        target: 'http://localhost:9001',
+        changeOrigin: true
+      },
+      '/session': {
+        target: 'http://localhost:9001',
         changeOrigin: true
       }
     }
-  },
-  configureWebpack: {
-    plugins: [
-      new webpack.DefinePlugin({
-        'process.env': {
-          VUE_APP_API_URL: JSON.stringify('http://localhost:9000')
-        }
-      })
-    ]
   }
 }
-

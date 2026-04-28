@@ -1,0 +1,17 @@
+spring:
+  application:
+    name: platform-control-plane-test
+
+platform:
+  controlplane:
+    execution:
+      base-url: http://execution-plane.test
+      shared-secret: test-secret
+      launch-timeout: 5s
+      restart-timeout: 5s
+      termination-timeout: 5s
+    runtime:
+      public-base-url:
+      provisioning-delay: 0ms
+      initialization-delay: 0ms
+      termination-delay: 0ms

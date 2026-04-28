@@ -3,6 +3,7 @@
     ref="layout"
     title="Agent Memory Workshop"
     :files="files"
+    show-session-restart-controls
     @file-loaded="onFileLoaded"
   >
     <template #instructions>
@@ -34,7 +35,6 @@
 import {
   WorkshopContentRenderer,
   WorkshopEditorLayout,
-  getBasePath,
   getWorkshopHubUrl
 } from '../../../../../workshop-frontend-shared/src/index.js';
 import MemoryEditorCompletionWidget from '../components/widgets/MemoryEditorCompletionWidget.vue';
@@ -76,7 +76,6 @@ export default {
       currentStep: 0,
       workshopComplete: false,
       fileContents: {},
-      restartingLab: false,
       progressExpanded: false,
       completedStepsSet: new Set(),
       content: null,
@@ -97,7 +96,6 @@ export default {
     await this.checkWorkshopCompletion();
   },
   computed: {
-    basePath() { return getBasePath(); },
     workshopHubUrl() {
       return getWorkshopHubUrl();
     },
@@ -142,7 +140,7 @@ export default {
             this.$router.push(args.route);
           }
         },
-        restartLab: () => this.restartLab(),
+        resetProgress: () => this.resetProgress(),
         saveFile: () => this.saveFile()
       };
     }
@@ -177,16 +175,18 @@ export default {
     },
     async fetchFileContent(fileName) {
       try {
-        const url = `${this.basePath}/api/editor/file/${fileName}`;
-        const response = await fetch(url, { credentials: 'include' });
-        const data = await response.json();
-        return data.content || '';
+        await this.$refs.layout.loadFile(fileName);
+        return this.$refs.layout.getCurrentContent() || '';
       } catch (e) { return ''; }
     },
     async checkWorkshopCompletion() {
-      this.fileContents['AgentMemoryService.java'] = await this.fetchFileContent('AgentMemoryService.java');
-      this.fileContents['AmsChatMemoryRepository.java'] = await this.fetchFileContent('AmsChatMemoryRepository.java');
-      this.fileContents['ChatService.java'] = await this.fetchFileContent('ChatService.java');
+      const previousFile = this.currentFile;
+      for (const fileName of this.files) {
+        this.fileContents[fileName] = await this.fetchFileContent(fileName);
+      }
+      if (previousFile && previousFile !== this.$refs.layout.getCurrentFile()) {
+        await this.$refs.layout.loadFile(previousFile);
+      }
       const amsContent = this.fileContents['AgentMemoryService.java'] || '';
       const repositoryContent = this.fileContents['AmsChatMemoryRepository.java'] || '';
       const chatContent = this.fileContents['ChatService.java'] || '';
@@ -611,37 +611,16 @@ export default {
       this.showStatus('Long-Term Memory Advisor added! Searches memories by meaning and injects them into context. Click Save!', 'success');
       this.saveProgress(15);
     },
-    async restartLab() {
-      if (!confirm('Are you sure you want to reset the lab? This will restore all files to their original state. You will need to rebuild and restart the application after this.')) {
+    resetProgress() {
+      if (!confirm('Reset local editor progress for this browser? Code files are managed by the shared editor and runtime controls.')) {
         return;
       }
-      this.restartingLab = true;
-      try {
-        const response = await fetch(`${this.basePath}/api/editor/restore`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include'
-        });
-        const data = await response.json();
-        if (data.success) {
-          localStorage.removeItem(STORAGE_KEY);
-          this.currentStep = 0;
-          this.workshopComplete = false;
-          this.completedStepsSet = new Set();
-          alert(`Lab reset! ${data.filesRestored} files restored.\n\nPlease go to the Workshop Hub and rebuild the app, then refresh this page to start from the beginning.`);
-          // Reload current file to show restored content
-          if (this.currentFile) {
-            await this.$refs.layout.loadFile(this.currentFile);
-          }
-        } else {
-          alert('Error: ' + (data.error || 'Failed to restore files'));
-        }
-      } catch (error) {
-        console.error('Error restarting lab:', error);
-        alert('Failed to restore files. Please try again.');
-      } finally {
-        this.restartingLab = false;
-      }
+
+      localStorage.removeItem(STORAGE_KEY);
+      this.currentStep = 0;
+      this.workshopComplete = false;
+      this.completedStepsSet = new Set();
+      alert('Editor progress reset. Use the shared restart controls if you also need to restart or rebuild the runtime.');
     }
   }
 };

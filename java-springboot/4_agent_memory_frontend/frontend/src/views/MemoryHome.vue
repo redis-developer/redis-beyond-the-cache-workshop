@@ -5,6 +5,7 @@
       :steps="headerSteps"
       :current-step="currentStage - 1"
       clickable
+      show-session-restart-controls
       @step-click="goToStage"
     />
 

@@ -5,6 +5,7 @@
       :hub-url="workshopHubUrl"
       :steps="headerSteps"
       :current-step="currentStageIndex"
+      :show-session-restart-controls="true"
       clickable
       @step-click="goToStage"
     />
@@ -34,8 +35,11 @@
 </template>
 
 <script>
-import { getWorkshopHubUrl } from '../utils/basePath';
-import { WorkshopContentRenderer, WorkshopHeader } from '../utils/components';
+import {
+  getWorkshopHubUrl,
+  WorkshopContentRenderer,
+  WorkshopHeader
+} from '../../../../../workshop-frontend-shared/src/index.js';
 import {
   fetchWorkshopContent,
   getContentStageIndex,

@@ -4,6 +4,7 @@
       :hub-url="workshopHubUrl"
       :steps="['Home', 'Learn']"
       :current-step="1"
+      show-session-restart-controls
     />
 
     <div class="main-container">

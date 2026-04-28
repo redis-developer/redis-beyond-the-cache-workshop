@@ -14,10 +14,28 @@ export {
 } from './utils/basePath.js';
 
 export {
+  buildSessionApiUrl,
+  getSessionRouteContext
+} from './utils/sessionContext.js';
+
+export {
   bindContentAction,
   createContentRenderModel,
   getStageNavItems
-} from './content-renderer/renderModel.js';
+} from './content/renderModel.js';
+
+export {
+  DEFAULT_ALLOWED_PLACEHOLDER_PATHS,
+  createContentInterpolationContext,
+  createStringInterpolator,
+  interpolateString
+} from './content/interpolation.js';
+
+export {
+  createWidgetBlock,
+  expandMarkdownFirstBlocks,
+  parseWidgetDeclaration
+} from './content/markdownFirst.js';
 
 export { renderMarkdown } from './content-renderer/markdown.js';
 
@@ -31,6 +49,20 @@ export { default as WorkshopStageNav } from './components/WorkshopStageNav.vue';
 export { default as WorkshopProgressIndicator } from './components/WorkshopProgressIndicator.vue';
 export { default as WorkshopHubLink } from './components/WorkshopHubLink.vue';
 export { default as WorkshopHeader } from './components/WorkshopHeader.vue';
+export { default as WorkshopSessionRestartControls } from './components/WorkshopSessionRestartControls.vue';
 export { default as WorkshopContentRenderer } from './components/WorkshopContentRenderer.vue';
+export { default as WorkshopMarkdownRenderer } from './components/WorkshopMarkdownRenderer.vue';
+export { default as WorkshopAppFrame } from './components/WorkshopAppFrame.vue';
+export { default as WorkshopRuntimeToolbar } from './components/WorkshopRuntimeToolbar.vue';
+export { default as WorkshopShell } from './components/WorkshopShell.vue';
+
+export {
+  createActionSet,
+  isRuntimeBlocked,
+  isRuntimeBusy,
+  isRuntimeReady,
+  normalizeRuntimeState,
+  resolveWorkshopShellState
+} from './composables/useWorkshopShellState.js';
 
 export default {};

@@ -65,13 +65,34 @@ class DistributedLocksFrontendIntegrationTest {
         mockMvc.perform(get("/api/content/manifest"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.workshopId").value("3_distributed_locks"))
-            .andExpect(jsonPath("$.views", hasSize(3)));
+            .andExpect(jsonPath("$.views", hasSize(5)))
+            .andExpect(jsonPath("$.views[*].viewId", Matchers.hasItems(
+                "locks-home",
+                "reentrant-learn",
+                "locks-implement",
+                "locks-editor",
+                "reentrant-demo"
+            )))
+            .andExpect(jsonPath("$.views[*].route", Matchers.hasItems(
+                "/",
+                "/reentrant",
+                "/reentrant/implement",
+                "/reentrant/editor",
+                "/reentrant/demo"
+            )));
 
         mockMvc.perform(get("/api/content/views/locks-home"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.viewId").value("locks-home"))
             .andExpect(jsonPath("$.pageType").value("stage-flow"))
             .andExpect(jsonPath("$.stages", hasSize(2)));
+
+        mockMvc.perform(get("/api/content/views/reentrant-learn"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("reentrant-learn"))
+            .andExpect(jsonPath("$.route").value("/reentrant"))
+            .andExpect(jsonPath("$.pageType").value("narrative"))
+            .andExpect(jsonPath("$.sections", hasSize(3)));
 
         mockMvc.perform(get("/api/content/views/locks-implement"))
             .andExpect(status().isOk())
@@ -84,6 +105,13 @@ class DistributedLocksFrontendIntegrationTest {
             .andExpect(jsonPath("$.viewId").value("locks-editor"))
             .andExpect(jsonPath("$.pageType").value("editor"))
             .andExpect(jsonPath("$.sections", hasSize(6)));
+
+        mockMvc.perform(get("/api/content/views/reentrant-demo"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.viewId").value("reentrant-demo"))
+            .andExpect(jsonPath("$.route").value("/reentrant/demo"))
+            .andExpect(jsonPath("$.pageType").value("stage-flow"))
+            .andExpect(jsonPath("$.stages", hasSize(3)));
     }
 
     @ParameterizedTest

@@ -1,15 +1,15 @@
 package com.redis.workshop.infrastructure;
 
+import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -25,25 +25,35 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/api/editor")
 @ConditionalOnBean(WorkshopConfig.class)
-@ConditionalOnProperty(name = "workshop.backend.url")
+@ConditionalOnExpression(
+    "T(org.springframework.util.StringUtils).hasText('${workshop.frontend.session-backend-url:}')"
+        + " || T(org.springframework.util.StringUtils).hasText('${workshop.frontend.backend-url:}')"
+        + " || T(org.springframework.util.StringUtils).hasText('${workshop.backend.url:}')"
+        + " || T(org.springframework.util.StringUtils).hasText('${WORKSHOP_SESSION_BACKEND_URL:}')"
+        + " || T(org.springframework.util.StringUtils).hasText('${WORKSHOP_BACKEND_URL:}')"
+)
 public class EditorController {
 
       private final WorkshopConfig workshopConfig;
-      private final FrontendRuntimeProperties runtimeProperties;
+      private final SessionRuntimeResolver runtimeResolver;
       private final EditorDiagnosticsService diagnosticsService;
 
       @Autowired
       public EditorController(WorkshopConfig workshopConfig, FrontendRuntimeProperties runtimeProperties) {
-          this(workshopConfig, runtimeProperties, new EditorDiagnosticsService(workshopConfig, runtimeProperties));
+          this(
+              workshopConfig,
+              new SessionRuntimeResolver(runtimeProperties, workshopConfig),
+              new EditorDiagnosticsService(workshopConfig, runtimeProperties)
+          );
       }
 
       EditorController(
           WorkshopConfig workshopConfig,
-          FrontendRuntimeProperties runtimeProperties,
+          SessionRuntimeResolver runtimeResolver,
           EditorDiagnosticsService diagnosticsService
       ) {
           this.workshopConfig = workshopConfig;
-          this.runtimeProperties = runtimeProperties;
+          this.runtimeResolver = runtimeResolver;
           this.diagnosticsService = diagnosticsService;
       }
 
@@ -140,17 +150,7 @@ public class EditorController {
         Map<String, Object> response = new HashMap<>();
 
         try {
-            for (String fileName : workshopConfig.getEditableFiles().keySet()) {
-                String originalContent = workshopConfig.getOriginalContent(fileName);
-                if (originalContent != null) {
-                    Path filePath = getFilePath(fileName);
-                    if (filePath != null) {
-                        Files.createDirectories(filePath.getParent());
-                        Files.writeString(filePath, originalContent, StandardCharsets.UTF_8);
-                    }
-                }
-            }
-
+            diagnosticsService.restoreFiles();
             response.put("success", true);
             response.put("message", "All files restored to original state");
         } catch (Exception e) {
@@ -165,7 +165,10 @@ public class EditorController {
      * Run build diagnostics for the current workshop and map them back to editable files.
      */
     @PostMapping("/diagnostics")
-    public Map<String, Object> collectDiagnostics(@RequestBody(required = false) Map<String, Object> payload) {
+    public Map<String, Object> collectDiagnostics(
+        @RequestBody(required = false) Map<String, Object> payload,
+        HttpServletRequest request
+    ) {
         Map<String, String> overrides = new HashMap<>();
         Object rawOverrides = payload == null ? null : payload.get("overrides");
 
@@ -181,7 +184,7 @@ public class EditorController {
             }
         }
 
-        EditorDiagnosticsService.DiagnosticsResponse diagnostics = diagnosticsService.collectDiagnostics(overrides);
+        EditorDiagnosticsService.DiagnosticsResponse diagnostics = diagnosticsService.collectDiagnostics(overrides, request);
         Map<String, Object> response = new HashMap<>();
         response.put("diagnostics", diagnostics.diagnostics());
         if (diagnostics.error() != null) {
@@ -195,12 +198,6 @@ public class EditorController {
           if (relativePath == null) {
               return null;
           }
-          Path basePath = runtimeProperties.resolveSourcePath()
-              .orElse(Paths.get(workshopConfig.getBasePath()).toAbsolutePath().normalize());
-          Path resolvedPath = basePath.resolve(relativePath).normalize();
-          if (!resolvedPath.startsWith(basePath)) {
-              return null;
-          }
-          return resolvedPath;
+          return runtimeResolver.resolvePathWithinModule(relativePath).orElse(null);
       }
   }

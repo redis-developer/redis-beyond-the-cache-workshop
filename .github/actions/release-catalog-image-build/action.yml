@@ -1,0 +1,134 @@
+name: Release Catalog Image Build
+description: Build or publish one image target from the release catalog and emit a machine readable result file.
+
+inputs:
+  release_id:
+    description: Stable release identifier from workshops.yaml.
+    required: true
+  workshop_id:
+    description: Workshop identifier from workshops.yaml.
+    required: true
+  release_version:
+    description: Release version from workshops.yaml.
+    required: true
+  image_role:
+    description: Image role such as frontend or backend.
+    required: true
+  image_reference:
+    description: Digest pinned image reference from workshops.yaml.
+    required: true
+  registry:
+    description: Registry host extracted from the release catalog image reference.
+    required: true
+  repository:
+    description: Repository path extracted from the release catalog image reference.
+    required: true
+  dockerfile:
+    description: Dockerfile path to build.
+    required: true
+  build_context:
+    description: Docker build context.
+    required: true
+  publish:
+    description: When true the image is pushed and the digest becomes the source of truth.
+    required: false
+    default: "false"
+  source_revision:
+    description: Source commit SHA used for immutable tag generation.
+    required: true
+  result_dir:
+    description: Directory where the per image JSON result should be written.
+    required: false
+    default: release-catalog-image-results
+
+outputs:
+  digest:
+    description: Pushed image digest when publish mode is enabled.
+    value: ${{ steps.build.outputs.digest }}
+  image_tag:
+    description: Immutable tag used for the build.
+    value: ${{ steps.meta.outputs.image_tag }}
+  result_path:
+    description: Path to the per image JSON result file.
+    value: ${{ steps.result.outputs.result_path }}
+
+runs:
+  using: composite
+  steps:
+    - id: meta
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        release_tag="$(printf '%s' "${RELEASE_VERSION}" | sed 's/[^0-9A-Za-z_.-]/_/g')"
+        short_sha="${SOURCE_REVISION:0:12}"
+        image_tag="${REPOSITORY}:${release_tag}-${short_sha}"
+
+        echo "image_tag=${image_tag}" >> "$GITHUB_OUTPUT"
+        {
+          echo "tags<<EOF"
+          echo "${image_tag}"
+          echo "EOF"
+        } >> "$GITHUB_OUTPUT"
+      env:
+        REPOSITORY: ${{ inputs.repository }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        SOURCE_REVISION: ${{ inputs.source_revision }}
+
+    - id: build
+      uses: docker/build-push-action@v6
+      with:
+        context: ${{ inputs.build_context }}
+        file: ${{ inputs.dockerfile }}
+        pull: true
+        provenance: false
+        push: ${{ inputs.publish == 'true' }}
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: |
+          org.opencontainers.image.revision=${{ inputs.source_revision }}
+          org.opencontainers.image.version=${{ inputs.release_version }}
+          org.opencontainers.image.title=${{ inputs.release_id }}-${{ inputs.image_role }}
+          org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+
+    - id: result
+      shell: bash
+      run: |
+        set -euo pipefail
+
+        mkdir -p "${RESULT_DIR}"
+        result_path="${RESULT_DIR}/${RELEASE_ID}-${IMAGE_ROLE}.json"
+
+        args=(
+          --release-id "${RELEASE_ID}"
+          --workshop-id "${WORKSHOP_ID}"
+          --release-version "${RELEASE_VERSION}"
+          --image-role "${IMAGE_ROLE}"
+          --registry "${REGISTRY}"
+          --repository "${REPOSITORY}"
+          --source-reference "${IMAGE_REFERENCE}"
+          --source-revision "${SOURCE_REVISION}"
+          --published "${PUBLISH}"
+          --tag "${IMAGE_TAG}"
+          --output "${result_path}"
+        )
+
+        if [ -n "${DIGEST}" ]; then
+          args+=(--digest "${DIGEST}")
+        fi
+
+        ruby scripts/ci/release_catalog_ci.rb result "${args[@]}"
+
+        echo "result_path=${result_path}" >> "$GITHUB_OUTPUT"
+      env:
+        DIGEST: ${{ steps.build.outputs.digest }}
+        IMAGE_REFERENCE: ${{ inputs.image_reference }}
+        IMAGE_ROLE: ${{ inputs.image_role }}
+        IMAGE_TAG: ${{ steps.meta.outputs.image_tag }}
+        PUBLISH: ${{ inputs.publish }}
+        REGISTRY: ${{ inputs.registry }}
+        RELEASE_ID: ${{ inputs.release_id }}
+        RELEASE_VERSION: ${{ inputs.release_version }}
+        REPOSITORY: ${{ inputs.repository }}
+        RESULT_DIR: ${{ inputs.result_dir }}
+        SOURCE_REVISION: ${{ inputs.source_revision }}
+        WORKSHOP_ID: ${{ inputs.workshop_id }}

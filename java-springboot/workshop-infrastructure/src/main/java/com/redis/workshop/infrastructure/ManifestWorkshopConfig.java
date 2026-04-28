@@ -46,10 +46,7 @@ final class ManifestWorkshopConfig implements WorkshopConfig {
 
     @Override
     public String getBasePath() {
-        if (StringUtils.hasText(basePath)) {
-            return basePath;
-        }
-        return WorkshopConfig.super.getBasePath();
+        return basePath;
     }
 
     @Override

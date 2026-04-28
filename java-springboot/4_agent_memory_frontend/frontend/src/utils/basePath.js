@@ -6,4 +6,4 @@ export {
   getApiUrl,
   getWorkshopHubUrl,
   getRedisInsightUrl
-} from '../../../../../workshop-frontend-shared/src/utils/basePath.js';
+} from '../../../../../workshop-frontend-shared/src/index.js';
