@@ -1,0 +1,89 @@
+schemaVersion: 1
+viewId: "3"
+route: /3
+pageType: narrative
+title: "STAGE 3: Redis Session Management Enabled!"
+slot: instructions
+header:
+  showHubLink: true
+sections:
+  - sectionId: stage-3-tests
+    blocks:
+      - type: statusPanel
+        tone: success
+        title: Current state
+        body: Sessions are stored in Redis.
+      - type: markdown
+        body: "Let's verify it works. Complete each test to proceed:"
+      - type: stepList
+        listId: stage3-tests
+        variant: tests
+        items:
+          - itemId: test1
+            title: "Test 1: Note Your Session ID"
+            body: "Note your Session ID on the right: `{{sessionId}}`. This ID is now stored in Redis, not in application memory."
+            actions:
+              - id: markItemComplete
+                label: I've noted my Session ID
+                args:
+                  groupId: stage3-tests
+                  itemId: test1
+          - itemId: test2
+            title: "Test 2: Restart the Backend"
+            body: Use the shell toolbar to restart the learner runtime again without rebuilding.
+            actions:
+              - id: restartRuntime
+                label: Restart Runtime
+              - id: markItemComplete
+                label: I've restarted the backend
+                args:
+                  groupId: stage3-tests
+                  itemId: test2
+          - itemId: test3
+            title: "Test 3: Still Logged In!"
+            body: Refresh this page and verify that you are still logged in with the same Session ID.
+            supportingBlocks:
+              - type: widget
+                widgetId: 3.redis-session-comparison
+            actions:
+              - id: markItemComplete
+                label: I'm still logged in
+                args:
+                  groupId: stage3-tests
+                  itemId: test3
+          - itemId: test4
+            title: "Test 4: View in Redis"
+            body: "Use Redis Insight and search for `spring:session` to see your session data stored in Redis."
+            actions:
+              - id: openRedisInsight
+                label: Open Redis Insight
+              - id: markItemComplete
+                label: I've seen my session in Redis
+                args:
+                  groupId: stage3-tests
+                  itemId: test4
+          - itemId: test5
+            title: "Test 5: Separate Browser Session (Optional)"
+            body: Open the workshop in an incognito or private window, or use a different browser. You should see a different Session ID there while this browser stays logged in.
+            actions:
+              - id: markItemComplete
+                label: I've tested a second browser session
+                args:
+                  groupId: stage3-tests
+                  itemId: test5
+  - sectionId: stage-3-completion
+    title: Workshop Complete!
+    blocks:
+      - type: markdown
+        body: |
+          You've successfully learned how to implement distributed session management with Redis.
+
+          #### What You Learned:
+          - Sessions persist across application restarts
+          - Multiple application instances can share sessions (horizontal scaling)
+          - Session data is stored in Redis, not in application memory
+          - Enables zero-downtime deployments and load balancing
+      - type: callout
+        tone: info
+        title: Want to try again?
+        body: Use Reset Instructions in the frame header to clear the guided test progress.

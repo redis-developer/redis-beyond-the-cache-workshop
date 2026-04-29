@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-if [ $# -lt 4 ] || [ $# -gt 5 ]; then
-  echo "Usage: $0 <id> <title> <serviceName> <frontendPort> [backendPort]" >&2
-  echo "Example: $0 5_rate_limiting \"Rate Limiting\" rate-limiting 8084 18084" >&2
+if [ $# -ne 3 ]; then
+  echo "Usage: $0 <id> <title> <serviceName>" >&2
+  echo "Example: $0 5_rate_limiting \"Rate Limiting\" rate-limiting" >&2
   exit 1
 fi
 
 ID="$1"
 TITLE="$2"
 SERVICE_NAME="$3"
-FRONTEND_PORT="$4"
-BACKEND_PORT="${5:-$((FRONTEND_PORT + 10000))}"
+DEFAULT_FRONTEND_PORT=8080
+DEFAULT_BACKEND_PORT=18080
 
 PASCAL_CASE=$(echo "$SERVICE_NAME" | awk -F'-' '{for(i=1;i<=NF;i++) $i=toupper(substr($i,1,1)) tolower(substr($i,2))}1' OFS='')
 PACKAGE_NAME=$(echo "$SERVICE_NAME" | tr -d '-')
@@ -34,11 +34,6 @@ done
 
 if [ ! -f "$REGISTRY_PATH" ]; then
   echo "Registry not found: $REGISTRY_PATH" >&2
-  exit 1
-fi
-
-if ! [[ "$FRONTEND_PORT" =~ ^[0-9]+$ && "$BACKEND_PORT" =~ ^[0-9]+$ ]]; then
-  echo "Ports must be numeric." >&2
   exit 1
 fi
 
@@ -120,7 +115,7 @@ EOF
 
 cat <<EOF > "$BACKEND_MODULE_DIR/src/main/resources/application.properties"
 spring.application.name=$SERVICE_NAME
-server.port=\${SERVER_PORT:$BACKEND_PORT}
+server.port=\${SERVER_PORT:$DEFAULT_BACKEND_PORT}
 EOF
 
 cat <<EOF > "$BACKEND_MODULE_DIR/src/main/java/com/redis/workshop/$PACKAGE_NAME/${PASCAL_CASE}Application.java"
@@ -220,8 +215,6 @@ WORKDIR /app
 
 COPY --from=builder /workspace/java-springboot/$ID/build/libs/${ID}-0.0.1-SNAPSHOT.jar app.jar
 
-EXPOSE $BACKEND_PORT
-
 ENTRYPOINT ["java", "-jar", "app.jar"]
 EOF
 
@@ -268,8 +261,8 @@ EOF
 
 cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/application.properties"
 spring.application.name=${SERVICE_NAME}-frontend
-server.port=\${SERVER_PORT:$FRONTEND_PORT}
-workshop.backend.url=\${WORKSHOP_BACKEND_URL:http://127.0.0.1:$BACKEND_PORT}
+server.port=\${SERVER_PORT:$DEFAULT_FRONTEND_PORT}
+workshop.backend.url=\${WORKSHOP_BACKEND_URL:http://127.0.0.1:$DEFAULT_BACKEND_PORT}
 workshop.source.path=\${WORKSHOP_SOURCE_PATH:\${WORKSHOP_BASE_PATH:}}
 EOF
 
@@ -300,7 +293,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class ${PASCAL_CASE}SpaController {
 
-    @GetMapping("/")
+    @GetMapping({"/", "/0", "/1"})
     public String app() {
         return "forward:/index.html";
     }
@@ -379,7 +372,7 @@ EOF
 
 cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-manifest-reset/application.properties"
 spring.application.name=$SERVICE_NAME
-server.port=\${SERVER_PORT:$BACKEND_PORT}
+server.port=\${SERVER_PORT:$DEFAULT_BACKEND_PORT}
 EOF
 
 cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-manifest-reset/${PASCAL_CASE}Application.java"
@@ -446,19 +439,19 @@ class ${PASCAL_CASE}FrontendIntegrationTest {
             .andExpect(jsonPath("$.workshopId").value("$ID"))
             .andExpect(jsonPath("$.views", hasSize(2)));
 
-        mockMvc.perform(get("/api/content/views/${SERVICE_NAME}-home"))
+        mockMvc.perform(get("/api/content/views/0"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.viewId").value("${SERVICE_NAME}-home"))
+            .andExpect(jsonPath("$.viewId").value("0"))
             .andExpect(jsonPath("$.pageType").value("narrative"));
 
-        mockMvc.perform(get("/api/content/views/${SERVICE_NAME}-editor"))
+        mockMvc.perform(get("/api/content/views/1"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.viewId").value("${SERVICE_NAME}-editor"))
+            .andExpect(jsonPath("$.viewId").value("1"))
             .andExpect(jsonPath("$.pageType").value("editor"));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/", "/editor"})
+    @ValueSource(strings = {"/", "/0", "/1"})
     void spaRoutesResolveToFrontend(String route) throws Exception {
         mockMvc.perform(get(route))
             .andExpect(status().isOk());
@@ -532,8 +525,6 @@ COPY --from=builder /workspace/java-springboot/$FRONTEND_MODULE/build/libs/${FRO
 ENV WORKSHOP_SOURCE_PATH=/workshop-sources
 ENV WORKSHOP_BASE_PATH=/workshop-sources
 
-EXPOSE $FRONTEND_PORT
-
 ENTRYPOINT ["java", "-jar", "app.jar"]
 EOF
 
@@ -571,19 +562,20 @@ cat <<EOF > "$FRONTEND_MODULE_DIR/frontend/vue.config.js"
 const { defineConfig } = require('@vue/cli-service')
 
 const basePath = process.env.VUE_APP_BASE_PATH || '/'
+const backendTarget = process.env.WORKSHOP_BACKEND_URL
 
 module.exports = defineConfig({
   transpileDependencies: true,
   outputDir: '../src/main/resources/static',
   publicPath: basePath,
   devServer: {
-    port: $FRONTEND_PORT,
-    proxy: {
+    port: process.env.FRONTEND_PORT ? Number(process.env.FRONTEND_PORT) : undefined,
+    proxy: backendTarget ? {
       '/api': {
-        target: 'http://localhost:$BACKEND_PORT',
+        target: backendTarget,
         changeOrigin: true
       }
-    }
+    } : undefined
   }
 })
 EOF
@@ -647,8 +639,9 @@ const HomeView = () => import('../views/${PASCAL_CASE}Home.vue')
 const EditorView = () => import('../views/${PASCAL_CASE}Editor.vue')
 
 const routes = [
-  { path: '/', name: '${PASCAL_CASE}Home', component: HomeView },
-  { path: '/editor', name: '${PASCAL_CASE}Editor', component: EditorView }
+  { path: '/', redirect: '/0' },
+  { path: '/0', name: '${PASCAL_CASE}Home', component: HomeView },
+  { path: '/1', name: '${PASCAL_CASE}Editor', component: EditorView }
 ]
 
 export default createRouter({
@@ -787,7 +780,7 @@ export default {
     },
     actionHandlers() {
       return {
-        openEditor: () => this.openRoute('/editor'),
+        openEditor: () => this.openRoute('/1'),
         openApp: () => window.open(this.learnerAppUrl, '_blank', 'noopener'),
         openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
         openRoute: ({ args }) => this.openRoute(args?.route)
@@ -800,7 +793,7 @@ export default {
       this.loadError = ''
 
       try {
-        this.content = await fetchWorkshopContent('${SERVICE_NAME}-home')
+        this.content = await fetchWorkshopContent('0')
       } catch (error) {
         this.loadError = error.message || 'Failed to load workshop instructions.'
       } finally {
@@ -928,7 +921,7 @@ export default {
       this.loadError = ''
 
       try {
-        this.content = await fetchWorkshopContent('${SERVICE_NAME}-editor')
+        this.content = await fetchWorkshopContent('1')
       } catch (error) {
         this.loadError = error.message || 'Failed to load workshop instructions.'
       } finally {
@@ -974,20 +967,20 @@ cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/manifest.y
 schemaVersion: 1
 workshopId: $ID
 views:
-  - viewId: ${SERVICE_NAME}-home
-    route: /
+  - viewId: "0"
+    route: /0
     pageType: narrative
-    file: views/${SERVICE_NAME}-home.yaml
-  - viewId: ${SERVICE_NAME}-editor
-    route: /editor
+    file: views/0.yaml
+  - viewId: "1"
+    route: /1
     pageType: editor
-    file: views/${SERVICE_NAME}-editor.yaml
+    file: views/1.yaml
 EOF
 
-cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/views/${SERVICE_NAME}-home.yaml"
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/views/0.yaml"
 schemaVersion: 1
-viewId: ${SERVICE_NAME}-home
-route: /
+viewId: "0"
+route: /0
 pageType: narrative
 title: $TITLE
 slot: instructions
@@ -1011,7 +1004,7 @@ sections:
         items:
           - itemId: review-home-content
             title: Review the generated content files
-            body: Start with ${SERVICE_NAME}-home.yaml and ${SERVICE_NAME}-editor.yaml, then add more view files as the workshop grows.
+            body: Start with 0.yaml and 1.yaml, then add more numbered view files as the workshop grows.
           - itemId: keep-vue-thin
             title: Keep the Vue route thin
             body: The generated home and editor views fetch content from the shared content API and delegate rendering to the shared renderer.
@@ -1036,10 +1029,10 @@ sections:
             label: Open Workshop Hub
 EOF
 
-cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/views/${SERVICE_NAME}-editor.yaml"
+cat <<EOF > "$FRONTEND_MODULE_DIR/src/main/resources/workshop-content/views/1.yaml"
 schemaVersion: 1
-viewId: ${SERVICE_NAME}-editor
-route: /editor
+viewId: "1"
+route: /1
 pageType: editor
 title: $TITLE
 slot: instructions
@@ -1129,14 +1122,11 @@ cat <<EOF >> "$REGISTRY_PATH"
     difficulty: Beginner
     estimatedMinutes: 30
     serviceName: $SERVICE_NAME
-    port: $FRONTEND_PORT
     url: /workshop/$SERVICE_NAME/
     dockerfile: java-springboot/$FRONTEND_MODULE/Dockerfile
     frontendServiceName: $SERVICE_NAME
-    frontendPort: $FRONTEND_PORT
     frontendDockerfile: java-springboot/$FRONTEND_MODULE/Dockerfile
     backendServiceName: $BACKEND_SERVICE_NAME
-    backendPort: $BACKEND_PORT
     backendDockerfile: java-springboot/$ID/Dockerfile
     infrastructureDependencies:
       - redis
@@ -1167,8 +1157,8 @@ Created:
 2. Frontend composition module: java-springboot/$FRONTEND_MODULE
 3. content manifest: java-springboot/$FRONTEND_MODULE/src/main/resources/workshop-content/manifest.yaml
 4. content views:
-   java-springboot/$FRONTEND_MODULE/src/main/resources/workshop-content/views/${SERVICE_NAME}-home.yaml
-   java-springboot/$FRONTEND_MODULE/src/main/resources/workshop-content/views/${SERVICE_NAME}-editor.yaml
+   java-springboot/$FRONTEND_MODULE/src/main/resources/workshop-content/views/0.yaml
+   java-springboot/$FRONTEND_MODULE/src/main/resources/workshop-content/views/1.yaml
 5. Runtime shell/app split:
    The generated app imports shared shell APIs directly from workshop-frontend-shared.
    The only generated frontend utility is the app-owned workshopContent.js helper.

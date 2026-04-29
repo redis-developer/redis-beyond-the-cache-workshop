@@ -13,9 +13,46 @@ const ACTIVE_SESSION_STATES = new Set([
 ]);
 
 const TERMINAL_SESSION_STATES = new Set(['TERMINATED', 'FAILED', 'EXPIRED']);
+const SETTLED_SESSION_STATES = new Set(['READY', ...TERMINAL_SESSION_STATES]);
+const POLL_INTERVAL_MS = 2000;
+const DEFAULT_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+const REBUILD_POLL_TIMEOUT_MS = 10 * 60 * 1000;
+const TERMINATION_POLL_TIMEOUT_MS = 2 * 60 * 1000;
+
+function delay(milliseconds) {
+  return new Promise(resolve => setTimeout(resolve, milliseconds));
+}
 
 function isActiveSession(session) {
   return session && ACTIVE_SESSION_STATES.has(session.state);
+}
+
+function isSettledSession(session) {
+  return session && SETTLED_SESSION_STATES.has(session.state);
+}
+
+function clearPendingActionsForSettledSessions(pendingActions, sessions) {
+  const settledWorkshopIds = new Set(
+    sessions
+      .filter(isSettledSession)
+      .map(session => session.workshopId)
+      .filter(Boolean)
+  );
+
+  if (settledWorkshopIds.size === 0) {
+    return pendingActions;
+  }
+
+  let changed = false;
+  const nextPendingActions = { ...pendingActions };
+  settledWorkshopIds.forEach(workshopId => {
+    if (Object.prototype.hasOwnProperty.call(nextPendingActions, workshopId)) {
+      delete nextPendingActions[workshopId];
+      changed = true;
+    }
+  });
+
+  return changed ? nextPendingActions : pendingActions;
 }
 
 function sessionSortValue(session) {
@@ -86,10 +123,14 @@ export default createStore({
 
     setSessions(state, sessions) {
       state.sessions = sessions;
+      state.pendingActions = clearPendingActionsForSettledSessions(state.pendingActions, sessions);
     },
 
     upsertSession(state, session) {
       state.sessions = upsertSession(state.sessions, session);
+      if (isSettledSession(session)) {
+        state.pendingActions = clearPendingActionsForSettledSessions(state.pendingActions, [session]);
+      }
     },
 
     setPendingAction(state, { workshopId, action }) {
@@ -155,7 +196,10 @@ export default createStore({
           workshop.defaultReleaseVersion
         );
         commit('upsertSession', session);
-        await dispatch('pollSessionUntilSettled', session.sessionId);
+        await dispatch('pollSessionUntilSettled', {
+          sessionId: session.sessionId,
+          timeoutMs: DEFAULT_POLL_TIMEOUT_MS
+        });
       } finally {
         commit('clearPendingAction', workshopId);
       }
@@ -175,7 +219,10 @@ export default createStore({
       try {
         const updatedSession = await WorkshopService.restartSession(session.sessionId, rebuild);
         commit('upsertSession', updatedSession);
-        await dispatch('pollSessionUntilSettled', updatedSession.sessionId);
+        await dispatch('pollSessionUntilSettled', {
+          sessionId: updatedSession.sessionId,
+          timeoutMs: rebuild ? REBUILD_POLL_TIMEOUT_MS : DEFAULT_POLL_TIMEOUT_MS
+        });
       } finally {
         commit('clearPendingAction', workshopId);
       }
@@ -192,15 +239,24 @@ export default createStore({
       try {
         const updatedSession = await WorkshopService.terminateSession(session.sessionId);
         commit('upsertSession', updatedSession);
-        await dispatch('pollSessionUntilSettled', updatedSession.sessionId);
+        await dispatch('pollSessionUntilSettled', {
+          sessionId: updatedSession.sessionId,
+          timeoutMs: TERMINATION_POLL_TIMEOUT_MS
+        });
       } finally {
         commit('clearPendingAction', workshopId);
       }
     },
 
-    async pollSessionUntilSettled({ commit }, sessionId) {
-      for (let attempt = 0; attempt < 90; attempt += 1) {
-        await new Promise(resolve => setTimeout(resolve, 2000));
+    async pollSessionUntilSettled({ commit }, payload) {
+      const sessionId = typeof payload === 'string' ? payload : payload.sessionId;
+      const timeoutMs = typeof payload === 'string'
+        ? DEFAULT_POLL_TIMEOUT_MS
+        : (payload.timeoutMs || DEFAULT_POLL_TIMEOUT_MS);
+      const deadline = Date.now() + timeoutMs;
+
+      while (Date.now() < deadline) {
+        await delay(POLL_INTERVAL_MS);
 
         const session = await WorkshopService.getSession(sessionId);
         commit('upsertSession', session);
@@ -209,6 +265,10 @@ export default createStore({
           return session;
         }
       }
+
+      const session = await WorkshopService.getSession(sessionId);
+      commit('upsertSession', session);
+      return session;
     }
   }
 })

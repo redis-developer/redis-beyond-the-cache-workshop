@@ -1,11 +1,23 @@
 schemaVersion: 1
 workshopId: 1_session_management
 views:
-  - viewId: session-home
-    route: /welcome
-    pageType: stage-flow
-    file: views/session-home.yaml
-  - viewId: session-editor
-    route: /editor
+  - viewId: "0"
+    route: /0
+    pageType: narrative
+    file: views/0.yaml
+  - viewId: "1"
+    route: /1
+    pageType: narrative
+    file: views/1.yaml
+  - viewId: "2"
+    route: /2
+    pageType: narrative
+    file: views/2.yaml
+  - viewId: "3"
+    route: /3
+    pageType: narrative
+    file: views/3.yaml
+  - viewId: "4"
+    route: /4
     pageType: editor
-    file: views/session-editor.yaml
+    file: views/4.yaml

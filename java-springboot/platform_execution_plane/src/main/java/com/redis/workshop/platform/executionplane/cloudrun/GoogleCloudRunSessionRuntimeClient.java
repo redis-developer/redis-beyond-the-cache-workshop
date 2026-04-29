@@ -109,7 +109,7 @@ public class GoogleCloudRunSessionRuntimeClient implements CloudRunSessionRuntim
     public CloudRunSessionService restartManager(String projectId, String region, String serviceName, boolean rebuild) {
         CloudRunSessionService service = service(projectId, region, serviceName);
         try {
-            String requestBody = objectMapper.writeValueAsString(Map.of("rebuild", rebuild));
+            String requestBody = objectMapper.writeValueAsString(Map.of("rebuild", rebuild, "async", true));
             HttpRequest request = HttpRequest.newBuilder(managerRestartUri(service.uri()))
                 .timeout(managerRestartTimeout())
                 .header("Content-Type", "application/json")

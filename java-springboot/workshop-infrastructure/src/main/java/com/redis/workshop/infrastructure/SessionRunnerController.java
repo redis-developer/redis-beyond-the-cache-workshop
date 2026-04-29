@@ -52,7 +52,8 @@ public class SessionRunnerController {
     @PostMapping("/internal/session-runner/restart")
     public LocalSessionRunnerManager.SessionRunnerStatus restart(@RequestBody(required = false) Map<String, Object> body) {
         boolean rebuild = Boolean.TRUE.equals(body == null ? null : body.get("rebuild"));
-        return runnerManager.restart(rebuild);
+        boolean async = Boolean.TRUE.equals(body == null ? null : body.get("async"));
+        return async ? runnerManager.requestRestart(rebuild) : runnerManager.restart(rebuild);
     }
 
     @PostMapping("/internal/session-runner/diagnostics")

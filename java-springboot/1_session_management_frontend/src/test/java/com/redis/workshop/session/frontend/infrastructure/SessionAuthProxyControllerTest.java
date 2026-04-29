@@ -54,7 +54,7 @@ class SessionAuthProxyControllerTest {
             302,
             new byte[0],
             Map.of(
-                "location", List.of("http://backend.internal:18080/welcome"),
+                "location", List.of("http://backend.internal:18080/0"),
                 "set-cookie", List.of("JSESSIONID=abc; Path=/internal; Domain=backend.internal; HttpOnly")
             )
         );
@@ -70,7 +70,7 @@ class SessionAuthProxyControllerTest {
                     .header(HttpHeaders.HOST, "frontend.local:8080")
             )
             .andExpect(status().isFound())
-            .andExpect(header().string(HttpHeaders.LOCATION, "http://frontend.local:8080/welcome"))
+            .andExpect(header().string(HttpHeaders.LOCATION, "http://frontend.local:8080/0"))
             .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Path=/")))
             .andExpect(header().string(HttpHeaders.SET_COOKIE, not(containsString("Domain="))))
             .andExpect(content().bytes(new byte[0]));
@@ -93,7 +93,7 @@ class SessionAuthProxyControllerTest {
             302,
             new byte[0],
             Map.of(
-                "location", List.of("http://backend.internal:18080/welcome"),
+                "location", List.of("http://backend.internal:18080/0"),
                 "set-cookie", List.of("JSESSIONID=abc; Path=/; Domain=backend.internal; HttpOnly")
             )
         );
@@ -110,7 +110,7 @@ class SessionAuthProxyControllerTest {
                     .header("X-Forwarded-Prefix", "/session/alpha")
             )
             .andExpect(status().isFound())
-            .andExpect(header().string(HttpHeaders.LOCATION, "http://frontend.local:8080/session/alpha/welcome"))
+            .andExpect(header().string(HttpHeaders.LOCATION, "http://frontend.local:8080/session/alpha/0"))
             .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Path=/session/alpha")))
             .andExpect(header().string(HttpHeaders.SET_COOKIE, not(containsString("Domain="))));
 

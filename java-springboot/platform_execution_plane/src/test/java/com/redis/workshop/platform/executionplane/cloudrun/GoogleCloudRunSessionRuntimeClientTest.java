@@ -138,6 +138,7 @@ class GoogleCloudRunSessionRuntimeClientTest {
         RecordedRequest restart = requests.get(1);
         assertThat(restart.authorization()).isEmpty();
         assertThat(objectMapper.readTree(restart.body()).path("rebuild").asBoolean()).isFalse();
+        assertThat(objectMapper.readTree(restart.body()).path("async").asBoolean()).isTrue();
     }
 
     @Test

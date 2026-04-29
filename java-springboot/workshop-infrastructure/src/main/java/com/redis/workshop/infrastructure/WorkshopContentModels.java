@@ -48,6 +48,7 @@ record WorkshopContentViewDocument(
     String summary,
     List<String> dataRequirements,
     WorkshopContentHeader header,
+    WorkshopContentNavigation navigation,
     List<WorkshopContentSection> sections,
     List<WorkshopContentStage> stages
 ) {
@@ -62,6 +63,12 @@ record WorkshopContentViewDocument(
 record WorkshopContentHeader(
     Boolean showHubLink,
     WorkshopContentStageNav stageNav
+) {
+}
+
+record WorkshopContentNavigation(
+    String previousLabel,
+    String nextLabel
 ) {
 }
 

@@ -1,8 +1,8 @@
 schemaVersion: 1
-viewId: session-editor
-route: /editor
+viewId: "4"
+route: /4
 pageType: editor
-title: "Stage 2: Enable Redis"
+title: "Code Editor: Enable Redis"
 slot: instructions
 sections:
   - sectionId: overview
@@ -37,7 +37,7 @@ sections:
               id: applyEditorStep
               label: Apply Change
               args:
-                stepId: session-editor.uncommentGradleDependencies
+                stepId: 4.uncommentGradleDependencies
           - itemId: save-build-file
             body: Save the file.
             hint: Persist the dependency changes before moving to the next file.
@@ -68,7 +68,7 @@ sections:
               id: applyEditorStep
               label: Apply Change
               args:
-                stepId: session-editor.changeStoreType
+                stepId: 4.changeStoreType
           - itemId: uncomment-redis-config
             body: Uncomment the 3 Redis session configuration lines below it.
             hint: These settings define the Redis namespace, flush mode, and repository type.
@@ -76,7 +76,7 @@ sections:
               id: applyEditorStep
               label: Apply Change
               args:
-                stepId: session-editor.uncommentRedisConfig
+                stepId: 4.uncommentRedisConfig
           - itemId: save-properties-file
             body: Save the file.
             hint: Persist the Spring configuration changes before moving on.
@@ -107,7 +107,7 @@ sections:
               id: applyEditorStep
               label: Apply Change
               args:
-                stepId: session-editor.uncommentSecurityConfig
+                stepId: 4.uncommentSecurityConfig
           - itemId: save-security-file
             body: Save the file.
             hint: Persist the security configuration changes.
@@ -131,9 +131,9 @@ sections:
               label: Open Workshop Hub
           - itemId: return-to-workshop
             body: Return to the workshop and verify the new session behavior.
-            hint: After the backend is up again, continue at the main workshop page.
+            hint: After the backend is up again, continue at the Redis verification page.
             action:
               id: openRoute
               label: Return to Workshop
               args:
-                route: /welcome
+                route: /3

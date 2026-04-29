@@ -30,6 +30,7 @@ import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -122,7 +123,8 @@ class SecurityConfigurationWebMvcTest {
     @Test
     void allowsAnonymousSessionProxyRoutesThroughSecurity() throws Exception {
         mockMvc.perform(get("/session/sess-001/"))
-            .andExpect(status().isNotFound());
+            .andExpect(status().isNotFound())
+            .andExpect(header().string("X-Frame-Options", "SAMEORIGIN"));
     }
 
     @Test

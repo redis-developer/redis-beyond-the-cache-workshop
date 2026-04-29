@@ -12,6 +12,7 @@ Use the authoring helper from the repository root:
 ```
 
 The helper starts dependency containers and runs the workshop frontend and backend from the working tree.
+It allocates available local listener values at startup and prints the frontend, backend, and Redis Insight URLs.
 Use it for workshop authoring, content edits, learner code changes, and single workshop debugging.
 
 Stop it with:

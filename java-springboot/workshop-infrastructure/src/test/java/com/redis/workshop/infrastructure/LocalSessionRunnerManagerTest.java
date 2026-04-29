@@ -74,6 +74,34 @@ class LocalSessionRunnerManagerTest {
     }
 
     @Test
+    void requestRestartWithRebuildReturnsWhileRebuildIsRunning() throws Exception {
+        Path gate = tempDir.resolve("continue-rebuild");
+        Path marker = tempDir.resolve("rebuilt.txt");
+        SessionRunnerProperties properties = enabledRunnerProperties();
+        properties.setChildRebuildCommand(
+            "while [ ! -f " + shellQuote(gate.toString()) + " ]; do sleep 0.1; done; "
+                + "printf rebuilt > " + shellQuote(marker.toString())
+        );
+        LocalSessionRunnerManager manager = new LocalSessionRunnerManager(properties);
+
+        try {
+            manager.startChild();
+            LocalSessionRunnerManager.SessionRunnerStatus requested = manager.requestRestart(true);
+
+            assertThat(requested.state()).isEqualTo("RESTARTING");
+            assertThat(manager.status().state()).isEqualTo("RESTARTING");
+
+            Files.writeString(gate, "continue");
+            LocalSessionRunnerManager.SessionRunnerStatus ready = waitForState(manager, "CHILD_READY");
+
+            assertThat(ready.childAlive()).isTrue();
+            assertThat(Files.readString(marker)).isEqualTo("rebuilt");
+        } finally {
+            manager.shutdown();
+        }
+    }
+
+    @Test
     void restartWithRebuildFailsWhenRebuildCommandFails() {
         SessionRunnerProperties properties = enabledRunnerProperties();
         properties.setChildRebuildCommand("exit 7");
@@ -151,7 +179,6 @@ class LocalSessionRunnerManagerTest {
         }
     }
 
-    @Test
     private SessionRunnerProperties enabledRunnerProperties() {
         SessionRunnerProperties properties = new SessionRunnerProperties();
         properties.setEnabled(true);
@@ -160,6 +187,22 @@ class LocalSessionRunnerManagerTest {
         properties.setChildWorkingDirectory(tempDir.toString());
         properties.setChildCommand("while true; do sleep 1; done");
         return properties;
+    }
+
+    private LocalSessionRunnerManager.SessionRunnerStatus waitForState(
+        LocalSessionRunnerManager manager,
+        String expectedState
+    ) throws InterruptedException {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        LocalSessionRunnerManager.SessionRunnerStatus status = manager.status();
+        while (System.nanoTime() < deadline) {
+            status = manager.status();
+            if (expectedState.equals(status.state())) {
+                return status;
+            }
+            Thread.sleep(50);
+        }
+        return status;
     }
 
     private String shellQuote(String value) {

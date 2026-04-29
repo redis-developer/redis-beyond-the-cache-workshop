@@ -20,6 +20,7 @@ function actorHeaders() {
 export default {
   async request(url, options = {}) {
     const requestOptions = {
+      cache: 'no-store',
       ...options,
       credentials: 'include',
       headers: {

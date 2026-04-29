@@ -50,16 +50,13 @@ RUN --mount=type=cache,target=/root/.npm \
 COPY java-springboot/platform_control_plane/src platform_control_plane/src
 COPY workshops.yaml platform_control_plane/src/main/resources/workshops.yaml
 
-RUN mkdir -p platform_control_plane/src/main/resources/static \
-    && cp -R /workspace/frontend/dist/. platform_control_plane/src/main/resources/static/
-
 RUN if [ -n "$SESSION_MANAGEMENT_RUNNER_IMAGE" ]; then \
       sed -i "0,/      combined: .*/s|      combined: .*|      combined: ${SESSION_MANAGEMENT_RUNNER_IMAGE}|" \
         platform_control_plane/src/main/resources/workshops.yaml; \
     fi
 
 RUN --mount=type=cache,target=/root/.gradle \
-    ./gradlew :platform_control_plane:bootJar -x test --no-daemon \
+    ./gradlew :platform_control_plane:bootJar -PskipFrontendBuild=true -x test --no-daemon \
     && find platform_control_plane/build/libs -name '*.jar' ! -name '*-plain.jar' -exec cp {} /tmp/app.jar \;
 
 FROM eclipse-temurin:21-jre

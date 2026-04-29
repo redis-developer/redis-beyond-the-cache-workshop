@@ -1,0 +1,42 @@
+schemaVersion: 1
+viewId: "2"
+route: /2
+pageType: narrative
+title: "STAGE 2: Enable Redis Session Management"
+slot: instructions
+header:
+  showHubLink: true
+navigation:
+  previousLabel: ""
+  nextLabel: Experience distributed sessions
+sections:
+  - sectionId: stage-2
+    blocks:
+      - type: callout
+        tone: info
+        title: "Option 1: Use the In-Browser Code Editor"
+        body: Follow the guided path in the workshop editor.
+        actions:
+          - id: openEditor
+            label: Open Code Editor
+      - type: markdown
+        body: "**Option 2:** Edit the files in your IDE."
+      - type: stepList
+        listId: enable-redis-steps
+        variant: ordered
+        items:
+          - itemId: add-dependencies
+            title: "Step 1: Add Redis Dependencies"
+            body: "Open `build.gradle.kts` and uncomment `spring-boot-starter-data-redis` and `spring-session-data-redis`."
+          - itemId: configure-properties
+            title: "Step 2: Configure Application Properties"
+            body: "Open `application.properties`, change `spring.session.store-type=none` to `spring.session.store-type=redis`, and uncomment the 3 Redis session configuration lines."
+          - itemId: configure-security
+            title: "Step 3: Configure Spring Security"
+            body: "Open `SecurityConfig.java` and uncomment the `HttpSessionSecurityContextRepository` configuration (imports, bean, and filter chain config)."
+          - itemId: rebuild-backend
+            title: "Step 4: Restart and Verify"
+            body: Use the shell toolbar to rebuild and restart the learner runtime, then come back to see the difference.
+            actions:
+              - id: rebuildRuntime
+                label: Rebuild Runtime

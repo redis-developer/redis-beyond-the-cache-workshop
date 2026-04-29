@@ -1,0 +1,37 @@
+schemaVersion: 1
+viewId: "0"
+route: /0
+pageType: narrative
+title: "STAGE 0: Sessions And State"
+slot: instructions
+header:
+  showHubLink: true
+navigation:
+  nextLabel: Experience the problem
+sections:
+  - sectionId: stage-0
+    blocks:
+      - type: markdown
+        body: |
+          #### What is distributed session management?
+
+          Distributed session management stores user session data in a centralized location that every application instance can access. Instead of keeping sessions in local memory, sessions are persisted externally so any server can handle any user request.
+
+          #### Why is it necessary?
+
+          Modern cloud applications usually run across multiple instances for scalability and reliability. Without distributed sessions:
+
+          - Users lose their session if routed to a different server
+          - Scaling horizontally becomes problematic
+          - Server restarts cause all users to be logged out
+
+          #### Why use Redis?
+
+          Redis is a strong fit for session management because it provides:
+
+          - **Speed:** In memory storage with low latency
+          - **TTL support:** Automatic session expiration
+          - **High availability:** Replication and clustering options
+          - **Simple integration:** Native Spring Session support
+
+          In this workshop, you will first see how in memory sessions break when the application restarts. Then you will reconfigure the app to store sessions in Redis and verify that the session survives a restart.

@@ -11,34 +11,28 @@ import org.springframework.web.bind.annotation.GetMapping;
 public class SessionSpaController {
 
     /**
-     * Root path - send learners to the stable workshop shell.
+     * Root path sends learners to the stable workshop shell.
      */
     @GetMapping("/")
     public String root() {
-        return "redirect:/welcome";
+        return "redirect:/0";
     }
 
     /**
-     * Login page - served by Vue.js SPA.
+     * Numbered workshop pages served by Vue.js SPA.
      */
-    @GetMapping("/login")
-    public String login() {
+    @GetMapping({"/0", "/1", "/2", "/3", "/4", "/redis-insight-view"})
+    public String numberedPage() {
         return "forward:/index.html";
     }
 
-    /**
-     * Welcome page - served by Vue.js SPA.
-     */
     @GetMapping("/welcome")
-    public String welcome() {
-        return "forward:/index.html";
+    public String legacyWelcome() {
+        return "redirect:/0";
     }
 
-    /**
-     * Learner app frame - served by Vue.js SPA.
-     */
-    @GetMapping("/app")
-    public String app() {
-        return "forward:/index.html";
+    @GetMapping("/editor")
+    public String legacyEditor() {
+        return "redirect:/4";
     }
 }

@@ -13,10 +13,11 @@ The unified catalog currently contains release metadata for the release backed w
 
 ## Purpose
 
-1. `workshops.yaml` defines hub metadata, local Docker metadata, and deployable release metadata in one registry.
+1. `workshops.yaml` defines hub metadata, service metadata, and deployable release metadata in one registry.
 2. Each `workshops[].releases[]` entry defines an immutable release record for the control plane.
 3. The release record also defines default selection, enablement, and environment scope.
 4. Local Docker development can still override image references at launch time without changing release identity.
+5. Local listener assignments are not stored in the registry. The direct maintainer helper allocates them at startup.
 
 ## Release Shape
 
@@ -25,13 +26,11 @@ workshops:
   - id: 1_session_management
     title: Session Management
     serviceName: session-management-frontend
-    port: 8080
+    url: /workshop/session-management-frontend/
     dockerfile: java-springboot/1_session_management_frontend/Dockerfile
     frontendServiceName: session-management-frontend
-    frontendPort: 8080
     frontendDockerfile: java-springboot/1_session_management_frontend/Dockerfile
     backendServiceName: session-management
-    backendPort: 18080
     backendDockerfile: java-springboot/1_session_management/Dockerfile
     releases:
       - releaseId: session-management-2026.04.1

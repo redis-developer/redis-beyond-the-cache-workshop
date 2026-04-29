@@ -1,56 +1,10 @@
 <template>
-  <nav class="workshop-runtime-toolbar" aria-label="Workshop runtime actions">
+  <nav class="workshop-runtime-toolbar" aria-label="Workshop runtime state">
     <div class="runtime-state" aria-live="polite">
       <span class="runtime-state__label">Runtime</span>
       <span class="runtime-state__value" :class="runtimeStateClass">{{ runtimeLabel }}</span>
       <span v-if="backendLabel" class="runtime-state__detail">Backend {{ backendLabel }}</span>
       <span v-if="frontendLabel" class="runtime-state__detail">App {{ frontendLabel }}</span>
-    </div>
-
-    <div class="runtime-actions">
-      <button
-        type="button"
-        class="runtime-action runtime-action--secondary"
-        :disabled="!shellState.canRestart || disabled"
-        @click="emitAction('restart')"
-      >
-        Restart runtime
-      </button>
-      <button
-        type="button"
-        class="runtime-action runtime-action--accent"
-        :disabled="!shellState.canRebuild || disabled"
-        @click="emitAction('rebuild')"
-      >
-        Rebuild runtime
-      </button>
-      <a
-        v-if="shellState.canOpenRedisInsight"
-        class="runtime-action runtime-action--link"
-        :href="shellState.redisInsightUrl"
-        target="_blank"
-        rel="noreferrer"
-        @click="emitLinkAction('redisInsight')"
-      >
-        Redis Insight
-      </a>
-      <a
-        v-if="shellState.canOpenHub"
-        class="runtime-action runtime-action--link"
-        :href="shellState.hubUrl"
-        @click="emitLinkAction('hub')"
-      >
-        Hub
-      </a>
-      <button
-        v-if="shellState.canRefresh"
-        type="button"
-        class="runtime-action runtime-action--ghost"
-        :disabled="disabled"
-        @click="emitAction('refresh')"
-      >
-        Refresh status
-      </button>
     </div>
   </nav>
 </template>
@@ -64,10 +18,8 @@ export default {
     runtime: { type: Object, default: () => ({}) },
     learnerApp: { type: Object, default: () => ({}) },
     links: { type: Object, default: () => ({}) },
-    actions: { type: [Array, Object], default: null },
-    disabled: { type: Boolean, default: false }
+    actions: { type: [Array, Object], default: null }
   },
-  emits: ['action'],
   computed: {
     shellState() {
       return resolveWorkshopShellState({
@@ -92,17 +44,6 @@ export default {
         'runtime-state__value--busy': this.shellState.busy,
         'runtime-state__value--blocked': this.shellState.learnerAppUnavailable && !this.shellState.busy
       };
-    }
-  },
-  methods: {
-    emitAction(type) {
-      this.$emit('action', {
-        type,
-        rebuild: type === 'rebuild'
-      });
-    },
-    emitLinkAction(type) {
-      this.$emit('action', { type });
     }
   }
 };
@@ -185,72 +126,10 @@ function formatState(state) {
   color: var(--color-error, #fca5a5);
 }
 
-.runtime-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-  gap: var(--spacing-2, 0.5rem);
-}
-
-.runtime-action {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 2rem;
-  padding: 0.35rem 0.75rem;
-  border: 1px solid transparent;
-  border-radius: 999px;
-  font-size: var(--font-size-xs, 0.75rem);
-  font-weight: var(--font-weight-semibold, 600);
-  line-height: 1;
-  text-decoration: none;
-  cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
-}
-
-.runtime-action:hover:not(:disabled) {
-  transform: translateY(-1px);
-}
-
-.runtime-action:disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-  transform: none;
-}
-
-.runtime-action--secondary {
-  border-color: var(--color-restart-border, rgba(59, 130, 246, 0.4));
-  background: var(--color-restart-bg, rgba(59, 130, 246, 0.2));
-  color: var(--color-restart-text, #93c5fd);
-}
-
-.runtime-action--accent {
-  border-color: rgba(245, 158, 11, 0.45);
-  background: rgba(245, 158, 11, 0.18);
-  color: #fbbf24;
-}
-
-.runtime-action--link {
-  border-color: var(--color-open-border, rgba(0, 188, 212, 0.4));
-  background: var(--color-open-bg, rgba(0, 188, 212, 0.2));
-  color: var(--color-open-text, #00bcd4);
-}
-
-.runtime-action--ghost {
-  border-color: var(--color-border, rgba(71, 85, 105, 0.5));
-  background: transparent;
-  color: var(--color-text-secondary, #94a3b8);
-}
-
 @media (max-width: 860px) {
   .workshop-runtime-toolbar {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .runtime-actions {
-    justify-content: flex-start;
   }
 }
 </style>

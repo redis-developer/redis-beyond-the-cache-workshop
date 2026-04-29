@@ -23,9 +23,9 @@ Read these first:
 ./scripts/run-workshop.sh up 1_session_management
 ```
 
-Open http://localhost:8080.
+Open the frontend URL printed by the helper.
 
-This is the recommended local development path. It starts workshop dependencies and runs the frontend and backend from your working tree.
+This is the recommended local development path. It starts workshop dependencies, allocates available local listener values, and runs the frontend and backend from your working tree.
 
 Other workshops:
 
@@ -71,19 +71,19 @@ SERVER_PORT=9001 \
 
 ## Workshops
 
-| # | Workshop | Port |
-|---|----------|------|
-| 1 | [Session Management](java-springboot/1_session_management/README.md) | 8080 |
-| 2 | [Full-Text Search](java-springboot/2_full_text_search/README.md) | 8081 |
-| 3 | [Distributed Locks](java-springboot/3_distributed_locks/README.md) | 8082 |
-| 4 | [Agent Memory Server](java-springboot/4_agent_memory/README.md) | 8083 |
+| # | Workshop |
+|---|----------|
+| 1 | [Session Management](java-springboot/1_session_management/README.md) |
+| 2 | [Full-Text Search](java-springboot/2_full_text_search/README.md) |
+| 3 | [Distributed Locks](java-springboot/3_distributed_locks/README.md) |
+| 4 | [Agent Memory Server](java-springboot/4_agent_memory/README.md) |
 
 ## Services
 
 | Service | URL |
 |---------|-----|
-| Session Management local frontend | http://localhost:8080 |
-| Local Redis Insight | http://localhost:5540 |
+| Workshop local frontend | Printed by `./scripts/run-workshop.sh up <id>` |
+| Local Redis Insight | Printed by `./scripts/run-workshop.sh up <id>` |
 
 ## Requirements
 
@@ -105,7 +105,7 @@ SERVER_PORT=9001 \
 
 1. Run the scaffold script:
 ```bash
-./scripts/new-workshop.sh <id> "<title>" <serviceName> <frontendPort> [backendPort]
+./scripts/new-workshop.sh <id> "<title>" <serviceName>
 ```
 
 2. Fill in the generated TODOs in both modules and workshop content files.
@@ -139,13 +139,14 @@ Do not hardcode control plane URLs, Redis Insight ports, session runner endpoint
 All workshops are registered in `workshops.yaml`. Required fields:
 
 1. `id`, `title`, `description`
-2. `serviceName`, `port`, `url`
+2. `serviceName`, `url`
 3. `dockerfile`, `topics`
-4. `frontendServiceName`, `frontendPort`, `frontendDockerfile`
-5. `backendServiceName`, `backendPort`, `backendDockerfile`
+4. `frontendServiceName`, `frontendDockerfile`
+5. `backendServiceName`, `backendDockerfile`
 6. `releases` for deployable release metadata when the workshop is release backed
 
-Keep `serviceName`, `port`, and `dockerfile` aligned with the frontend service values.
+Keep `serviceName`, `url`, and `dockerfile` aligned with the frontend service values.
+Do not add local listener values to `workshops.yaml`; the direct local maintainer helper allocates available values at startup and prints the resulting URLs.
 Each release entry lives under its parent workshop as `workshops[].releases[]` and includes `releaseId`, `releaseVersion`, `mode`, `defaultForWorkshop`, `enabled`, `environments`, `images`, `resourceClass`, `sessionTtlMinutes`, and `mutableDependencies`.
 Local Docker development can still use image overrides without changing the immutable release identity in `workshops.yaml`.
 

@@ -29,7 +29,7 @@ class HttpSessionRuntimeReadinessProbe implements SessionRuntimeReadinessProbe {
     @Autowired
     HttpSessionRuntimeReadinessProbe(
         ObjectMapper objectMapper,
-        @Value("${platform.controlplane.execution.readiness-timeout:240s}")
+        @Value("${platform.controlplane.execution.readiness-timeout:480s}")
         Duration timeout,
         @Value("${platform.controlplane.execution.readiness-poll-interval:2s}")
         Duration pollInterval,

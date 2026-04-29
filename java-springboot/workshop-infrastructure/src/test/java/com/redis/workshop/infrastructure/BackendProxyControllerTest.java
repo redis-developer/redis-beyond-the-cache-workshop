@@ -111,6 +111,26 @@ class BackendProxyControllerTest {
     }
 
     @Test
+    void proxiesLearnerAppRequests() throws Exception {
+        HttpResponse<byte[]> backendResponse = mockBackendResponse(
+            200,
+            "<html>app</html>".getBytes(StandardCharsets.UTF_8),
+            Map.of("content-type", List.of("text/html"))
+        );
+
+        when(httpClient.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any()))
+            .thenReturn(backendResponse);
+
+        mockMvc.perform(get("/app/").queryParam("frame", "2"))
+            .andExpect(status().isOk())
+            .andExpect(content().string("<html>app</html>"));
+
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).send(requestCaptor.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any());
+        assertThat(requestCaptor.getValue().uri().toString()).isEqualTo("http://backend.internal:18080/app/?frame=2");
+    }
+
+    @Test
     void prefersSessionBackendUrlWhenConfigured() throws Exception {
         runtimeProperties.setSessionBackendUrl("http://session.internal:19090");
         mockMvc = MockMvcBuilders.standaloneSetup(new BackendProxyController(runtimeProperties, httpClient)).build();

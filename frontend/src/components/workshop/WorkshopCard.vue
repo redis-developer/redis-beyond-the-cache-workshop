@@ -17,7 +17,7 @@
             <div v-if="activeSession" class="status-tooltip-item">
               <span class="session-dot"></span>
               <span class="status-label">Session</span>
-              <span class="status-value">{{ shortSessionId }}</span>
+              <span class="status-value">Active</span>
             </div>
             <div v-if="activeSession?.expiresAt" class="status-tooltip-item">
               <span class="session-dot"></span>
@@ -46,16 +46,29 @@
     </div>
 
     <div v-if="activeSession" class="session-panel">
-      <div>
-        <strong>Session {{ shortSessionId }}</strong>
-        <span>{{ statusLabel }}</span>
+      <div class="session-summary">
+        <div>
+          <strong>Runtime session</strong>
+          <span>{{ statusLabel }}</span>
+        </div>
+        <span v-if="expiresLabel" class="session-expiry">Expires {{ expiresLabel }}</span>
+      </div>
+      <div class="session-progress" aria-label="Session launch progress">
+        <div
+          v-for="step in lifecycleSteps"
+          :key="step.key"
+          :class="['session-step', step.status]"
+        >
+          <span class="session-step-marker"></span>
+          <span class="session-step-label">{{ step.label }}</span>
+        </div>
       </div>
       <div v-if="activeSession.failureMessage" class="failure-message">
         {{ activeSession.failureMessage }}
       </div>
     </div>
 
-    <div class="workshop-controls" :class="{ 'single-button': !activeSession }">
+    <div class="workshop-controls" :class="{ 'single-button': isSingleControl }">
       <button
         v-if="!activeSession"
         class="control-btn deploy-btn"
@@ -66,42 +79,6 @@
           <path d="M8 0l8 8-8 8V0z"/>
         </svg>
         {{ deployLabel }}
-      </button>
-
-      <button
-        v-if="activeSession"
-        class="control-btn restart-btn"
-        :disabled="isBusy || !canRestart"
-        @click="handleRestart(true)"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M8 3V0L4 4l4 4V5a5 5 0 110 6v2a7 7 0 100-10z"/>
-        </svg>
-        {{ rebuildLabel }}
-      </button>
-
-      <button
-        v-if="activeSession"
-        class="control-btn restart-btn"
-        :disabled="isBusy || !canRestart"
-        @click="handleRestart(false)"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <path d="M8 3V0L4 4l4 4V5a5 5 0 110 6v2a7 7 0 100-10z"/>
-        </svg>
-        {{ restartLabel }}
-      </button>
-
-      <button
-        v-if="activeSession"
-        class="control-btn stop-btn"
-        :disabled="isBusy"
-        @click="handleTerminate"
-      >
-        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
-          <rect x="4" y="4" width="8" height="8"/>
-        </svg>
-        {{ stopLabel }}
       </button>
 
       <a
@@ -116,6 +93,18 @@
           <path d="M8 0l8 8-8 8V0z"/>
         </svg>
       </a>
+
+      <button
+        v-if="activeSession"
+        class="control-btn stop-btn"
+        :disabled="isBusy"
+        @click="handleTerminate"
+      >
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <rect x="4" y="4" width="8" height="8"/>
+        </svg>
+        {{ stopLabel }}
+      </button>
     </div>
   </div>
 </template>
@@ -124,7 +113,24 @@
 import { mapActions } from 'vuex';
 import StatusIndicator from '@/components/base/StatusIndicator.vue';
 
-const RESTARTABLE_STATES = new Set(['READY', 'DEGRADED']);
+const LIFECYCLE_STEPS = [
+  { key: 'REQUESTED', label: 'Requested' },
+  { key: 'ADMITTED', label: 'Admitted' },
+  { key: 'PROVISIONING', label: 'Provisioning' },
+  { key: 'INITIALIZING', label: 'Initializing' },
+  { key: 'READY', label: 'Ready' }
+];
+const STEP_INDEX_BY_STATE = {
+  REQUESTED: 0,
+  ADMITTED: 1,
+  PROVISIONING: 2,
+  INITIALIZING: 3,
+  READY: 4,
+  DEGRADED: 4,
+  TERMINATING: 4,
+  CLEANUP_PENDING: 4
+};
+const COMPLETED_LAUNCH_STATES = new Set(['READY', 'DEGRADED', 'TERMINATING', 'CLEANUP_PENDING']);
 
 export default {
   name: 'WorkshopCard',
@@ -150,8 +156,8 @@ export default {
       return this.activeSession?.state === 'READY' && this.activeSession.publicEntryUrl;
     },
 
-    canRestart() {
-      return this.activeSession && RESTARTABLE_STATES.has(this.activeSession.state);
+    isSingleControl() {
+      return !this.activeSession || !this.canOpen;
     },
 
     statusLabel() {
@@ -164,8 +170,29 @@ export default {
       return this.activeSession.state.replace(/_/g, ' ').toLowerCase();
     },
 
-    shortSessionId() {
-      return this.activeSession?.sessionId?.slice(0, 8) || '';
+    currentLifecycleStepIndex() {
+      const state = this.activeSession?.state;
+      if (!state) {
+        return -1;
+      }
+      return STEP_INDEX_BY_STATE[state] ?? -1;
+    },
+
+    lifecycleSteps() {
+      const currentIndex = this.currentLifecycleStepIndex;
+      const launchComplete = COMPLETED_LAUNCH_STATES.has(this.activeSession?.state);
+      return LIFECYCLE_STEPS.map((step, index) => {
+        let status = 'pending';
+        if (index < currentIndex || launchComplete) {
+          status = 'complete';
+        } else if (index === currentIndex) {
+          status = 'current';
+        }
+        return {
+          ...step,
+          status
+        };
+      });
     },
 
     expiresLabel() {
@@ -180,27 +207,15 @@ export default {
       return this.workshop.pendingAction === 'launching' ? 'Deploying...' : 'Deploy Workshop';
     },
 
-    rebuildLabel() {
-      return this.workshop.pendingAction === 'rebuilding' ? 'Rebuilding...' : 'Restart & Rebuild';
-    },
-
-    restartLabel() {
-      return this.workshop.pendingAction === 'restarting' ? 'Restarting...' : 'Restart App Only';
-    },
-
     stopLabel() {
       return this.workshop.pendingAction === 'terminating' ? 'Stopping...' : 'Stop';
     }
   },
   methods: {
-    ...mapActions(['launchWorkshop', 'restartWorkshop', 'terminateWorkshop']),
+    ...mapActions(['launchWorkshop', 'terminateWorkshop']),
 
     async handleLaunch() {
       await this.launchWorkshop(this.workshop);
-    },
-
-    async handleRestart(rebuild) {
-      await this.restartWorkshop({ workshopId: this.workshop.id, rebuild });
     },
 
     async handleTerminate() {
@@ -215,15 +230,13 @@ export default {
   background-color: var(--card-bg);
   border: 1px solid var(--card-border);
   border-radius: var(--card-radius);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
   overflow: visible;
   padding: var(--spacing-6);
   position: relative;
   transition: all var(--transition-base);
-}
-
-.workshop-card:hover {
-  border-color: rgba(0, 188, 212, 0.35);
-  box-shadow: 0 18px 50px rgba(0, 188, 212, 0.08);
 }
 
 .workshop-header {
@@ -370,6 +383,13 @@ export default {
   padding: var(--spacing-4);
 }
 
+.session-summary {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: space-between;
+}
+
 .session-panel strong {
   color: var(--color-text);
   margin-right: var(--spacing-2);
@@ -379,14 +399,89 @@ export default {
   text-transform: capitalize;
 }
 
+.session-expiry {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  white-space: nowrap;
+}
+
+.session-progress {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  margin-top: var(--spacing-1);
+}
+
+.session-step {
+  align-items: center;
+  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  font-size: 0.66rem;
+  font-weight: var(--font-weight-medium);
+  gap: var(--spacing-1);
+  min-width: 0;
+  position: relative;
+  text-align: center;
+}
+
+.session-step:not(:last-child)::after {
+  background-color: rgba(71, 85, 105, 0.7);
+  content: '';
+  height: 2px;
+  left: calc(50% + 8px);
+  position: absolute;
+  top: 6px;
+  width: calc(100% - 16px);
+  z-index: 0;
+}
+
+.session-step.complete:not(:last-child)::after {
+  background-color: rgba(134, 239, 172, 0.7);
+}
+
+.session-step-marker {
+  background-color: var(--color-dark-700);
+  border: 2px solid rgba(71, 85, 105, 0.9);
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(15, 23, 42, 0.9);
+  height: 14px;
+  position: relative;
+  width: 14px;
+  z-index: 1;
+}
+
+.session-step.complete,
+.session-step.current {
+  color: var(--color-text);
+}
+
+.session-step.complete .session-step-marker {
+  background-color: rgb(134, 239, 172);
+  border-color: rgba(134, 239, 172, 0.8);
+}
+
+.session-step.current .session-step-marker {
+  background-color: rgb(56, 189, 248);
+  border-color: rgba(125, 211, 252, 0.9);
+}
+
+.session-step-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-transform: none;
+  white-space: nowrap;
+  width: 100%;
+}
+
 .failure-message {
   color: rgb(252, 165, 165);
 }
 
 .workshop-controls {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--spacing-2);
+  margin-top: auto;
 }
 
 .workshop-controls.single-button {
@@ -433,17 +528,6 @@ export default {
   border-color: rgba(34, 197, 94, 0.6);
 }
 
-.restart-btn {
-  background-color: rgba(59, 130, 246, 0.2);
-  border-color: rgba(59, 130, 246, 0.4);
-  color: rgb(147, 197, 253);
-}
-
-.restart-btn:hover:not(:disabled) {
-  background-color: rgba(59, 130, 246, 0.3);
-  border-color: rgba(59, 130, 246, 0.6);
-}
-
 .stop-btn {
   background-color: rgba(239, 68, 68, 0.2);
   border-color: rgba(239, 68, 68, 0.4);
@@ -486,12 +570,8 @@ export default {
     font-size: var(--font-size-lg);
   }
 
-  .workshop-controls {
-    flex-direction: column;
-  }
-
   .control-btn {
-    width: 100%;
+    min-width: 0;
   }
 
   .info-icon::after {

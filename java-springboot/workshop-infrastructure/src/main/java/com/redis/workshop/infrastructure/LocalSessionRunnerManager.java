@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 
 @Component
@@ -44,6 +45,7 @@ public class LocalSessionRunnerManager {
     private final SessionRunnerProperties properties;
     private final HttpClient httpClient;
     private final ExecutorService logExecutor;
+    private final ExecutorService restartExecutor;
     private final Object lifecycleLock = new Object();
     private final ArrayDeque<String> recentLogs = new ArrayDeque<>();
 
@@ -58,13 +60,28 @@ public class LocalSessionRunnerManager {
 
     @Autowired
     public LocalSessionRunnerManager(SessionRunnerProperties properties) {
-        this(properties, HttpClient.newHttpClient(), Executors.newCachedThreadPool());
+        this(
+            properties,
+            HttpClient.newHttpClient(),
+            Executors.newCachedThreadPool(),
+            Executors.newSingleThreadExecutor()
+        );
     }
 
     LocalSessionRunnerManager(SessionRunnerProperties properties, HttpClient httpClient, ExecutorService logExecutor) {
+        this(properties, httpClient, logExecutor, Executors.newSingleThreadExecutor());
+    }
+
+    LocalSessionRunnerManager(
+        SessionRunnerProperties properties,
+        HttpClient httpClient,
+        ExecutorService logExecutor,
+        ExecutorService restartExecutor
+    ) {
         this.properties = properties;
         this.httpClient = httpClient;
         this.logExecutor = logExecutor;
+        this.restartExecutor = restartExecutor;
         this.state = properties.isEnabled() ? RunnerState.STOPPED : RunnerState.DISABLED;
     }
 
@@ -82,6 +99,7 @@ public class LocalSessionRunnerManager {
             stopDependencyProcessesLocked();
         }
         logExecutor.shutdownNow();
+        restartExecutor.shutdownNow();
     }
 
     public boolean isEnabled() {
@@ -110,12 +128,62 @@ public class LocalSessionRunnerManager {
             state = RunnerState.RESTARTING;
             lastError = null;
             stopChildLocked();
-            if (rebuild && !rebuildChildLocked()) {
+            if (rebuild && !rebuildChild()) {
                 state = RunnerState.CHILD_FAILED;
                 return statusLocked();
             }
             startChildLocked();
             return statusLocked();
+        }
+    }
+
+    public SessionRunnerStatus requestRestart(boolean rebuild) {
+        synchronized (lifecycleLock) {
+            if (!properties.isEnabled()) {
+                state = RunnerState.DISABLED;
+                lastError = "Session runner is disabled";
+                return statusLocked();
+            }
+            if (state == RunnerState.RESTARTING
+                || state == RunnerState.STOPPING
+                || state == RunnerState.CHILD_STARTING) {
+                return statusLocked();
+            }
+            state = RunnerState.RESTARTING;
+            lastError = null;
+            lastExitCode = null;
+            appendLog(rebuild ? "restart with rebuild requested" : "restart requested");
+            try {
+                restartExecutor.submit(() -> runRestart(rebuild));
+            } catch (RejectedExecutionException exception) {
+                state = RunnerState.CHILD_FAILED;
+                lastError = "Unable to schedule restart: " + exception.getMessage();
+                appendLog(lastError);
+            }
+            return statusLocked();
+        }
+    }
+
+    private void runRestart(boolean rebuild) {
+        try {
+            synchronized (lifecycleLock) {
+                stopChildLocked();
+                state = RunnerState.RESTARTING;
+                lastError = null;
+            }
+            if (rebuild && !rebuildChild()) {
+                synchronized (lifecycleLock) {
+                    state = RunnerState.CHILD_FAILED;
+                }
+                return;
+            }
+            startChild();
+        } catch (RuntimeException exception) {
+            synchronized (lifecycleLock) {
+                state = RunnerState.CHILD_FAILED;
+                lastError = "Restart failed: " + exception.getMessage();
+                appendLog(lastError);
+            }
         }
     }
 
@@ -214,11 +282,9 @@ public class LocalSessionRunnerManager {
         }
     }
 
-    private boolean rebuildChildLocked() {
+    private boolean rebuildChild() {
         if (!properties.hasChildRebuildCommand()) {
-            lastError = "Child rebuild command is not configured";
-            appendLog(lastError);
-            return false;
+            return failRebuild("Child rebuild command is not configured");
         }
 
         properties.resolveRebuiltChildJar().ifPresent(path -> {
@@ -251,27 +317,19 @@ public class LocalSessionRunnerManager {
             if (!completed) {
                 rebuildProcess.destroyForcibly();
                 appendRebuildLog(rebuildLog);
-                lastError = "Child rebuild command timed out";
-                appendLog(lastError);
-                return false;
+                return failRebuild("Child rebuild command timed out");
             }
             appendRebuildLog(rebuildLog);
             if (rebuildProcess.exitValue() != 0) {
-                lastError = "Child rebuild command exited with code " + rebuildProcess.exitValue();
-                appendLog(lastError);
-                return false;
+                return failRebuild("Child rebuild command exited with code " + rebuildProcess.exitValue());
             }
             appendLog("rebuild completed");
             return true;
         } catch (IOException exception) {
-            lastError = "Child rebuild command failed: " + exception.getMessage();
-            appendLog(lastError);
-            return false;
+            return failRebuild("Child rebuild command failed: " + exception.getMessage());
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
-            lastError = "Interrupted while rebuilding child process";
-            appendLog(lastError);
-            return false;
+            return failRebuild("Interrupted while rebuilding child process");
         } finally {
             if (rebuildLog != null) {
                 try {
@@ -281,6 +339,14 @@ public class LocalSessionRunnerManager {
                 }
             }
         }
+    }
+
+    private boolean failRebuild(String message) {
+        synchronized (lifecycleLock) {
+            lastError = message;
+        }
+        appendLog(message);
+        return false;
     }
 
     private void appendRebuildLog(java.nio.file.Path rebuildLog) {

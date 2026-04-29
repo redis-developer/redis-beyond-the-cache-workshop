@@ -41,8 +41,8 @@ class HttpDockerSessionRunnerManagerClientTest {
         client.restart(baseUrl() + "/", true);
 
         assertThat(requests).containsExactly(
-            new RecordedRequest("POST", "/internal/session-runner/restart", "{\"rebuild\":false}"),
-            new RecordedRequest("POST", "/internal/session-runner/restart", "{\"rebuild\":true}")
+            new RecordedRequest("POST", "/internal/session-runner/restart", "{\"rebuild\":false,\"async\":true}"),
+            new RecordedRequest("POST", "/internal/session-runner/restart", "{\"rebuild\":true,\"async\":true}")
         );
     }
 

@@ -2,8 +2,8 @@
   <div class="session-home">
     <WorkshopShell
       title="Distributed Session Management with Redis"
-      eyebrow="Session Management"
-      summary="Follow the instructions on the left while the learner application runs in the stable app frame."
+      eyebrow=""
+      summary=""
       :runtime="shellRuntime"
       :links="shellLinks"
       :actions="shellActions"
@@ -11,36 +11,69 @@
       :runtime-actions-disabled="runtimeBusy"
       @runtime-action="handleRuntimeAction"
     >
-      <template #hero-right>
-        <div class="session-shell-card">
-          <span class="session-shell-card__label">Current session</span>
-          <code>{{ sessionInfo.sessionId }}</code>
-          <span class="session-shell-card__storage" :class="{ 'session-shell-card__storage--redis': redisEnabled }">
-            {{ sessionInfo.storageType }}
-          </span>
-        </div>
-      </template>
-
       <template #instructions>
-        <div v-if="contentError" class="content-state content-state--error">
-          {{ contentError }}
+        <div class="session-instructions">
+          <header class="session-instructions__header">
+            <p class="session-instructions__title">{{ instructionsHeaderTitle }}</p>
+            <button
+              type="button"
+              class="session-instructions__action"
+              @click="resetProgress"
+            >
+              Reset Instructions
+            </button>
+          </header>
+
+          <div class="session-instructions__body">
+            <div v-if="contentError" class="content-state content-state--error">
+              {{ contentError }}
+            </div>
+            <div v-else-if="!homeContent" class="content-state">
+              Loading workshop instructions...
+            </div>
+            <template v-else>
+              <WorkshopContentRenderer
+                :content="resolvedHomeContent"
+                :tokens="contentTokens"
+                :context="contentContext"
+                :action-handlers="contentActionHandlers"
+                :widgets="contentWidgets"
+                :widget-props="contentWidgetProps"
+                :show-title="false"
+                :show-summary="false"
+                @render-error="handleContentRenderError"
+              />
+
+              <nav
+                v-if="hasStageNavigation"
+                class="stage-navigation"
+                aria-label="Stage navigation"
+              >
+                <button
+                  v-if="previousStage"
+                  class="stage-navigation__button stage-navigation__button--previous"
+                  type="button"
+                  :aria-label="`Go to ${previousStageAriaLabel}`"
+                  @click="goToPage(previousStage)"
+                >
+                  <span aria-hidden="true">&larr;</span>
+                  <span class="stage-navigation__label">{{ previousStageLabel }}</span>
+                </button>
+
+                <button
+                  v-if="nextStage"
+                  class="stage-navigation__button stage-navigation__button--next"
+                  type="button"
+                  :aria-label="`Go to ${nextStageAriaLabel}`"
+                  @click="goToPage(nextStage)"
+                >
+                  <span class="stage-navigation__label">{{ nextStageLabel }}</span>
+                  <span aria-hidden="true">&rarr;</span>
+                </button>
+              </nav>
+            </template>
+          </div>
         </div>
-        <div v-else-if="!homeContent" class="content-state">
-          Loading workshop instructions...
-        </div>
-        <WorkshopContentRenderer
-          v-else
-          :content="resolvedHomeContent"
-          :tokens="contentTokens"
-          :context="contentContext"
-          :active-stage-id="activeStageId"
-          :action-handlers="contentActionHandlers"
-          :widgets="contentWidgets"
-          :widget-props="contentWidgetProps"
-          :show-title="false"
-          :show-summary="false"
-          @render-error="handleContentRenderError"
-        />
       </template>
     </WorkshopShell>
 
@@ -59,7 +92,6 @@
 import {
   getApiUrl,
   getBasePath,
-  getRedisInsightUrl,
   getWorkshopHubUrl
 } from '../utils/basePath';
 import {
@@ -71,8 +103,10 @@ import SessionComparisonWidget from '../components/content/SessionComparisonWidg
 import { loadWorkshopContentView } from '../utils/workshopContent';
 
 const READY_STATES = new Set(['CHILD_READY', 'READY', 'ready', 'running']);
+const FAILED_STATES = new Set(['CHILD_FAILED', 'DISABLED']);
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 180000;
+const POLL_TIMEOUT_MS = 480000;
+const MIN_RUNTIME_BUSY_MS = 2000;
 
 function createStage1Defaults() {
   return {
@@ -122,8 +156,8 @@ function prepareSequentialStepList(items, progress) {
   ));
 }
 
-function updateStageStepList(stage, sectionId, listId, progress) {
-  stage.sections = stage.sections.map(section => {
+function updateContentStepList(content, sectionId, listId, progress) {
+  content.sections = content.sections.map(section => {
     if (section.sectionId !== sectionId) {
       return section;
     }
@@ -144,20 +178,17 @@ function updateStageStepList(stage, sectionId, listId, progress) {
   });
 }
 
-function prepareSessionHomeContent(content, stage1Tests, stage3Tests) {
+function prepareSessionHomeContent(content, pageId, stage1Tests, stage3Tests) {
   const nextContent = cloneContent(content);
-  const stages = nextContent.stages || [];
 
-  const stage1 = stages.find(stage => stage.stageId === 'problem');
-  if (stage1) {
-    updateStageStepList(stage1, 'stage-1', 'stage1-tests', stage1Tests);
+  if (pageId === '1') {
+    updateContentStepList(nextContent, 'stage-1', 'stage1-tests', stage1Tests);
   }
 
-  const stage3 = stages.find(stage => stage.stageId === 'redis-enabled');
-  if (stage3) {
-    updateStageStepList(stage3, 'stage-3-tests', 'stage3-tests', stage3Tests);
+  if (pageId === '3') {
+    updateContentStepList(nextContent, 'stage-3-tests', 'stage3-tests', stage3Tests);
     if (!stage3Tests.test4) {
-      stage3.sections = stage3.sections.filter(section => section.sectionId !== 'stage-3-completion');
+      nextContent.sections = nextContent.sections.filter(section => section.sectionId !== 'stage-3-completion');
     }
   }
 
@@ -171,6 +202,9 @@ export default {
     WorkshopModal,
     WorkshopShell
   },
+  props: {
+    pageId: { type: String, default: '0' }
+  },
   data() {
     return {
       homeContent: null,
@@ -183,7 +217,6 @@ export default {
       },
       redisEnabled: false,
       stage1Completed: false,
-      manualStageId: '',
       previousSessionId: null,
       stage1Tests: createStage1Defaults(),
       stage3Tests: createStage3Defaults(),
@@ -193,6 +226,7 @@ export default {
       runtimeBusy: false,
       runtimeStatusMessage: '',
       appFrameVersion: 0,
+      navigationPageTitles: {},
       modal: {
         show: false,
         type: 'alert',
@@ -203,24 +237,17 @@ export default {
     };
   },
   computed: {
-    automaticStageId() {
-      if (this.redisEnabled) {
-        return 'redis-enabled';
-      }
-
-      if (this.stage1Completed) {
-        return 'enable-redis';
-      }
-
-      return 'problem';
-    },
-    activeStageId() {
-      return this.manualStageId || this.automaticStageId;
+    activePageIndex() {
+      return this.pageOrder.findIndex(page => page === this.pageId);
     },
     appFrameMessage() {
-      return this.runtimeBusy
-        ? 'The learner runtime is restarting or rebuilding. The shell remains available while the app comes back.'
-        : '';
+      if (!this.runtimeBusy) {
+        return '';
+      }
+
+      return this.runtimeState === 'REBUILDING'
+        ? 'The learner app is rebuilding. The frame will reload automatically when it is ready.'
+        : 'The learner app is restarting. The frame will reload automatically when it is ready.';
     },
     basePath() {
       return getBasePath();
@@ -228,14 +255,18 @@ export default {
     contentActionHandlers() {
       return {
         markItemComplete: ({ args }) => this.completeContentItem(args.groupId, args.itemId),
-        openEditor: () => this.$router.push('/editor'),
+        openEditor: () => this.openRoute('/4'),
         openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
-        openRedisInsight: () => window.open(this.redisInsightUrl, '_blank', 'noopener'),
+        openRedisInsight: () => this.openRoute(this.redisInsightViewRoute),
+        openRoute: ({ args }) => this.openRoute(args.route),
         rebuildRuntime: () => this.restartRuntime(true),
         resetProgress: () => this.resetProgress(),
         restartRuntime: () => this.restartRuntime(false),
-        setStage: ({ args }) => this.handleStageChange(args.stageId)
+        setStage: ({ args }) => this.openStage(args.stageId)
       };
+    },
+    hasStageNavigation() {
+      return this.pageOrder.length > 1 && this.activePageIndex >= 0;
     },
     contentContext() {
       return {
@@ -247,7 +278,7 @@ export default {
         links: {
           hub: this.workshopHubUrl,
           learnerApp: this.learnerAppUrl,
-          redisInsight: this.redisInsightUrl,
+          redisInsight: this.redisInsightViewUrl,
           workshopHub: this.workshopHubUrl
         },
         runtime: {
@@ -267,7 +298,7 @@ export default {
     },
     contentWidgetProps() {
       return {
-        'session-home.redis-session-comparison': {
+        '3.redis-session-comparison': {
           visible: Boolean(this.previousSessionId) && !this.stage3Tests.test3,
           showSuccess: true,
           previousSessionId: this.previousSessionId || '',
@@ -278,7 +309,7 @@ export default {
           changedClass: 'warning',
           unchangedClass: 'success'
         },
-        'session-home.session-comparison': {
+        '1.session-comparison': {
           visible: Boolean(this.previousSessionId) && !this.stage1Tests.test3,
           showSuccess: !this.sessionIdChanged,
           currentLabel: 'New Session ID:',
@@ -294,43 +325,80 @@ export default {
     },
     contentWidgets() {
       return {
-        'session-home.redis-session-comparison': SessionComparisonWidget,
-        'session-home.session-comparison': SessionComparisonWidget
+        '3.redis-session-comparison': SessionComparisonWidget,
+        '1.session-comparison': SessionComparisonWidget
       };
     },
     learnerApp() {
       return {
-        title: 'Session management app',
+        title: 'Learner app',
         url: this.learnerAppUrl,
         message: this.appFrameMessage
       };
     },
     learnerAppUrl() {
-      const route = this.buildRouteUrl('/app');
+      const route = this.buildRouteUrl('/app/');
       const separator = route.includes('?') ? '&' : '?';
       return `${route}${separator}frame=${this.appFrameVersion}`;
     },
-    redisInsightUrl() {
-      return getRedisInsightUrl();
+    instructionsHeaderTitle() {
+      const title = this.homeContent?.title
+        || this.navigationPageTitles[this.pageId]
+        || `Stage ${this.pageId}`;
+
+      return this.formatInstructionsTitle(title);
+    },
+    redisInsightViewRoute() {
+      return `/redis-insight-view?returnTo=${encodeURIComponent(`/${this.pageId}`)}`;
+    },
+    redisInsightViewUrl() {
+      return this.buildRouteUrl(this.redisInsightViewRoute);
     },
     resolvedHomeContent() {
       if (!this.homeContent) {
         return null;
       }
 
-      return prepareSessionHomeContent(this.homeContent, this.stage1Tests, this.stage3Tests);
+      return prepareSessionHomeContent(this.homeContent, this.pageId, this.stage1Tests, this.stage3Tests);
+    },
+    nextStage() {
+      if (!this.hasStageNavigation) {
+        return null;
+      }
+
+      return this.pageOrder[this.activePageIndex + 1] || null;
+    },
+    nextStageLabel() {
+      return this.stageNavigationLabel('nextLabel', this.nextStage);
+    },
+    nextStageAriaLabel() {
+      return this.stageNavigationAriaLabel(this.nextStageLabel, this.nextStage);
+    },
+    previousStage() {
+      if (!this.hasStageNavigation) {
+        return null;
+      }
+
+      return this.pageOrder[this.activePageIndex - 1] || null;
+    },
+    previousStageLabel() {
+      return this.stageNavigationLabel('previousLabel', this.previousStage);
+    },
+    previousStageAriaLabel() {
+      return this.stageNavigationAriaLabel(this.previousStageLabel, this.previousStage);
     },
     sessionIdChanged() {
       return Boolean(this.previousSessionId) && this.previousSessionId !== this.sessionInfo.sessionId;
     },
     shellActions() {
-      return ['restartRuntime', 'rebuildRuntime', 'openRedisInsight', 'openHub', 'refreshStatus'];
+      return ['restartRuntime', 'rebuildRuntime', 'openRedisInsight', 'openEditor', 'openHub', 'refreshStatus'];
     },
     shellLinks() {
       return {
+        editor: this.buildRouteUrl(`/4?returnTo=${encodeURIComponent(`/${this.pageId}`)}`),
         hub: this.workshopHubUrl,
         learnerApp: this.learnerAppUrl,
-        redisInsight: this.redisInsightUrl,
+        redisInsight: this.redisInsightViewUrl,
         workshopHub: this.workshopHubUrl
       };
     },
@@ -346,6 +414,9 @@ export default {
     storagePrefix() {
       return `session-management:${this.basePath || 'standalone'}`;
     },
+    pageOrder() {
+      return this.redisEnabled ? ['0', '1', '2', '3'] : ['0', '1', '2'];
+    },
     workshopHubUrl() {
       return getWorkshopHubUrl();
     }
@@ -358,6 +429,24 @@ export default {
       this.loadHomeContent(),
       this.refreshRuntimeState()
     ]);
+    await this.loadNavigationPageTitles();
+    this.redirectIfPageUnavailable();
+  },
+  watch: {
+    async pageId() {
+      this.contentError = '';
+      this.homeContent = null;
+      await Promise.all([
+        this.fetchSessionInfo(),
+        this.loadHomeContent()
+      ]);
+      await this.loadNavigationPageTitles();
+      this.redirectIfPageUnavailable();
+    },
+    async redisEnabled() {
+      await this.loadNavigationPageTitles();
+      this.redirectIfPageUnavailable();
+    }
   },
   beforeUnmount() {
     window.removeEventListener('message', this.handleAppMessage);
@@ -428,6 +517,7 @@ export default {
       };
       this.redisEnabled = data.redisEnabled;
       this.stage1Completed = data.stage1Completed;
+      this.redirectIfPageUnavailable();
     },
     handleAppMessage(event) {
       if (event.origin !== window.location.origin || !event.data?.type) {
@@ -474,12 +564,23 @@ export default {
         this.appFrameVersion += 1;
       }
     },
-    async handleStageChange(stageId) {
-      if (stageId === 'enable-redis') {
-        await this.markStage1Complete();
+    formatInstructionsTitle(title) {
+      const match = title.match(/^STAGE\s+(\d+):\s*(.+)$/i);
+      if (!match) {
+        return title;
       }
 
-      this.manualStageId = stageId;
+      return `#${match[1]}: ${match[2]}`;
+    },
+    async openStage(stageId) {
+      const routes = {
+        intro: '/0',
+        problem: '/1',
+        'enable-redis': '/2',
+        'redis-enabled': '/3'
+      };
+
+      await this.openRoute(routes[stageId] || '/0');
     },
     loadTestProgress() {
       this.stage1Tests = loadSavedProgress(
@@ -497,11 +598,100 @@ export default {
     },
     async loadHomeContent() {
       try {
-        this.homeContent = await loadWorkshopContentView('session-home');
+        this.homeContent = await loadWorkshopContentView(this.pageId);
+        this.storeNavigationPageTitle(this.pageId, this.homeContent);
       } catch (error) {
         console.error('Error loading session workshop content:', error);
         this.contentError = 'Unable to load workshop instructions. Refresh the page and try again.';
       }
+    },
+    async loadNavigationPageTitles() {
+      const missingPageIds = this.pageOrder.filter(pageId => !this.navigationPageTitles[pageId]);
+      if (missingPageIds.length === 0) {
+        return;
+      }
+
+      const titles = {};
+
+      await Promise.all(missingPageIds.map(async pageId => {
+        try {
+          const content = pageId === this.pageId && this.homeContent
+            ? this.homeContent
+            : await loadWorkshopContentView(pageId);
+
+          if (content?.title) {
+            titles[pageId] = content.title;
+          }
+        } catch (error) {
+          console.warn(`Unable to load navigation title for page ${pageId}`, error);
+        }
+      }));
+
+      if (Object.keys(titles).length > 0) {
+        this.navigationPageTitles = {
+          ...this.navigationPageTitles,
+          ...titles
+        };
+      }
+    },
+    stageNavigationAriaLabel(label, pageId) {
+      return label || this.stageNavigationFallbackLabel(pageId);
+    },
+    stageNavigationFallbackLabel(pageId) {
+      if (!pageId) {
+        return '';
+      }
+
+      return this.navigationPageTitles[pageId] || `Stage ${pageId}`;
+    },
+    stageNavigationLabel(labelKey, pageId) {
+      if (!pageId) {
+        return '';
+      }
+
+      if (
+        this.homeContent?.navigation
+        && Object.prototype.hasOwnProperty.call(this.homeContent.navigation, labelKey)
+      ) {
+        return this.homeContent.navigation[labelKey] || '';
+      }
+
+      return this.stageNavigationFallbackLabel(pageId);
+    },
+    storeNavigationPageTitle(pageId, content) {
+      if (!pageId || !content?.title) {
+        return;
+      }
+
+      this.navigationPageTitles = {
+        ...this.navigationPageTitles,
+        [pageId]: content.title
+      };
+    },
+    async goToPage(pageId) {
+      if (!pageId) {
+        return;
+      }
+
+      await this.openRoute(`/${pageId}`);
+    },
+    async openRoute(route) {
+      if (!route) {
+        return;
+      }
+
+      if (route === '/2') {
+        await this.markStage1Complete();
+      }
+
+      await this.$router.push(route);
+    },
+    redirectIfPageUnavailable() {
+      if (this.pageOrder.includes(this.pageId)) {
+        return;
+      }
+
+      this.$router.replace('/2');
     },
     async markStage1Complete() {
       try {
@@ -517,7 +707,8 @@ export default {
       }
     },
     async refreshRuntimeState() {
-      const state = await this.fetchSessionState();
+      const status = await this.fetchSessionStatus();
+      const state = status?.state;
       if (state) {
         this.runtimeState = state;
         this.backendState = state;
@@ -533,10 +724,13 @@ export default {
       this.runtimeState = rebuild ? 'REBUILDING' : 'RESTARTING';
       this.backendState = this.runtimeState;
       this.runtimeStatusMessage = rebuild ? 'Rebuilding learner runtime...' : 'Restarting learner runtime...';
+      const visibleStateStartedAt = Date.now();
 
       try {
+        await this.$nextTick();
         await this.sendRestartRequest(rebuild);
         await this.waitForReadyState();
+        await this.waitForMinimumBusyState(visibleStateStartedAt);
         this.runtimeState = 'READY';
         this.backendState = 'READY';
         this.frontendState = 'READY';
@@ -544,6 +738,7 @@ export default {
         this.appFrameVersion += 1;
         await this.fetchSessionInfo();
       } catch (error) {
+        await this.waitForMinimumBusyState(visibleStateStartedAt);
         this.runtimeState = 'FAILED';
         this.backendState = 'FAILED';
         this.runtimeStatusMessage = error?.message || 'Restart failed';
@@ -558,7 +753,7 @@ export default {
           'Content-Type': 'application/json'
         },
         credentials: 'include',
-        body: JSON.stringify({ rebuild })
+        body: JSON.stringify({ rebuild, async: true })
       });
 
       if (!response.ok) {
@@ -569,10 +764,14 @@ export default {
       const startedAt = Date.now();
 
       while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
-        const state = await this.fetchSessionState();
+        const status = await this.fetchSessionStatus();
+        const state = status?.state;
 
         if (READY_STATES.has(state)) {
           return;
+        }
+        if (FAILED_STATES.has(state)) {
+          throw new Error(status?.lastError || 'Session restart failed');
         }
 
         await this.sleep(POLL_INTERVAL_MS);
@@ -580,7 +779,17 @@ export default {
 
       throw new Error('Timed out waiting for the session to restart');
     },
+    async waitForMinimumBusyState(startedAt) {
+      const remainingMs = MIN_RUNTIME_BUSY_MS - (Date.now() - startedAt);
+      if (remainingMs > 0) {
+        await this.sleep(remainingMs);
+      }
+    },
     async fetchSessionState() {
+      const status = await this.fetchSessionStatus();
+      return status?.state || null;
+    },
+    async fetchSessionStatus() {
       try {
         const response = await fetch(this.buildRunnerUrl('/internal/session-runner/status'), {
           credentials: 'include'
@@ -590,17 +799,15 @@ export default {
           return null;
         }
 
-        const data = await response.json();
-        return data?.state || null;
+        return await response.json();
       } catch {
         return null;
       }
     },
     resetProgress() {
-      this.showModal('confirm', 'Reset Progress', 'Reset all test progress? You will start from the first test again.', () => {
+      this.showModal('confirm', 'Reset Instructions', 'Reset all instruction progress? You will start from the first test again.', () => {
         this.stage1Tests = createStage1Defaults();
         this.stage3Tests = createStage3Defaults();
-        this.manualStageId = '';
         this.previousSessionId = null;
         localStorage.removeItem(this.storageKey('stage1Tests'));
         localStorage.removeItem(this.storageKey('stage3Tests'));
@@ -608,6 +815,7 @@ export default {
         localStorage.removeItem('stage1Tests');
         localStorage.removeItem('stage3Tests');
         localStorage.removeItem('previousSessionId');
+        this.$router.push('/0');
       });
     },
     saveSessionId() {
@@ -666,45 +874,71 @@ export default {
   min-height: 100vh;
 }
 
-.session-shell-card {
+:deep(.workshop-shell__instructions) {
   display: flex;
-  min-width: min(100%, 18rem);
+  padding: 0;
+  overflow: hidden;
+}
+
+.session-instructions {
+  display: flex;
   flex-direction: column;
-  gap: var(--spacing-2);
-  padding: var(--spacing-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-xl);
-  background: rgba(16, 26, 33, 0.88);
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
 }
 
-.session-shell-card__label {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
+.session-instructions__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: 2.75rem;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-border-light, rgba(71, 85, 105, 0.3));
+  background: rgba(13, 26, 34, 0.95);
 }
 
-.session-shell-card code {
+.session-instructions__title {
+  min-width: 0;
+  margin: 0;
   color: var(--color-text);
-  font-family: var(--font-family-mono);
   font-size: var(--font-size-sm);
-  word-break: break-all;
-}
-
-.session-shell-card__storage {
-  align-self: flex-start;
-  padding: 0.2rem 0.55rem;
-  border: 1px solid rgba(251, 191, 36, 0.4);
-  border-radius: 999px;
-  color: var(--color-warning);
-  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
 }
 
-.session-shell-card__storage--redis {
-  border-color: rgba(74, 222, 128, 0.4);
-  color: var(--color-success);
+.session-instructions__action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  min-height: 1.85rem;
+  padding: 0.3rem 0.55rem;
+  border: 1px solid var(--color-restart-border, rgba(59, 130, 246, 0.4));
+  border-radius: var(--radius-lg, 8px);
+  background: var(--color-restart-bg, rgba(59, 130, 246, 0.2));
+  color: var(--color-restart-text, #93c5fd);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: var(--font-weight-semibold, 600);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.session-instructions__action:hover {
+  background: rgba(59, 130, 246, 0.28);
+  border-color: rgba(59, 130, 246, 0.58);
+  color: #bfdbfe;
+}
+
+.session-instructions__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--spacing-4);
 }
 
 .content-state {
@@ -736,6 +970,13 @@ export default {
 :deep(.workshop-markdown),
 :deep(.content-step-item__heading .workshop-markdown) {
   color: var(--color-text-secondary);
+}
+
+:deep(.workshop-markdown h2),
+:deep(.workshop-markdown h3),
+:deep(.workshop-markdown h4) {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
 }
 
 :deep(.session-comparison) {
@@ -788,9 +1029,76 @@ export default {
   color: #f59e0b;
 }
 
+.stage-navigation {
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: space-between;
+  margin-top: var(--spacing-6);
+  padding-top: var(--spacing-3);
+  background: rgba(13, 26, 34, 0.96);
+  border-top: 1px solid var(--color-border);
+}
+
+.stage-navigation__button {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--spacing-2);
+  min-height: 2.5rem;
+  padding: 0.65rem 0.95rem;
+  border: 1px solid var(--color-restart-border, rgba(59, 130, 246, 0.4));
+  border-radius: var(--radius-lg);
+  background: var(--color-restart-bg, rgba(59, 130, 246, 0.2));
+  color: var(--color-restart-text, #93c5fd);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.stage-navigation__button:hover {
+  background: rgba(59, 130, 246, 0.28);
+  border-color: rgba(59, 130, 246, 0.58);
+  color: #bfdbfe;
+}
+
+.stage-navigation__button--next {
+  margin-left: auto;
+}
+
+.stage-navigation__button--previous {
+  margin-right: auto;
+}
+
+.stage-navigation__label {
+  line-height: 1.25;
+  text-align: left;
+}
+
+.stage-navigation__button--next .stage-navigation__label {
+  text-align: right;
+}
+
 @media (max-width: 768px) {
   :deep(.session-comparison) {
     margin-left: 0;
+  }
+
+  .session-instructions__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stage-navigation {
+    flex-wrap: wrap;
+  }
+
+  .stage-navigation__button {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 </style>

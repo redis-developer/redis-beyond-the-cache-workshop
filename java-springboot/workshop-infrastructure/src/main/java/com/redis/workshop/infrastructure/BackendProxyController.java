@@ -98,7 +98,16 @@ public class BackendProxyController {
     }
 
     @RequestMapping(
-        value = "/api/**",
+        value = {
+            "/api/**",
+            "/app",
+            "/app/",
+            "/app/**",
+            "/login",
+            "/login/**",
+            "/logout",
+            "/logout/**"
+        },
         method = {
             RequestMethod.GET,
             RequestMethod.POST,

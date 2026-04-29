@@ -11,6 +11,7 @@ platform:
       shared-secret: ${EXECUTION_PLANE_SHARED_SECRET:}
       launch-timeout: 450s
       restart-timeout: 450s
+      readiness-timeout: 480s
       termination-timeout: 30s
     runtime:
       public-base-url:

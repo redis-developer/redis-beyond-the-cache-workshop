@@ -12,8 +12,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 // TODO: Uncomment the imports below to enable session persistence
-// import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-// import org.springframework.security.web.context.SecurityContextRepository;
+import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.http.HttpStatus;
 
@@ -25,11 +25,11 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             // TODO: Uncomment the lines below to store SecurityContext in HTTP session
-            // .securityContext(context -> context
-            //     .securityContextRepository(securityContextRepository())
-            // )
+            .securityContext(context -> context
+                .securityContextRepository(securityContextRepository())
+            )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                .requestMatchers("/", "/app", "/app/**", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
                 .requestMatchers("/login").permitAll()
                 .anyRequest().authenticated()
             )
@@ -48,12 +48,15 @@ public class SecurityConfig {
             .formLogin(form -> form
                 .loginPage("/login")
                 .loginProcessingUrl("/login")
-                .defaultSuccessUrl("/welcome", true)
+                .defaultSuccessUrl("/app/", true)
                 .permitAll()
             )
             .logout(logout -> logout
-                .logoutSuccessUrl("/login?logout")
+                .logoutSuccessUrl("/app/?logout")
                 .permitAll()
+            )
+            .headers(headers -> headers
+                .frameOptions(frameOptions -> frameOptions.sameOrigin())
             )
             .csrf(csrf -> csrf.disable());
 
@@ -61,10 +64,10 @@ public class SecurityConfig {
     }
 
     // TODO: Uncomment the bean below to enable session-based security context
-    // @Bean
-    // public SecurityContextRepository securityContextRepository() {
-    //     return new HttpSessionSecurityContextRepository();
-    // }
+    @Bean
+    public SecurityContextRepository securityContextRepository() {
+        return new HttpSessionSecurityContextRepository();
+    }
 
     @Bean
     public UserDetailsService userDetailsService() {

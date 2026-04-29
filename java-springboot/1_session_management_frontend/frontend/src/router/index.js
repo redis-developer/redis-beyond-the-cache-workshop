@@ -1,35 +1,42 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getBasePath } from '../utils/basePath'
 
-const SessionLogin = () => import('../views/SessionLogin.vue')
 const SessionHome = () => import('../views/SessionHome.vue')
 const SessionEditor = () => import('../views/SessionEditor.vue')
-const SessionLearnerApp = () => import('../views/SessionLearnerApp.vue')
+const RedisInsightView = () => import('../views/RedisInsightView.vue')
+
+const HOME_ROUTE = '/0'
+const EDITOR_ROUTE = '/4'
+const REDIS_INSIGHT_ROUTE = '/redis-insight-view'
 
 const routes = [
   {
     path: '/',
-    redirect: '/welcome'
+    redirect: HOME_ROUTE
+  },
+  ...['0', '1', '2', '3'].map(pageId => ({
+    path: `/${pageId}`,
+    name: `SessionPage${pageId}`,
+    component: SessionHome,
+    props: { pageId }
+  })),
+  {
+    path: EDITOR_ROUTE,
+    name: 'SessionEditor',
+    component: SessionEditor
   },
   {
-    path: '/login',
-    name: 'SessionLogin',
-    component: SessionLogin
+    path: REDIS_INSIGHT_ROUTE,
+    name: 'RedisInsightView',
+    component: RedisInsightView
   },
   {
     path: '/welcome',
-    name: 'SessionHome',
-    component: SessionHome
-  },
-  {
-    path: '/app',
-    name: 'SessionLearnerApp',
-    component: SessionLearnerApp
+    redirect: HOME_ROUTE
   },
   {
     path: '/editor',
-    name: 'SessionEditor',
-    component: SessionEditor
+    redirect: EDITOR_ROUTE
   }
 ]
 
@@ -41,7 +48,7 @@ const router = createRouter({
 // Navigation guard to check authentication before accessing protected routes
 router.beforeEach(async (to, from, next) => {
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/welcome', '/app']
+  const publicRoutes = ['/0', '/1', '/2', '/3', '/4', REDIS_INSIGHT_ROUTE, '/welcome']
 
   if (publicRoutes.includes(to.path)) {
     next()
@@ -56,19 +63,16 @@ router.beforeEach(async (to, from, next) => {
     })
 
     if (response.status === 401 || response.status === 403) {
-      // Not authenticated, redirect to login
-      next('/login')
+      next(HOME_ROUTE)
     } else if (response.ok) {
       // Authenticated, allow navigation
       next()
     } else {
-      // Other error, redirect to login to be safe
-      next('/login')
+      next(HOME_ROUTE)
     }
   } catch (error) {
     console.error('Auth check failed:', error)
-    // On error, redirect to login
-    next('/login')
+    next(HOME_ROUTE)
   }
 })
 

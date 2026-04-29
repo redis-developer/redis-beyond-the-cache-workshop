@@ -87,6 +87,7 @@ export function resolveWorkshopShellState({ runtime = {}, learnerApp = {}, links
   const hasDeclaredActions = actionSet.size > 0;
   const learnerAppUrl = learnerApp.url ?? links.learnerApp ?? '';
   const redisInsightUrl = links.redisInsight ?? '';
+  const editorUrl = links.editor ?? links.codeEditor ?? '';
   const hubUrl = links.hub ?? links.workshopHub ?? '/';
   const busy = isRuntimeBusy(runtimeState) || isRuntimeBusy(frontendState) || isRuntimeBusy(backendState);
   const appUnavailable = isRuntimeBlocked(frontendState) || isRuntimeBlocked(runtimeState);
@@ -97,6 +98,7 @@ export function resolveWorkshopShellState({ runtime = {}, learnerApp = {}, links
     backendState,
     learnerAppUrl,
     redisInsightUrl,
+    editorUrl,
     hubUrl,
     busy,
     ready: isRuntimeReady(runtimeState),
@@ -105,6 +107,7 @@ export function resolveWorkshopShellState({ runtime = {}, learnerApp = {}, links
     canRestart: supportsAction(actionSet, hasDeclaredActions, 'restart') && !busy,
     canRebuild: runtime.rebuildAvailable !== false && supportsAction(actionSet, hasDeclaredActions, 'rebuild') && !busy,
     canOpenRedisInsight: Boolean(redisInsightUrl) && supportsAction(actionSet, hasDeclaredActions, 'redisInsight'),
+    canOpenEditor: Boolean(editorUrl) && supportsAction(actionSet, hasDeclaredActions, 'editor'),
     canOpenHub: Boolean(hubUrl) && supportsAction(actionSet, hasDeclaredActions, 'hub'),
     canRefresh: supportsAction(actionSet, hasDeclaredActions, 'refresh')
   };
@@ -126,6 +129,7 @@ function canonicalActionName(action) {
   const name = String(action);
   const aliases = {
     openHub: 'hub',
+    openEditor: 'editor',
     openRedisInsight: 'redisInsight',
     rebuildRuntime: 'rebuild',
     refreshStatus: 'refresh',

@@ -40,23 +40,39 @@ class SessionManagementFrontendIntegrationTest {
     void spaRoutesAreHandledByFrontendModule() throws Exception {
         mockMvc.perform(get("/"))
             .andExpect(status().is3xxRedirection())
-            .andExpect(redirectedUrl("/welcome"));
+            .andExpect(redirectedUrl("/0"));
 
-        mockMvc.perform(get("/login"))
+        mockMvc.perform(get("/0"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/1"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/2"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/3"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/4"))
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
+
+        mockMvc.perform(get("/redis-insight-view"))
             .andExpect(status().isOk())
             .andExpect(forwardedUrl("/index.html"));
 
         mockMvc.perform(get("/welcome"))
-            .andExpect(status().isOk())
-            .andExpect(forwardedUrl("/index.html"));
-
-        mockMvc.perform(get("/app"))
-            .andExpect(status().isOk())
-            .andExpect(forwardedUrl("/index.html"));
+            .andExpect(status().is3xxRedirection())
+            .andExpect(redirectedUrl("/0"));
 
         mockMvc.perform(get("/editor"))
-            .andExpect(status().isOk())
-            .andExpect(forwardedUrl("/index.html"));
+            .andExpect(status().is3xxRedirection())
+            .andExpect(redirectedUrl("/4"));
     }
 
     @Test
@@ -66,19 +82,48 @@ class SessionManagementFrontendIntegrationTest {
     }
 
     @Test
+    void learnerAppIsHandledByBackendProxyInFrontendModule() throws Exception {
+        mockMvc.perform(get("/app/"))
+            .andExpect(status().isBadGateway());
+    }
+
+    @Test
     void sharedContentApiIsExposedInFrontendModule() throws Exception {
         mockMvc.perform(get("/api/content/manifest"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.workshopId").value("1_session_management"))
-            .andExpect(jsonPath("$.views[*].viewId", hasItem("session-home")))
-            .andExpect(jsonPath("$.views[*].viewId", hasItem("session-editor")));
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("0")))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("1")))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("2")))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("3")))
+            .andExpect(jsonPath("$.views[*].viewId", hasItem("4")));
 
-        mockMvc.perform(get("/api/content/views/session-home"))
+        mockMvc.perform(get("/api/content/views/0"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.pageType").value("stage-flow"))
-            .andExpect(jsonPath("$.stages[0].sections[0].blocks[2].listId").value("stage1-tests"));
+            .andExpect(jsonPath("$.pageType").value("narrative"))
+            .andExpect(jsonPath("$.title").value("STAGE 0: Sessions And State"))
+            .andExpect(jsonPath("$.navigation.nextLabel").value("Experience the problem"));
 
-        mockMvc.perform(get("/api/content/views/session-editor"))
+        mockMvc.perform(get("/api/content/views/1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pageType").value("narrative"))
+            .andExpect(jsonPath("$.navigation.previousLabel").value(""))
+            .andExpect(jsonPath("$.navigation.nextLabel").value("Show me how fix it"))
+            .andExpect(jsonPath("$.sections[0].blocks[2].listId").value("stage1-tests"));
+
+        mockMvc.perform(get("/api/content/views/2"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pageType").value("narrative"))
+            .andExpect(jsonPath("$.title").value("STAGE 2: Enable Redis Session Management"))
+            .andExpect(jsonPath("$.navigation.previousLabel").value(""))
+            .andExpect(jsonPath("$.navigation.nextLabel").value("Experience distributed sessions"));
+
+        mockMvc.perform(get("/api/content/views/3"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pageType").value("narrative"))
+            .andExpect(jsonPath("$.sections[0].blocks[2].listId").value("stage3-tests"));
+
+        mockMvc.perform(get("/api/content/views/4"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.pageType").value("editor"))
             .andExpect(jsonPath("$.sections[1].blocks[0].type").value("editorStepList"));

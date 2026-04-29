@@ -1,0 +1,56 @@
+schemaVersion: 1
+viewId: "1"
+route: /1
+pageType: narrative
+title: "STAGE 1: Problem - In-Memory Sessions"
+slot: instructions
+header:
+  showHubLink: true
+navigation:
+  previousLabel: ""
+  nextLabel: Show me how fix it
+sections:
+  - sectionId: stage-1
+    blocks:
+      - type: statusPanel
+        tone: warning
+        title: Current state
+        body: Sessions are stored in-memory (not in Redis).
+      - type: markdown
+        body: "Let's see the problem with in-memory sessions. Complete each test to proceed:"
+      - type: stepList
+        listId: stage1-tests
+        variant: tests
+        items:
+          - itemId: test1
+            title: "Test 1: Note Your Session ID"
+            body: "Sign in inside the learner app and note the Session ID displayed there. This ID identifies your session in the server's memory."
+            actions:
+              - id: markItemComplete
+                label: I've noted my Session ID
+                args:
+                  groupId: stage1-tests
+                  itemId: test1
+          - itemId: test2
+            title: "Test 2: Restart the Backend"
+            body: Use the shell toolbar to restart the learner runtime without rebuilding.
+            actions:
+              - id: restartRuntime
+                label: Restart Runtime
+              - id: markItemComplete
+                label: I've restarted the backend
+                args:
+                  groupId: stage1-tests
+                  itemId: test2
+          - itemId: test3
+            title: "Test 3: Refresh This Page"
+            body: Refresh this page. If you are logged out, sign in again and compare your new Session ID with the previous one.
+            supportingBlocks:
+              - type: widget
+                widgetId: 1.session-comparison
+            actions:
+              - id: markItemComplete
+                label: I logged back in and have a new Session ID
+                args:
+                  groupId: stage1-tests
+                  itemId: test3

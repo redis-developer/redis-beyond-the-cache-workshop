@@ -62,6 +62,7 @@ services:
       - RI_REDIS_USERNAME=default
       - RI_REDIS_PASSWORD=
       - RI_REDIS_TLS=FALSE
+      - RI_PROXY_PATH=/redis-insight
     volumes:
       - redis-insight-data:/db
     depends_on:

@@ -40,7 +40,7 @@ public class HttpDockerSessionRunnerManagerClient implements DockerSessionRunner
 
     @Override
     public void restart(String upstreamBaseUrl, boolean rebuild) {
-        String requestBody = "{\"rebuild\":" + rebuild + "}";
+        String requestBody = "{\"rebuild\":" + rebuild + ",\"async\":true}";
         HttpRequest request = HttpRequest.newBuilder(restartUri(upstreamBaseUrl))
             .timeout(managerRestartTimeout())
             .header("Content-Type", "application/json")

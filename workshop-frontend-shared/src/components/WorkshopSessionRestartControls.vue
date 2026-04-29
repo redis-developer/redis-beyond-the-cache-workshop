@@ -26,8 +26,9 @@
 import { getSessionRouteContext } from '../utils/sessionContext.js';
 
 const READY_STATES = new Set(['CHILD_READY']);
+const FAILED_STATES = new Set(['CHILD_FAILED', 'DISABLED']);
 const POLL_INTERVAL_MS = 2000;
-const POLL_TIMEOUT_MS = 180000;
+const POLL_TIMEOUT_MS = 480000;
 
 export default {
   name: 'WorkshopSessionRestartControls',
@@ -71,7 +72,7 @@ export default {
             'Content-Type': 'application/json'
           },
           credentials: 'include',
-          body: JSON.stringify({ rebuild })
+          body: JSON.stringify({ rebuild, async: true })
         }
       );
 
@@ -83,10 +84,14 @@ export default {
       const startedAt = Date.now();
 
       while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
-        const state = await this.fetchSessionState();
+        const status = await this.fetchSessionStatus();
+        const state = status?.state;
 
         if (READY_STATES.has(state)) {
           return;
+        }
+        if (FAILED_STATES.has(state)) {
+          throw new Error(status?.lastError || 'Session restart failed');
         }
 
         await this.sleep(POLL_INTERVAL_MS);
@@ -94,7 +99,7 @@ export default {
 
       throw new Error('Timed out waiting for the session to restart');
     },
-    async fetchSessionState() {
+    async fetchSessionStatus() {
       try {
         const stateUrl = this.buildRunnerUrl('/internal/session-runner/status');
         const response = await fetch(stateUrl, { credentials: 'include' });
@@ -103,8 +108,7 @@ export default {
           return null;
         }
 
-        const data = await response.json();
-        return data?.state;
+        return await response.json();
       } catch {
         return null;
       }

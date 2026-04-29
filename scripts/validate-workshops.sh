@@ -47,14 +47,11 @@ REGISTRY_REQUIRED_FIELDS = [
     "difficulty",
     "estimatedMinutes",
     "serviceName",
-    "port",
     "url",
     "dockerfile",
     "frontendServiceName",
-    "frontendPort",
     "frontendDockerfile",
     "backendServiceName",
-    "backendPort",
     "backendDockerfile",
     "infrastructureDependencies",
     "redisFlavor",
@@ -932,8 +929,6 @@ def validate_existing_workshops() -> None:
     seen_service_names: set[str] = set()
     seen_frontend_service_names: set[str] = set()
     seen_backend_service_names: set[str] = set()
-    seen_frontend_ports: set[int] = set()
-    seen_backend_ports: set[int] = set()
     seen_release_ids: set[str] = set()
 
     for workshop in workshops:
@@ -987,9 +982,6 @@ def validate_existing_workshops() -> None:
         service_name = str(workshop.get("serviceName", "")).strip()
         frontend_service_name = str(workshop.get("frontendServiceName", "")).strip()
         backend_service_name = str(workshop.get("backendServiceName", "")).strip()
-        frontend_port_raw = str(workshop.get("frontendPort", "")).strip()
-        backend_port_raw = str(workshop.get("backendPort", "")).strip()
-        port_raw = str(workshop.get("port", "")).strip()
         redis_flavor = str(workshop.get("redisFlavor", "")).strip()
         frontend_prebuild = str(workshop.get("frontendPrebuild", "")).strip().lower()
 
@@ -1008,38 +1000,10 @@ def validate_existing_workshops() -> None:
                 errors.append(f"Duplicate {label} in workshops.yaml: {value}")
             seen.add(value)
 
-        for label, raw_value in [
-            ("port", port_raw),
-            ("frontendPort", frontend_port_raw),
-            ("backendPort", backend_port_raw),
-        ]:
-            if not raw_value.isdigit():
-                errors.append(f"{workshop_id} has a non-numeric {label}: {raw_value!r}")
-                continue
-            port_value = int(raw_value)
-            if port_value <= 0:
-                errors.append(f"{workshop_id} has a non-positive {label}: {port_value}")
-        if frontend_port_raw.isdigit():
-            frontend_port = int(frontend_port_raw)
-            if frontend_port in seen_frontend_ports:
-                errors.append(f"Duplicate frontendPort in workshops.yaml: {frontend_port}")
-            seen_frontend_ports.add(frontend_port)
-        if backend_port_raw.isdigit():
-            backend_port = int(backend_port_raw)
-            if backend_port in seen_backend_ports:
-                errors.append(f"Duplicate backendPort in workshops.yaml: {backend_port}")
-            seen_backend_ports.add(backend_port)
-
         if service_name and frontend_service_name and service_name != frontend_service_name:
             errors.append(
                 f"{workshop_id} must keep serviceName aligned with frontendServiceName "
                 f"({service_name!r} != {frontend_service_name!r})"
-            )
-
-        if port_raw.isdigit() and frontend_port_raw.isdigit() and int(port_raw) != int(frontend_port_raw):
-            errors.append(
-                f"{workshop_id} must keep port aligned with frontendPort "
-                f"({port_raw} != {frontend_port_raw})"
             )
 
         expected_url = f"/workshop/{service_name}/"
@@ -1230,8 +1194,8 @@ def validate_scaffold_smoke() -> None:
     smoke_id = "99_validation_smoke"
     smoke_title = "Validation Smoke"
     smoke_service = "validation-smoke"
-    frontend_port = "8099"
-    backend_port = "18099"
+    default_frontend_port = "8080"
+    default_backend_port = "18080"
     package_name = "validationsmoke"
     pascal_case = "ValidationSmoke"
 
@@ -1261,7 +1225,6 @@ def validate_scaffold_smoke() -> None:
             smoke_id,
             smoke_title,
             smoke_service,
-            frontend_port,
         ]
         result = subprocess.run(
             command,
@@ -1394,14 +1357,11 @@ def validate_scaffold_smoke() -> None:
         expected_fields = {
             "title": smoke_title,
             "serviceName": smoke_service,
-            "port": frontend_port,
             "url": f"/workshop/{smoke_service}/",
             "dockerfile": f"java-springboot/{smoke_id}_frontend/Dockerfile",
             "frontendServiceName": smoke_service,
-            "frontendPort": frontend_port,
             "frontendDockerfile": f"java-springboot/{smoke_id}_frontend/Dockerfile",
             "backendServiceName": f"{smoke_service}-api",
-            "backendPort": backend_port,
             "backendDockerfile": f"java-springboot/{smoke_id}/Dockerfile",
             "difficulty": "Beginner",
             "estimatedMinutes": "30",
@@ -1415,6 +1375,17 @@ def validate_scaffold_smoke() -> None:
                     "Workshop standardization check failed:\n"
                     f"- Scaffold registry field {field_name} expected {expected_value!r}, found {actual_value!r}."
                 )
+
+        forbidden_registry_fields = ["port", "frontendPort", "backendPort"]
+        present_forbidden_fields = [
+            field_name for field_name in forbidden_registry_fields if field_name in scaffold_entry
+        ]
+        if present_forbidden_fields:
+            fail(
+                "Workshop standardization check failed:\n"
+                "- Scaffold registry entry must not include fixed port fields: "
+                + ", ".join(present_forbidden_fields)
+            )
 
         topics = scaffold_sections.get("topics", [])
         if topics != ["TODO"]:
@@ -1490,7 +1461,7 @@ def validate_scaffold_smoke() -> None:
         backend_props = (
             generated_backend_dir / "src/main/resources/application.properties"
         ).read_text(encoding="utf-8")
-        if f"server.port=${{SERVER_PORT:{backend_port}}}" not in backend_props:
+        if f"server.port=${{SERVER_PORT:{default_backend_port}}}" not in backend_props:
             fail(
                 "Workshop standardization check failed:\n"
                 "- Scaffold backend application.properties did not use the expected backend port template."
@@ -1501,8 +1472,8 @@ def validate_scaffold_smoke() -> None:
         ).read_text(encoding="utf-8")
         frontend_expectations = [
             f"spring.application.name={smoke_service}-frontend",
-            f"server.port=${{SERVER_PORT:{frontend_port}}}",
-            f"workshop.backend.url=${{WORKSHOP_BACKEND_URL:http://127.0.0.1:{backend_port}}}",
+            f"server.port=${{SERVER_PORT:{default_frontend_port}}}",
+            f"workshop.backend.url=${{WORKSHOP_BACKEND_URL:http://127.0.0.1:{default_backend_port}}}",
             "workshop.source.path=${WORKSHOP_SOURCE_PATH:${WORKSHOP_BASE_PATH:}}",
         ]
         for expected_line in frontend_expectations:

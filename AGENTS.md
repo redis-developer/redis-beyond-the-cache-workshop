@@ -7,7 +7,7 @@ This repository uses a single registry (`workshops.yaml`) as the source of truth
 Run the scaffold script, fill the generated TODOs, validate the registry, and test the workshop locally:
 
 ```bash
-./scripts/new-workshop.sh <id> "<title>" <serviceName> <frontendPort> [backendPort]
+./scripts/new-workshop.sh <id> "<title>" <serviceName>
 bash scripts/validate-workshops.sh
 ./scripts/run-workshop.sh up <id>
 ./scripts/run-workshop.sh down <id>
@@ -16,7 +16,7 @@ bash scripts/validate-workshops.sh
 Example:
 
 ```bash
-./scripts/new-workshop.sh 5_rate_limiting "Rate Limiting" rate-limiting 8084 18084
+./scripts/new-workshop.sh 5_rate_limiting "Rate Limiting" rate-limiting
 bash scripts/validate-workshops.sh
 ./scripts/run-workshop.sh up 5_rate_limiting
 ./scripts/run-workshop.sh down 5_rate_limiting
@@ -39,17 +39,15 @@ bash scripts/validate-workshops.sh
   - `difficulty`
   - `estimatedMinutes`
   - `serviceName`
-  - `port`
   - `url`
   - `dockerfile`
   - `frontendServiceName`
-  - `frontendPort`
   - `frontendDockerfile`
   - `backendServiceName`
-  - `backendPort`
   - `backendDockerfile`
   - `topics`
-- Keep the legacy `serviceName` / `port` / `dockerfile` fields aligned with the frontend service values.
+- Keep the legacy `serviceName` / `url` / `dockerfile` fields aligned with the frontend service values.
+- Do not add local listener values to `workshops.yaml`; the direct local maintainer helper allocates available values at startup and prints URLs.
 
 3) Include the module in Gradle settings
 - Add:
@@ -70,6 +68,7 @@ bash scripts/validate-workshops.sh
 - The control plane and execution plane use `workshops.yaml` for workshop metadata.
 - Workshop services are addressed using the frontend/backend service names from `workshops.yaml`.
 - Split workshops should keep the frontend service running while restart/redeploy actions target only the backend service.
+- Local direct workshop runs allocate available listener values at startup and store them under the local state directory for status, restart, and down commands.
 - Local Docker is for development and authoring. Production learner sessions run as Cloud Run session runners.
 - Cloud Run session runners own the editable workshop JVM, Redis, and Redis Insight inside the session boundary.
 
