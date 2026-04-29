@@ -139,7 +139,7 @@ stages:
           - type: callout
             tone: info
             title: Option 1
-            body: Use the in-browser code editor for the guided implementation.
+            body: Open the Code Editor and use embedded VS Code for the guided implementation. If guided actions are available, use them as a legacy shortcut.
             actions:
               - id: openEditor
                 label: Open Code Editor

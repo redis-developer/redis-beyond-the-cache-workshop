@@ -8,7 +8,9 @@
       :links="shellLinks"
       :actions="shellActions"
       :learner-app="learnerApp"
-      :runtime-actions-disabled="runtimeBusy"
+      :runtime-actions-disabled="runtimeInteractionBusy"
+      :redis-insight-in-place="true"
+      :redis-insight-label="redisInsightHeaderLabel"
       @runtime-action="handleRuntimeAction"
     >
       <template #instructions>
@@ -75,6 +77,30 @@
           </div>
         </div>
       </template>
+
+      <template #app-frame>
+        <WorkshopToolFrame
+          v-if="activeSidePanel === 'redisInsight'"
+          eyebrow="Redis Insight"
+          title="Redis Insight"
+          :src="redisInsightFrameUrl"
+        />
+        <WorkshopAppFrame
+          v-else
+          :src="learnerApp.url"
+          :title="learnerApp.title"
+          :state="learnerAppFrameState"
+          :message="learnerApp.message"
+          :refresh-key="appFrameVersion"
+          :can-restart="!runtimeInteractionBusy"
+          :can-rebuild="!runtimeInteractionBusy"
+          :actions-disabled="runtimeInteractionBusy"
+          :runtime-logs="runtimeLogs"
+          @retry="refreshLearnerAppFrame"
+          @runtime-action="handleRuntimeAction"
+          @logs-toggle="handleRuntimeLogsToggle"
+        />
+      </template>
     </WorkshopShell>
 
     <WorkshopModal
@@ -95,18 +121,33 @@ import {
   getWorkshopHubUrl
 } from '../utils/basePath';
 import {
+  WorkshopAppFrame,
   WorkshopContentRenderer,
   WorkshopModal,
-  WorkshopShell
+  WorkshopShell,
+  WorkshopToolFrame
 } from '../utils/components';
 import SessionComparisonWidget from '../components/content/SessionComparisonWidget.vue';
 import { loadWorkshopContentView } from '../utils/workshopContent';
 
-const READY_STATES = new Set(['CHILD_READY', 'READY', 'ready', 'running']);
-const FAILED_STATES = new Set(['CHILD_FAILED', 'DISABLED']);
+const READY_STATES = new Set(['CHILD_READY', 'READY', 'RUNNING']);
+const FAILED_STATES = new Set(['CHILD_FAILED', 'DISABLED', 'FAILED']);
+const BUSY_STATES = new Set(['CHILD_STARTING', 'REBUILDING', 'RESTARTING', 'STARTING']);
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS = 480000;
 const MIN_RUNTIME_BUSY_MS = 2000;
+
+function normalizeRunnerState(state) {
+  return String(state || '').trim().toUpperCase();
+}
+
+function isBusyRunnerState(state) {
+  return BUSY_STATES.has(normalizeRunnerState(state));
+}
+
+function isRebuildRunnerState(state) {
+  return normalizeRunnerState(state) === 'REBUILDING';
+}
 
 function createStage1Defaults() {
   return {
@@ -198,9 +239,11 @@ function prepareSessionHomeContent(content, pageId, stage1Tests, stage3Tests) {
 export default {
   name: 'SessionHome',
   components: {
+    WorkshopAppFrame,
     WorkshopContentRenderer,
     WorkshopModal,
-    WorkshopShell
+    WorkshopShell,
+    WorkshopToolFrame
   },
   props: {
     pageId: { type: String, default: '0' }
@@ -224,8 +267,12 @@ export default {
       frontendState: 'READY',
       backendState: 'READY',
       runtimeBusy: false,
+      runtimeMonitorActive: false,
+      runtimeStatusLoaded: false,
       runtimeStatusMessage: '',
+      runtimeLogs: [],
       appFrameVersion: 0,
+      activeSidePanel: 'learnerApp',
       navigationPageTitles: {},
       modal: {
         show: false,
@@ -241,11 +288,15 @@ export default {
       return this.pageOrder.findIndex(page => page === this.pageId);
     },
     appFrameMessage() {
-      if (!this.runtimeBusy) {
+      if (!this.runtimeStatusLoaded) {
+        return 'Checking learner app status before loading the frame.';
+      }
+
+      if (!this.runtimeInteractionBusy) {
         return '';
       }
 
-      return this.runtimeState === 'REBUILDING'
+      return this.runtimeDisplayState === 'REBUILDING'
         ? 'The learner app is rebuilding. The frame will reload automatically when it is ready.'
         : 'The learner app is restarting. The frame will reload automatically when it is ready.';
     },
@@ -257,7 +308,7 @@ export default {
         markItemComplete: ({ args }) => this.completeContentItem(args.groupId, args.itemId),
         openEditor: () => this.openRoute('/4'),
         openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
-        openRedisInsight: () => this.openRoute(this.redisInsightViewRoute),
+        openRedisInsight: () => this.openRedisInsightPanel(),
         openRoute: ({ args }) => this.openRoute(args.route),
         rebuildRuntime: () => this.restartRuntime(true),
         resetProgress: () => this.resetProgress(),
@@ -341,6 +392,22 @@ export default {
       const separator = route.includes('?') ? '&' : '?';
       return `${route}${separator}frame=${this.appFrameVersion}`;
     },
+    learnerAppFrameState() {
+      return this.runtimeInteractionBusy ? this.runtimeDisplayState : this.frontendState;
+    },
+    runtimeDisplayState() {
+      if (!this.runtimeStatusLoaded) {
+        return 'STARTING';
+      }
+
+      return isRebuildRunnerState(this.runtimeState) ? 'REBUILDING' : 'RESTARTING';
+    },
+    runtimeInteractionBusy() {
+      return !this.runtimeStatusLoaded
+        || this.runtimeBusy
+        || isBusyRunnerState(this.runtimeState)
+        || isBusyRunnerState(this.backendState);
+    },
     instructionsHeaderTitle() {
       const title = this.homeContent?.title
         || this.navigationPageTitles[this.pageId]
@@ -348,11 +415,18 @@ export default {
 
       return this.formatInstructionsTitle(title);
     },
-    redisInsightViewRoute() {
-      return `/redis-insight-view?returnTo=${encodeURIComponent(`/${this.pageId}`)}`;
+    redisInsightFrameUrl() {
+      const normalizedBasePath = this.basePath && this.basePath !== '/' ? this.basePath : '';
+      return `${window.location.origin}${normalizedBasePath}/redis-insight/`;
+    },
+    redisInsightHeaderLabel() {
+      return this.activeSidePanel === 'redisInsight' ? 'Learner App' : 'Redis Insight';
+    },
+    redisInsightPanelUrl() {
+      return this.buildRouteUrl(`/${this.pageId}?tool=redis-insight`);
     },
     redisInsightViewUrl() {
-      return this.buildRouteUrl(this.redisInsightViewRoute);
+      return this.redisInsightPanelUrl;
     },
     resolvedHomeContent() {
       if (!this.homeContent) {
@@ -398,7 +472,7 @@ export default {
         editor: this.buildRouteUrl(`/4?returnTo=${encodeURIComponent(`/${this.pageId}`)}`),
         hub: this.workshopHubUrl,
         learnerApp: this.learnerAppUrl,
-        redisInsight: this.redisInsightViewUrl,
+        redisInsight: this.redisInsightPanelUrl,
         workshopHub: this.workshopHubUrl
       };
     },
@@ -423,6 +497,7 @@ export default {
   },
   async mounted() {
     window.addEventListener('message', this.handleAppMessage);
+    this.syncSidePanelFromRoute();
     this.loadTestProgress();
     await Promise.all([
       this.fetchSessionInfo(),
@@ -446,6 +521,9 @@ export default {
     async redisEnabled() {
       await this.loadNavigationPageTitles();
       this.redirectIfPageUnavailable();
+    },
+    '$route.query.tool'() {
+      this.syncSidePanelFromRoute();
     }
   },
   beforeUnmount() {
@@ -550,6 +628,10 @@ export default {
       this.modal.onConfirm = null;
     },
     handleRuntimeAction(action) {
+      if (action.type === 'redisInsight') {
+        this.toggleRedisInsightPanel();
+      }
+
       if (action.type === 'restart') {
         this.restartRuntime(false);
       }
@@ -559,9 +641,7 @@ export default {
       }
 
       if (action.type === 'refresh') {
-        this.refreshRuntimeState();
-        this.fetchSessionInfo();
-        this.appFrameVersion += 1;
+        this.refreshLearnerAppFrame();
       }
     },
     formatInstructionsTitle(title) {
@@ -581,6 +661,16 @@ export default {
       };
 
       await this.openRoute(routes[stageId] || '/0');
+    },
+    openRedisInsightPanel() {
+      this.activeSidePanel = 'redisInsight';
+      this.replaceToolQuery('redis-insight');
+    },
+    refreshLearnerAppFrame() {
+      this.showLearnerAppPanel();
+      this.refreshRuntimeState();
+      this.fetchSessionInfo();
+      this.appFrameVersion += 1;
     },
     loadTestProgress() {
       this.stage1Tests = loadSavedProgress(
@@ -686,6 +776,40 @@ export default {
 
       await this.$router.push(route);
     },
+    syncSidePanelFromRoute() {
+      this.activeSidePanel = this.$route.query.tool === 'redis-insight'
+        ? 'redisInsight'
+        : 'learnerApp';
+    },
+    toggleRedisInsightPanel() {
+      if (this.activeSidePanel === 'redisInsight') {
+        this.showLearnerAppPanel();
+        return;
+      }
+
+      this.openRedisInsightPanel();
+    },
+    showLearnerAppPanel() {
+      this.activeSidePanel = 'learnerApp';
+      this.replaceToolQuery(null);
+    },
+    replaceToolQuery(tool) {
+      const nextQuery = { ...this.$route.query };
+      if (tool) {
+        nextQuery.tool = tool;
+      } else {
+        delete nextQuery.tool;
+      }
+
+      if (nextQuery.tool === this.$route.query.tool) {
+        return;
+      }
+
+      this.$router.replace({
+        path: this.$route.path,
+        query: nextQuery
+      });
+    },
     redirectIfPageUnavailable() {
       if (this.pageOrder.includes(this.pageId)) {
         return;
@@ -707,16 +831,38 @@ export default {
       }
     },
     async refreshRuntimeState() {
-      const status = await this.fetchSessionStatus();
+      try {
+        const status = await this.fetchSessionStatus();
+        const state = status?.state;
+        if (state) {
+          this.applyRuntimeStatus(status);
+          if (isBusyRunnerState(state)) {
+            this.monitorRuntimeUntilReady();
+          }
+        }
+      } finally {
+        this.runtimeStatusLoaded = true;
+      }
+    },
+    applyRuntimeStatus(status) {
       const state = status?.state;
-      if (state) {
-        this.runtimeState = state;
-        this.backendState = state;
-        this.frontendState = 'READY';
+      this.applyRuntimeLogs(status);
+
+      if (!state) {
+        return;
+      }
+
+      this.runtimeState = normalizeRunnerState(state);
+      this.backendState = this.runtimeState;
+      this.frontendState = 'READY';
+      if (isBusyRunnerState(this.runtimeState)) {
+        this.runtimeStatusMessage = isRebuildRunnerState(this.runtimeState)
+          ? 'Rebuilding learner runtime...'
+          : 'Restarting learner runtime...';
       }
     },
     async restartRuntime(rebuild) {
-      if (this.runtimeBusy) {
+      if (this.runtimeInteractionBusy) {
         return;
       }
 
@@ -765,7 +911,7 @@ export default {
 
       while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
         const status = await this.fetchSessionStatus();
-        const state = status?.state;
+        const state = normalizeRunnerState(status?.state);
 
         if (READY_STATES.has(state)) {
           return;
@@ -778,6 +924,34 @@ export default {
       }
 
       throw new Error('Timed out waiting for the session to restart');
+    },
+    async monitorRuntimeUntilReady() {
+      if (this.runtimeMonitorActive) {
+        return;
+      }
+
+      this.runtimeMonitorActive = true;
+      this.runtimeBusy = true;
+      const visibleStateStartedAt = Date.now();
+
+      try {
+        await this.waitForReadyState();
+        await this.waitForMinimumBusyState(visibleStateStartedAt);
+        this.runtimeState = 'READY';
+        this.backendState = 'READY';
+        this.frontendState = 'READY';
+        this.runtimeStatusMessage = 'Runtime is ready';
+        this.appFrameVersion += 1;
+        await this.fetchSessionInfo();
+      } catch (error) {
+        await this.waitForMinimumBusyState(visibleStateStartedAt);
+        this.runtimeState = 'FAILED';
+        this.backendState = 'FAILED';
+        this.runtimeStatusMessage = error?.message || 'Restart failed';
+      } finally {
+        this.runtimeBusy = false;
+        this.runtimeMonitorActive = false;
+      }
     },
     async waitForMinimumBusyState(startedAt) {
       const remainingMs = MIN_RUNTIME_BUSY_MS - (Date.now() - startedAt);
@@ -799,9 +973,23 @@ export default {
           return null;
         }
 
-        return await response.json();
+        const status = await response.json();
+        this.applyRuntimeLogs(status);
+        return status;
       } catch {
         return null;
+      }
+    },
+    applyRuntimeLogs(status) {
+      if (!Array.isArray(status?.recentLogs)) {
+        return;
+      }
+
+      this.runtimeLogs = status.recentLogs.slice(-80);
+    },
+    async handleRuntimeLogsToggle(open) {
+      if (open) {
+        await this.refreshRuntimeState();
       }
     },
     resetProgress() {

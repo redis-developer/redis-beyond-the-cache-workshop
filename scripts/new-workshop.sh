@@ -1010,7 +1010,7 @@ sections:
             body: The generated home and editor views fetch content from the shared content API and delegate rendering to the shared renderer.
           - itemId: open-editor
             title: Continue in the editor
-            body: Use the editor route to guide learners through the backend files that still live in the workshop manifest.
+            body: Use the editor route to open embedded VS Code. The stable shell owns learner code editing while workshop instructions stay in YAML.
             actions:
               - id: openEditor
                 label: Open Editor
@@ -1036,13 +1036,13 @@ route: /1
 pageType: editor
 title: $TITLE
 slot: instructions
-summary: Keep guided editing instructions in YAML while the editor view manages file loading and save behavior in code.
+summary: Keep editing instructions in YAML while the stable shell hosts embedded VS Code for learner code changes.
 sections:
   - sectionId: editor-overview
     blocks:
       - type: callout
         tone: info
-        body: The scaffolded editor view loads this document through the shared content path and keeps only file operations and routing behavior in Vue.
+        body: The scaffolded editor view loads this document through the shared content path while the stable shell owns embedded VS Code and runtime controls.
   - sectionId: starter-workflow
     title: Suggested first edits
     blocks:
@@ -1099,8 +1099,8 @@ sections:
               label: Save Changes
       - type: callout
         tone: success
-        title: Extend the editor workflow here
-        body: Add or refine editor steps in this YAML file instead of expanding the Vue template with instructional markup.
+        title: Extend the editing instructions here
+        body: Add or refine editing steps in this YAML file instead of expanding the Vue template with instructional markup.
 EOF
 
 append_if_missing() {
@@ -1162,7 +1162,8 @@ Created:
 5. Runtime shell/app split:
    The generated app imports shared shell APIs directly from workshop-frontend-shared.
    The only generated frontend utility is the app-owned workshopContent.js helper.
-   Shared restart controls are explicitly enabled on the generated header and editor layout.
+   Shared restart controls are explicitly enabled on the generated header and Code Editor route.
+   The stable shell owns embedded VS Code for learner code editing.
    The shared shell renders a learner app iframe pointed at the workshop backend proxy.
 
 Registered:

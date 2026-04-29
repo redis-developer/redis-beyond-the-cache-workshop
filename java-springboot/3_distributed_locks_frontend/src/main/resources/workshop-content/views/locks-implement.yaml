@@ -12,8 +12,8 @@ sections:
     blocks:
       - type: callout
         tone: info
-        title: "Option 1: Use the In-Browser Code Editor"
-        body: Use the guided editor if you want file-open, auto-apply, and save actions inside the browser.
+        title: "Option 1: Use Embedded VS Code"
+        body: Open the Code Editor and edit the files in embedded VS Code. If guided actions are available, use them as a legacy shortcut.
         actions:
           - id: openEditor
             label: Open Code Editor

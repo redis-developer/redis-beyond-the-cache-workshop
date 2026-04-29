@@ -7,12 +7,8 @@ slot: instructions
 sections:
   - sectionId: overview
     blocks:
-      - type: callout
-        tone: info
-        title: Your Task
-        body: Uncomment the necessary code to enable Redis session management.
       - type: markdown
-        body: Work through the steps in order. Use the action buttons to open files, apply the workshop changes, and save your edits.
+        body: Work through the steps in order in embedded VS Code. Use Apply Change to save guided edits automatically, or edit manually in VS Code and save there.
   - sectionId: dependencies
     title: "Step 1: Add Redis Dependencies"
     blocks:
@@ -38,19 +34,13 @@ sections:
               label: Apply Change
               args:
                 stepId: 4.uncommentGradleDependencies
-          - itemId: save-build-file
-            body: Save the file.
-            hint: Persist the dependency changes before moving to the next file.
-            action:
-              id: saveFile
-              label: Save Changes
   - sectionId: properties
     title: "Step 2: Configure Application Properties"
     blocks:
       - type: editorStepList
         listId: configure-application-properties
         title: "Update `application.properties`"
-        startAt: 4
+        startAt: 3
         progressGroup: properties
         items:
           - itemId: open-properties-file
@@ -77,19 +67,13 @@ sections:
               label: Apply Change
               args:
                 stepId: 4.uncommentRedisConfig
-          - itemId: save-properties-file
-            body: Save the file.
-            hint: Persist the Spring configuration changes before moving on.
-            action:
-              id: saveFile
-              label: Save Changes
   - sectionId: security
     title: "Step 3: Configure Spring Security"
     blocks:
       - type: editorStepList
         listId: configure-spring-security
         title: "Update `SecurityConfig.java`"
-        startAt: 8
+        startAt: 6
         progressGroup: security
         items:
           - itemId: open-security-file
@@ -108,32 +92,26 @@ sections:
               label: Apply Change
               args:
                 stepId: 4.uncommentSecurityConfig
-          - itemId: save-security-file
-            body: Save the file.
-            hint: Persist the security configuration changes.
-            action:
-              id: saveFile
-              label: Save Changes
   - sectionId: verify
     title: "Step 4: Restart and Verify"
     blocks:
       - type: editorStepList
         listId: restart-and-verify
         title: Finish the workshop
-        startAt: 11
+        startAt: 8
         progressGroup: verify
         items:
           - itemId: rebuild-backend
-            body: Go to the Workshop Hub and rebuild and restart the workshop backend.
-            hint: Rebuilding is required because the Gradle dependencies changed.
+            body: Click **Recompile App** in this code editor toolbar to rebuild and restart the learner app.
+            hint: Recompiling is required because the Gradle dependencies changed. The button is at the top of this code editor frame.
             action:
-              id: openHub
-              label: Open Workshop Hub
+              id: recompileApp
+              label: Recompile App
           - itemId: return-to-workshop
-            body: Return to the workshop and verify the new session behavior.
-            hint: After the backend is up again, continue at the Redis verification page.
+            body: Return to the learner app and verify that the session survives an app restart.
+            hint: After the learner app is ready again, continue at the Redis verification stage.
             action:
               id: openRoute
-              label: Return to Workshop
+              label: Verify Behavior
               args:
                 route: /3

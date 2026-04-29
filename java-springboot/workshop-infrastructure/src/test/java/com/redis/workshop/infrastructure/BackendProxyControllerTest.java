@@ -115,7 +115,10 @@ class BackendProxyControllerTest {
         HttpResponse<byte[]> backendResponse = mockBackendResponse(
             200,
             "<html>app</html>".getBytes(StandardCharsets.UTF_8),
-            Map.of("content-type", List.of("text/html"))
+            Map.of(
+                "content-type", List.of("text/html"),
+                "x-frame-options", List.of("DENY")
+            )
         );
 
         when(httpClient.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any()))
@@ -123,6 +126,7 @@ class BackendProxyControllerTest {
 
         mockMvc.perform(get("/app/").queryParam("frame", "2"))
             .andExpect(status().isOk())
+            .andExpect(header().doesNotExist("X-Frame-Options"))
             .andExpect(content().string("<html>app</html>"));
 
         ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
@@ -249,6 +253,115 @@ class BackendProxyControllerTest {
         ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
         verify(httpClient).send(requestCaptor.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any());
         assertThat(requestCaptor.getValue().uri().toString()).isEqualTo("http://127.0.0.1:5540/redis-insight/");
+    }
+
+    @Test
+    void proxiesSessionRunnerCodeEditorAndRewritesProxyPathWithoutForwardingPrefixToCodeServer() throws Exception {
+        FrontendRuntimeProperties localRuntimeProperties = new FrontendRuntimeProperties();
+        SessionRunnerProperties runnerProperties = new SessionRunnerProperties();
+        runnerProperties.setEnabled(true);
+        runnerProperties.setCodeEditorCommand("code-server");
+
+        MockMvc localMockMvc = MockMvcBuilders
+            .standaloneSetup(new BackendProxyController(
+                new SessionRuntimeResolver(localRuntimeProperties, runnerProperties),
+                httpClient,
+                runnerProperties,
+                Optional.empty()
+            ))
+            .build();
+
+        HttpResponse<byte[]> codeEditorResponse = mockBackendResponse(
+            200,
+            (
+                "<link rel=\"stylesheet\" href=\"stable/static/out/vs/browser/workbench/workbench.css\">"
+                    + "<script src=\"/static/workbench.js\"></script>"
+                    + "<a href=\"/code/help\">help</a>"
+            ).getBytes(StandardCharsets.UTF_8),
+            Map.of(
+                "content-type", List.of("text/html"),
+                "location", List.of("http://127.0.0.1:39000/callback?state=ok"),
+                "set-cookie", List.of("CODE_SESSION=abc; Path=/; Domain=127.0.0.1; HttpOnly")
+            )
+        );
+
+        when(httpClient.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any()))
+            .thenReturn(codeEditorResponse);
+
+        localMockMvc.perform(get("/code/")
+                .header("X-Forwarded-Prefix", "/session/sess-001")
+                .header("X-Forwarded-Host", "workshop.example")
+                .header("X-Forwarded-Port", "443")
+                .header("Accept-Encoding", "gzip"))
+            .andExpect(status().isOk())
+            .andExpect(header().string("Location", "/session/sess-001/code/callback?state=ok"))
+            .andExpect(header().string("Set-Cookie", containsString("Path=/session/sess-001/code/")))
+            .andExpect(header().string("Set-Cookie", not(containsString("Domain="))))
+            .andExpect(content().string(containsString("href=\"stable/static/out/vs/browser/workbench/workbench.css\"")))
+            .andExpect(content().string(containsString("/session/sess-001/code/static/workbench.js")))
+            .andExpect(content().string(containsString("/session/sess-001/code/help")));
+
+        ArgumentCaptor<HttpRequest> requestCaptor = ArgumentCaptor.forClass(HttpRequest.class);
+        verify(httpClient).send(requestCaptor.capture(), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any());
+        HttpRequest outboundRequest = requestCaptor.getValue();
+        assertThat(outboundRequest.uri().toString()).isEqualTo("http://127.0.0.1:39000/");
+        assertThat(outboundRequest.headers().firstValue("X-Forwarded-Prefix")).isEmpty();
+        assertThat(outboundRequest.headers().firstValue("Accept-Encoding")).isEmpty();
+        assertThat(outboundRequest.headers().firstValue("X-Forwarded-Host")).isEmpty();
+        assertThat(outboundRequest.headers().firstValue("X-Forwarded-Port")).isEmpty();
+    }
+
+    @Test
+    void proxiesSessionRunnerCodeEditorFontBytesWithoutTextRewriting() throws Exception {
+        FrontendRuntimeProperties localRuntimeProperties = new FrontendRuntimeProperties();
+        SessionRunnerProperties runnerProperties = new SessionRunnerProperties();
+        runnerProperties.setEnabled(true);
+        runnerProperties.setCodeEditorCommand("code-server");
+
+        MockMvc localMockMvc = MockMvcBuilders
+            .standaloneSetup(new BackendProxyController(
+                new SessionRuntimeResolver(localRuntimeProperties, runnerProperties),
+                httpClient,
+                runnerProperties,
+                Optional.empty()
+            ))
+            .build();
+
+        byte[] fontBytes = new byte[] { 0, 1, 0, 0, 95, 47, -1, -2, 10, 0 };
+        HttpResponse<byte[]> codeEditorResponse = mockBackendResponse(
+            200,
+            fontBytes,
+            Map.of("content-type", List.of("text/plain"))
+        );
+
+        when(httpClient.send(any(HttpRequest.class), ArgumentMatchers.<HttpResponse.BodyHandler<byte[]>>any()))
+            .thenReturn(codeEditorResponse);
+
+        localMockMvc.perform(get("/code/stable/static/out/media/codicon.ttf"))
+            .andExpect(status().isOk())
+            .andExpect(content().bytes(fontBytes));
+    }
+
+    @Test
+    void returnsNotFoundWhenCodeEditorPortIsNotConfigured() throws Exception {
+        FrontendRuntimeProperties localRuntimeProperties = new FrontendRuntimeProperties();
+        SessionRunnerProperties runnerProperties = new SessionRunnerProperties();
+        runnerProperties.setEnabled(true);
+        runnerProperties.setCodeEditorPort(0);
+
+        MockMvc localMockMvc = MockMvcBuilders
+            .standaloneSetup(new BackendProxyController(
+                new SessionRuntimeResolver(localRuntimeProperties, runnerProperties),
+                httpClient,
+                runnerProperties,
+                Optional.empty()
+            ))
+            .build();
+
+        localMockMvc.perform(get("/code/"))
+            .andExpect(status().isNotFound());
+
+        verifyNoInteractions(httpClient);
     }
 
     @SuppressWarnings("unchecked")

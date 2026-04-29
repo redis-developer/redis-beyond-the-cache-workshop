@@ -68,6 +68,10 @@ final class SessionRuntimeResolver {
             .or(() -> Optional.ofNullable(legacyModuleRoot));
     }
 
+    Optional<Path> resolveCodeEditorWorkspaceRoot() {
+        return runtimeProperties.resolveCodeEditorWorkspacePath();
+    }
+
     Optional<Path> resolveModuleRoot() {
         return resolveWorkspaceRoot();
     }
@@ -77,12 +81,19 @@ final class SessionRuntimeResolver {
     }
 
     Optional<Path> resolvePathWithinModule(String relativePath) {
+        return resolvePathWithinRoot(resolveModuleRoot(), relativePath);
+    }
+
+    Optional<Path> resolveCodeEditorPathWithinModule(String relativePath) {
+        return resolvePathWithinRoot(resolveCodeEditorWorkspaceRoot(), relativePath);
+    }
+
+    private Optional<Path> resolvePathWithinRoot(Optional<Path> root, String relativePath) {
         if (!StringUtils.hasText(relativePath)) {
             return Optional.empty();
         }
 
-        Optional<Path> moduleRoot = resolveModuleRoot();
-        if (moduleRoot.isEmpty()) {
+        if (root.isEmpty()) {
             return Optional.empty();
         }
 
@@ -91,8 +102,8 @@ final class SessionRuntimeResolver {
             return Optional.empty();
         }
 
-        Path resolvedPath = moduleRoot.get().resolve(normalizedRelativePath).normalize();
-        if (!resolvedPath.startsWith(moduleRoot.get())) {
+        Path resolvedPath = root.get().resolve(normalizedRelativePath).normalize();
+        if (!resolvedPath.startsWith(root.get())) {
             return Optional.empty();
         }
         return Optional.of(resolvedPath);

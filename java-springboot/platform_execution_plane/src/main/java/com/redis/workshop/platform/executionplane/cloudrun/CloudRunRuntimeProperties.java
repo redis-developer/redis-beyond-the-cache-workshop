@@ -19,11 +19,11 @@ public class CloudRunRuntimeProperties {
     private String environment = "unknown";
     private String eventId = "unspecified";
     private int managerPort = 8080;
-    private int concurrency = 1;
+    private int concurrency = 1000;
     private int minInstances = 0;
     private int maxInstances = 1;
     private Duration requestTimeout = Duration.ofSeconds(30);
-    private Duration operationPollInterval = Duration.ofSeconds(2);
+    private Duration operationPollInterval = Duration.ofSeconds(5);
     private Duration operationPollTimeout = Duration.ofMinutes(10);
     private Duration managerRestartTimeout = Duration.ofSeconds(290);
 

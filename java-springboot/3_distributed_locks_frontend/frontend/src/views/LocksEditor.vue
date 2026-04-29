@@ -1,18 +1,24 @@
 <template>
-  <WorkshopEditorLayout
-    ref="layout"
-    :title="editorTitle"
-    :files="files"
-    show-session-restart-controls
-    @file-loaded="onFileLoaded"
+  <WorkshopCodeEditorShell
+    title="Distributed Locks"
+    :editor-title="editorTitle"
+    :editor-src="codeEditorUrl"
+    :back-to-workshop-url="backToWorkshopUrl"
+    :redis-insight-url="redisInsightUrl"
+    :hub-url="workshopHubUrl"
+    :use-embedded-editor="useEmbeddedEditor"
   >
     <template #instructions>
       <div v-if="contentError" class="content-error">
         {{ contentError }}
       </div>
 
+      <div v-if="editorNotice" class="content-notice">
+        {{ editorNotice }}
+      </div>
+
       <WorkshopContentRenderer
-        v-else-if="editorContent"
+        v-if="editorContent"
         :content="editorContent"
         :widgets="contentWidgets"
         :widget-props="contentWidgetProps"
@@ -22,14 +28,49 @@
         :show-stage-title="false"
       />
     </template>
-  </WorkshopEditorLayout>
+
+    <template #fallback>
+      <div class="legacy-editor-fallback">
+        <WorkshopEditorLayout
+          ref="layout"
+          :title="editorTitle"
+          :files="files"
+          show-session-restart-controls
+          @file-loaded="onFileLoaded"
+        >
+          <template #instructions>
+            <div v-if="contentError" class="content-error">
+              {{ contentError }}
+            </div>
+
+            <WorkshopContentRenderer
+              v-else-if="editorContent"
+              :content="editorContent"
+              :widgets="contentWidgets"
+              :widget-props="contentWidgetProps"
+              :action-handlers="contentActionHandlers"
+              :show-title="true"
+              :show-summary="true"
+              :show-stage-title="false"
+            />
+          </template>
+        </WorkshopEditorLayout>
+      </div>
+    </template>
+  </WorkshopCodeEditorShell>
 </template>
 
 <script>
 import {
+  getBasePath,
   WorkshopContentRenderer,
+  WorkshopCodeEditorShell,
   WorkshopEditorLayout,
   getApiUrl,
+  getCodeEditorFileUrl,
+  getCodeEditorUrl,
+  getRedisInsightUrl,
+  loadEditorWorkspaceMetadata,
   getWorkshopHubUrl
 } from '../../../../../workshop-frontend-shared/src/index.js';
 import LocksEditorReferenceWidget from '../components/content/LocksEditorReferenceWidget.vue';
@@ -39,14 +80,36 @@ const CONTENT_WIDGETS = {
   'locks-editor.reference-review': LocksEditorReferenceWidget
 };
 
+function buildRouteUrl(routePath) {
+  const basePath = getBasePath();
+  const normalizedRoutePath = routePath.startsWith('/') ? routePath : `/${routePath}`;
+
+  if (!basePath || basePath === '/') {
+    return normalizedRoutePath;
+  }
+
+  return `${basePath}${normalizedRoutePath}`;
+}
+
+function showEmbeddedEditorNotice(view, target) {
+  view.editorNotice = target
+    ? `Open ${target} in VS Code and save changes there. Guided auto-apply remains available in the legacy editor fallback.`
+    : 'Use VS Code to edit and save files. Guided auto-apply remains available in the legacy editor fallback.';
+}
+
 export default {
   name: 'LocksEditor',
   components: {
+    WorkshopCodeEditorShell,
     WorkshopContentRenderer,
     WorkshopEditorLayout
   },
   data() {
     return {
+      activeCodeEditorFilePath: '',
+      codeEditorFilePathByName: {},
+      codeEditorWorkspaceRoot: '',
+      codeEditorOpenRequest: 0,
       files: [
         'build.gradle.kts',
         'application.properties',
@@ -55,22 +118,49 @@ export default {
       currentFile: null,
       purchaseServiceReview: '',
       editorContent: null,
+      editorNotice: '',
       contentError: ''
     };
   },
   computed: {
+    backToWorkshopUrl() {
+      return buildRouteUrl('/reentrant/implement');
+    },
+    codeEditorUrl() {
+      if (this.activeCodeEditorFilePath) {
+        return getCodeEditorFileUrl(this.activeCodeEditorFilePath, {
+          workspaceRoot: this.codeEditorWorkspaceRoot,
+          requestId: this.codeEditorOpenRequest
+        });
+      }
+
+      return getCodeEditorUrl({ workspaceRoot: this.codeEditorWorkspaceRoot });
+    },
     contentActionHandlers() {
-      return {
-        openFile: ({ args }) => this.loadFileStep(args.file),
-        applyEditorStep: ({ args }) => this.applyEditorStep(args.stepId),
-        saveFile: () => this.saveFile(),
-        openReference: ({ args }) => this.openReference(args.referenceId),
+      const navigationHandlers = {
         openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
+        openReference: ({ args }) => this.openReference(args?.referenceId),
         openRoute: ({ args }) => {
-          if (args.route) {
+          if (args?.route) {
             this.$router.push(args.route);
           }
         }
+      };
+
+      if (this.useEmbeddedEditor) {
+        return {
+          ...navigationHandlers,
+          applyEditorStep: () => showEmbeddedEditorNotice(this),
+          openFile: ({ args }) => this.openEmbeddedEditorFile(args?.file),
+          saveFile: () => showEmbeddedEditorNotice(this)
+        };
+      }
+
+      return {
+        ...navigationHandlers,
+        openFile: ({ args }) => this.loadFileStep(args.file),
+        applyEditorStep: ({ args }) => this.applyEditorStep(args.stepId),
+        saveFile: () => this.saveFile()
       };
     },
     contentWidgetProps() {
@@ -86,12 +176,21 @@ export default {
     editorTitle() {
       return this.editorContent?.title || 'Implement the Reentrant Lock';
     },
+    redisInsightUrl() {
+      return getRedisInsightUrl();
+    },
+    useEmbeddedEditor() {
+      return this.$route.query.editor !== 'legacy';
+    },
     workshopHubUrl() {
       return getWorkshopHubUrl();
     }
   },
   async mounted() {
-    await this.loadContent();
+    await Promise.all([
+      this.loadContent(),
+      this.loadCodeEditorFiles()
+    ]);
   },
   methods: {
     async loadContent() {
@@ -103,11 +202,44 @@ export default {
         this.contentError = error.message;
       }
     },
+    async loadCodeEditorFiles() {
+      if (!this.useEmbeddedEditor) {
+        return;
+      }
+
+      try {
+        const metadata = await loadEditorWorkspaceMetadata();
+        this.codeEditorFilePathByName = metadata.filePathMap;
+        this.codeEditorWorkspaceRoot = metadata.codeEditorWorkspaceRoot || metadata.workspaceRoot;
+      } catch (error) {
+        console.warn('Failed to load code editor file metadata:', error);
+      }
+    },
     onFileLoaded({ fileName }) {
       this.currentFile = fileName;
     },
     async loadFileStep(fileName) {
       await this.$refs.layout.loadFile(fileName);
+    },
+    async openEmbeddedEditorFile(fileName) {
+      if (!fileName) {
+        showEmbeddedEditorNotice(this);
+        return;
+      }
+
+      if (!Object.keys(this.codeEditorFilePathByName).length) {
+        await this.loadCodeEditorFiles();
+      }
+
+      const workspacePath = this.codeEditorFilePathByName[fileName];
+      if (!workspacePath) {
+        this.editorNotice = `Could not resolve ${fileName} from the workshop manifest. Open it manually in VS Code.`;
+        return;
+      }
+
+      this.codeEditorOpenRequest += 1;
+      this.activeCodeEditorFilePath = workspacePath;
+      this.editorNotice = `Opening ${fileName} in VS Code.`;
     },
     async openReference(referenceId) {
       if (referenceId === 'locks-editor.purchase-service-review') {
@@ -119,14 +251,22 @@ export default {
         const response = await fetch(getApiUrl('/api/review/purchase-service'));
         const data = await response.json();
         if (data.error) {
-          this.$refs.layout.showStatus(data.error, 'error');
+          this.showEditorStatus(data.error, 'error');
           return;
         }
         this.purchaseServiceReview = data.content || '';
-        this.$refs.layout.showStatus('Read-only review loaded.', 'success');
+        this.showEditorStatus('Read-only review loaded.', 'success');
       } catch (error) {
-        this.$refs.layout.showStatus('Failed to load PurchaseService.java review.', 'error');
+        this.showEditorStatus('Failed to load PurchaseService.java review.', 'error');
       }
+    },
+    showEditorStatus(message, type = 'info') {
+      if (this.$refs.layout) {
+        this.$refs.layout.showStatus(message, type);
+        return;
+      }
+
+      this.editorNotice = message;
     },
     async applyEditorStep(stepId) {
       if (stepId === 'locks-editor.enable-dependencies') {
@@ -256,6 +396,15 @@ export default {
   color: #fecaca;
 }
 
+.content-notice {
+  padding: var(--spacing-4);
+  margin-bottom: var(--spacing-4);
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(59, 130, 246, 0.32);
+  background: rgba(59, 130, 246, 0.14);
+  color: #bfdbfe;
+}
+
 :deep(.workshop-content-renderer) {
   gap: var(--spacing-5);
 }
@@ -263,5 +412,15 @@ export default {
 :deep(.content-renderer-header__title) {
   color: #ffffff;
   font-size: var(--font-size-lg);
+}
+
+.legacy-editor-fallback {
+  height: calc(100vh - 72px);
+}
+
+.legacy-editor-fallback :deep(.workshop-editor),
+.legacy-editor-fallback :deep(.main-container) {
+  height: 100%;
+  width: 100%;
 }
 </style>

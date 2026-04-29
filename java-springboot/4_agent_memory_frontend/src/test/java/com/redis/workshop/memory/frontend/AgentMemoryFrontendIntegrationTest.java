@@ -12,6 +12,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.forwardedUrl;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -68,6 +69,7 @@ class AgentMemoryFrontendIntegrationTest {
     @ValueSource(strings = {"/", "/challenges", "/demo", "/learn", "/editor", "/lab"})
     void spaRoutesResolveToFrontend(String route) throws Exception {
         mockMvc.perform(get(route))
-            .andExpect(status().isOk());
+            .andExpect(status().isOk())
+            .andExpect(forwardedUrl("/index.html"));
     }
 }

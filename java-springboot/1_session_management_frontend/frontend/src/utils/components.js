@@ -12,3 +12,5 @@ export { default as WorkshopHubLink } from '../../../../../workshop-frontend-sha
 export { default as WorkshopHeader } from '../../../../../workshop-frontend-shared/src/components/WorkshopHeader.vue';
 export { default as WorkshopContentRenderer } from '../../../../../workshop-frontend-shared/src/components/WorkshopContentRenderer.vue';
 export { default as WorkshopShell } from '../../../../../workshop-frontend-shared/src/components/WorkshopShell.vue';
+export { default as WorkshopAppFrame } from '../../../../../workshop-frontend-shared/src/components/WorkshopAppFrame.vue';
+export { default as WorkshopToolFrame } from '../../../../../workshop-frontend-shared/src/components/WorkshopToolFrame.vue';

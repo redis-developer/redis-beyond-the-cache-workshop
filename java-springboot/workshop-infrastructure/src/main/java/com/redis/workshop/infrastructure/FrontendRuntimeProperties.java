@@ -23,6 +23,7 @@ public class FrontendRuntimeProperties {
     private String sessionBackendUrl;
     private String sessionRuntimeBaseUrl;
     private String workspacePath;
+    private String codeEditorWorkspacePath;
     private String backendUrl;
     private String sourcePath;
     @Value("${workshop.backend.url:}")
@@ -52,6 +53,14 @@ public class FrontendRuntimeProperties {
 
     public void setWorkspacePath(String workspacePath) {
         this.workspacePath = workspacePath;
+    }
+
+    public String getCodeEditorWorkspacePath() {
+        return codeEditorWorkspacePath;
+    }
+
+    public void setCodeEditorWorkspacePath(String codeEditorWorkspacePath) {
+        this.codeEditorWorkspacePath = codeEditorWorkspacePath;
     }
 
     public String getSessionRuntimeBaseUrl() {
@@ -131,6 +140,18 @@ public class FrontendRuntimeProperties {
 
     public Optional<Path> resolveSourcePath() {
         return resolveWorkspacePath();
+    }
+
+    public Optional<Path> resolveCodeEditorWorkspacePath() {
+        String value = firstNonBlank(
+            codeEditorWorkspacePath,
+            System.getenv("WORKSHOP_LOCAL_CODE_EDITOR_WORKSPACE_PATH"),
+            System.getenv("WORKSHOP_CODE_EDITOR_WORKSPACE_PATH")
+        );
+        if (!StringUtils.hasText(value)) {
+            return resolveWorkspacePath();
+        }
+        return Optional.of(Paths.get(value).toAbsolutePath().normalize());
     }
 
     private static String firstNonBlank(String... candidates) {

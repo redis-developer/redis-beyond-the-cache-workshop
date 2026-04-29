@@ -30,7 +30,7 @@ public record SessionLaunchRequest(
             mode,
             releaseVersion,
             Map.of(),
-            SessionResourcePolicy.defaultFor("small", 60),
+            SessionResourcePolicy.defaultFor("small", 180),
             SessionWorkspacePolicy.defaultFor(releaseVersion, mode),
             Map.of()
         );

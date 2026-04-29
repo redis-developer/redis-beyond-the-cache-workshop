@@ -47,10 +47,51 @@ Inside that service:
 1. The manager process listens on `$PORT`.
 2. The child workshop JVM listens on localhost.
 3. The manager proxies learner app traffic to the child JVM.
-4. The manager serves editor, diagnostics, restore, status, and restart endpoints.
+4. The manager serves diagnostics, restore, status, restart, Redis Insight, and code editor proxy endpoints.
 5. Redis runs as a local child process in the same session container.
 6. Redis Insight runs as a local child process in the same session container when the image includes it.
-7. Editable files live in local workspace storage and are snapshotted to durable storage.
+7. VS Code runs as a local code-server child process in the same session container.
+8. Editable files live in local workspace storage and are snapshotted to durable storage.
+
+## Embedded VS Code Editor
+
+The embedded editor uses `code-server` installed in the session runner image. The runner build argument defaults `CODE_SERVER_VERSION` to `4.103.2`. The selected setup starts code-server without learner authentication inside the container because public access is already scoped by the outer workshop session route. The process must bind only to `127.0.0.1` and defaults to port `39000`.
+
+The runner image provides `/opt/runner/bin/start-code-editor.sh`, which starts code-server with:
+
+1. `--auth none`
+2. `--bind-addr 127.0.0.1:${WORKSHOP_LOCAL_CODE_EDITOR_PORT}`
+3. `--disable-proxy`
+4. `--disable-telemetry`
+5. `--disable-update-check`
+6. `--disable-workspace-trust`
+7. user data and extensions under the session workspace state
+8. workspace root from `WORKSHOP_SESSION_WORKSPACE_PATH`
+
+The first version disables terminal exposure by setting the integrated terminal profile to `/bin/false` and exporting `SHELL=/bin/false`.
+
+Manager editor settings:
+
+1. `WORKSHOP_LOCAL_CODE_EDITOR_COMMAND`: command used to start the local code editor process. The runner default is `/opt/runner/bin/start-code-editor.sh`.
+2. `WORKSHOP_LOCAL_CODE_EDITOR_PORT`: localhost port for code-server. Defaults to `39000`.
+3. `WORKSHOP_LOCAL_CODE_EDITOR_HEALTH_PATH`: health path used in runtime status. Defaults to `/healthz`.
+4. `WORKSHOP_SESSION_WORKSPACE_PATH`: workspace directory opened by code-server and used by reset, diagnostics, rebuild, and restart workflows.
+
+Routing contract:
+
+1. The manager proxies code-server HTTP traffic through `/code/`.
+2. The manager proxies code-server WebSocket traffic under the same `/code/` path.
+3. The public route exposes the editor as `/session/{sessionId}/code/`.
+4. The control plane strips `/session/{sessionId}` before forwarding to the manager and sends `X-Forwarded-Prefix: /session/{sessionId}` so manager rewrites keep links session scoped.
+5. No code-server port should be exposed directly from the Cloud Run service.
+
+Reset and rebuild:
+
+1. Reset uses the manager restore endpoint to restore editable files from the workshop manifest.
+2. Reset does not automatically rebuild the child JVM.
+3. Learners must use Recompile App after reset so the child JVM is rebuilt from the restored workspace.
+4. Restart without rebuild reuses the current runnable child artifact.
+5. Restart with rebuild runs the configured child rebuild command against the session workspace before starting the child JVM.
 
 ## Required Cloud Run Settings
 
@@ -232,6 +273,28 @@ WORKSHOP_CHILD_WORKING_DIRECTORY=/tmp/workshop-session-1/1_session_management \
 
 The exact module can change as implementation evolves, but the behavior must stay the same: manager process remains available and child JVM can be restarted.
 
+For direct local workshop testing, use:
+
+```bash
+./scripts/run-workshop.sh up 1_session_management
+./scripts/run-workshop.sh down 1_session_management
+```
+
+When `code-server` is available on the maintainer machine, the helper starts it automatically through `WORKSHOP_LOCAL_CODE_EDITOR_COMMAND` and prints local workshop URLs. When `code-server` is not installed, the helper still starts the manager and child JVM but logs that the embedded VS Code process will not start locally.
+
+Local editor checks:
+
+1. Open the workshop editor route.
+2. Confirm the embedded frame loads from `/code/`.
+3. In a public session route, confirm the same frame loads from `/session/{sessionId}/code/`.
+4. Reset code through the editor shell.
+5. Use Recompile App after reset and confirm the learner app reflects restored files.
+6. Confirm Redis Insight remains available and restart or rebuild targets only the child JVM.
+
+Validation note:
+
+`bash scripts/validate-workshops.sh` verifies that generated workshop scaffolds use numbered content pages such as `workshop-content/views/0.yaml` and `workshop-content/views/1.yaml`, and that editor routes use the shared shell contract.
+
 ## Restart Procedure
 
 1. Learner edits files through the editor.
@@ -403,5 +466,7 @@ Required cleanup evidence:
 4. Restart works without image rebuild.
 5. Local Redis and Redis Insight bind only to localhost.
 6. Workspace snapshots survive Cloud Run instance replacement.
-7. Local Redis and Redis Insight bind only to localhost.
-8. Termination deletes Cloud Run service and cleans Redis or workspace state.
+7. code-server binds only to localhost and is reachable through `/code/`.
+8. Public session routing exposes the editor only through `/session/{sessionId}/code/`.
+9. Reset code requires Recompile App before restored files affect the child JVM.
+10. Termination deletes Cloud Run service and cleans Redis or workspace state.

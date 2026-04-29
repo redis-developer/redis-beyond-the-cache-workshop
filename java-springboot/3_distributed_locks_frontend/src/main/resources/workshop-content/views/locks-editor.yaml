@@ -12,7 +12,7 @@ sections:
         tone: info
         body: Follow the workshop path `/reentrant` -> `/reentrant/implement` -> `/reentrant/editor` -> `/reentrant/demo`.
       - type: markdown
-        body: Type the code yourself for maximum learning, or use the action buttons below to open files, apply the guided change, and save.
+        body: Edit and save the files directly in embedded VS Code. If guided action buttons are available, use them as a legacy shortcut.
   - sectionId: dependencies
     title: "Step 1: Add Dependencies"
     blocks:

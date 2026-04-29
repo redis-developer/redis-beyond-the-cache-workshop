@@ -368,10 +368,53 @@ managed_child_command() {
 }
 
 managed_child_rebuild_command() {
-  printf '"%s" -p "%s" --no-daemon -PskipFrontendBuild=true ":%s:bootJar" -x test' \
+  printf '"%s" -p "%s" --no-watch-fs -PskipFrontendBuild=true ":%s:bootJar" -x test' \
     "${GRADLEW}" \
     "${JAVA_DIR}" \
     "${backend_project}"
+}
+
+managed_code_editor_command() {
+  if [[ -n "${WORKSHOP_LOCAL_CODE_EDITOR_COMMAND:-}" ]]; then
+    printf '%s' "${WORKSHOP_LOCAL_CODE_EDITOR_COMMAND}"
+    return
+  fi
+
+  if ! command -v code-server >/dev/null 2>&1; then
+    return
+  fi
+
+  local code_server
+  local quoted_code_server
+  local quoted_data_dir
+  local quoted_extensions_dir
+  code_server="$(command -v code-server)"
+  printf -v quoted_code_server '%q' "${code_server}"
+  printf -v quoted_data_dir '%q' "${state_dir}/code-server"
+  printf -v quoted_extensions_dir '%q' "${state_dir}/code-server/extensions"
+  printf 'SHELL=/bin/false exec %s --auth none --bind-addr "127.0.0.1:${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}" --disable-proxy --disable-telemetry --disable-update-check --disable-workspace-trust --user-data-dir %s --extensions-dir %s "${WORKSHOP_SESSION_WORKSPACE_PATH}"' \
+    "${quoted_code_server}" \
+    "${quoted_data_dir}" \
+    "${quoted_extensions_dir}"
+}
+
+managed_code_editor_workspace_path() {
+  if [[ -n "${WORKSHOP_LOCAL_CODE_EDITOR_WORKSPACE_PATH:-}" ]]; then
+    printf '%s' "${WORKSHOP_LOCAL_CODE_EDITOR_WORKSPACE_PATH}"
+    return
+  fi
+
+  if [[ -n "${WORKSHOP_CODE_EDITOR_WORKSPACE_PATH:-}" ]]; then
+    printf '%s' "${WORKSHOP_CODE_EDITOR_WORKSPACE_PATH}"
+    return
+  fi
+
+  if [[ -z "${code_editor_command:-}" ]] && port_in_use "${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}"; then
+    printf '/home/coder/project'
+    return
+  fi
+
+  printf '%s' "${source_path}"
 }
 
 wait_for_runner_ready() {
@@ -424,24 +467,43 @@ restart_managed_backend() {
 start_frontend() {
   echo "Starting ${display_name} frontend..."
   if managed_runner_enabled; then
+    local code_editor_command
+    local code_editor_workspace_path
+    local -a frontend_env
+    code_editor_command="$(managed_code_editor_command)"
+    code_editor_workspace_path="$(managed_code_editor_workspace_path)"
+    frontend_env=(
+      SERVER_PORT="${frontend_port}"
+      WORKSHOP_SESSION_RUNNER_ENABLED="true"
+      WORKSHOP_SESSION_RUNNER_AUTO_START="true"
+      WORKSHOP_CHILD_PORT="${backend_port}"
+      WORKSHOP_CHILD_WORKING_DIRECTORY="${JAVA_DIR}"
+      WORKSHOP_CHILD_COMMAND="$(managed_child_command)"
+      WORKSHOP_CHILD_REBUILD_COMMAND="$(managed_child_rebuild_command)"
+      WORKSHOP_CHILD_HEALTH_PATH="/login"
+      WORKSHOP_LOCAL_REDIS_INSIGHT_COMMAND="sleep 2147483647"
+      WORKSHOP_LOCAL_REDIS_INSIGHT_PORT="5540"
+      WORKSHOP_LOCAL_CODE_EDITOR_PORT="${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}"
+      WORKSHOP_LOCAL_CODE_EDITOR_HEALTH_PATH="${WORKSHOP_LOCAL_CODE_EDITOR_HEALTH_PATH:-/healthz}"
+      WORKSHOP_SOURCE_PATH="${source_path}"
+      WORKSHOP_BASE_PATH="${source_path}"
+      WORKSHOP_SESSION_WORKSPACE_PATH="${source_path}"
+      WORKSHOP_LOCAL_CODE_EDITOR_WORKSPACE_PATH="${code_editor_workspace_path}"
+    )
+    if [[ -n "${code_editor_command}" ]]; then
+      frontend_env+=(WORKSHOP_LOCAL_CODE_EDITOR_COMMAND="${code_editor_command}")
+    elif port_in_use "${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}"; then
+      echo "code editor: using existing process on port ${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}"
+    else
+      echo "code editor: code-server not found; embedded VS Code process will not start locally"
+    fi
+
     start_boot_app \
       "frontend" \
       "${frontend_project}" \
       "${frontend_pid_file}" \
       "${frontend_log_file}" \
-      SERVER_PORT="${frontend_port}" \
-      WORKSHOP_SESSION_RUNNER_ENABLED="true" \
-      WORKSHOP_SESSION_RUNNER_AUTO_START="true" \
-      WORKSHOP_CHILD_PORT="${backend_port}" \
-      WORKSHOP_CHILD_WORKING_DIRECTORY="${JAVA_DIR}" \
-      WORKSHOP_CHILD_COMMAND="$(managed_child_command)" \
-      WORKSHOP_CHILD_REBUILD_COMMAND="$(managed_child_rebuild_command)" \
-      WORKSHOP_CHILD_HEALTH_PATH="/login" \
-      WORKSHOP_LOCAL_REDIS_INSIGHT_COMMAND="sleep 2147483647" \
-      WORKSHOP_LOCAL_REDIS_INSIGHT_PORT="5540" \
-      WORKSHOP_SOURCE_PATH="${source_path}" \
-      WORKSHOP_BASE_PATH="${source_path}" \
-      WORKSHOP_SESSION_WORKSPACE_PATH="${source_path}"
+      "${frontend_env[@]}"
     wait_for_port "${frontend_port}" "frontend" "${frontend_log_file}"
     return
   fi

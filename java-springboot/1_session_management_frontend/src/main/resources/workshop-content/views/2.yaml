@@ -14,8 +14,8 @@ sections:
     blocks:
       - type: callout
         tone: info
-        title: "Option 1: Use the In-Browser Code Editor"
-        body: Follow the guided path in the workshop editor.
+        title: "Option 1: Use Embedded VS Code"
+        body: Open the Code Editor and make the changes in embedded VS Code. If guided actions are available, use them as a legacy shortcut.
         actions:
           - id: openEditor
             label: Open Code Editor

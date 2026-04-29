@@ -64,15 +64,29 @@ public class EditorController {
     public Map<String, Object> getEditableFiles() {
         Map<String, Object> response = new HashMap<>();
         List<Map<String, String>> files = workshopConfig.getEditableFiles().entrySet().stream()
-            .map(entry -> Map.of(
-                "name", entry.getKey(),
-                "path", entry.getValue(),
-                "language", workshopConfig.getLanguage(entry.getKey())
-            ))
+            .map(entry -> {
+                Map<String, String> fileMetadata = new HashMap<>();
+                fileMetadata.put("name", entry.getKey());
+                fileMetadata.put("path", entry.getValue());
+                fileMetadata.put("language", workshopConfig.getLanguage(entry.getKey()));
+                runtimeResolver.resolvePathWithinModule(entry.getValue())
+                    .map(Path::toString)
+                    .ifPresent(workspacePath -> fileMetadata.put("workspacePath", workspacePath));
+                runtimeResolver.resolveCodeEditorPathWithinModule(entry.getValue())
+                    .map(Path::toString)
+                    .ifPresent(workspacePath -> fileMetadata.put("codeEditorWorkspacePath", workspacePath));
+                return fileMetadata;
+            })
             .collect(Collectors.toList());
         response.put("files", files);
         response.put("workshopTitle", workshopConfig.getWorkshopTitle());
         response.put("workshopDescription", workshopConfig.getWorkshopDescription());
+        runtimeResolver.resolveWorkspaceRoot()
+            .map(Path::toString)
+            .ifPresent(workspaceRoot -> response.put("workspaceRoot", workspaceRoot));
+        runtimeResolver.resolveCodeEditorWorkspaceRoot()
+            .map(Path::toString)
+            .ifPresent(workspaceRoot -> response.put("codeEditorWorkspaceRoot", workspaceRoot));
         return response;
     }
 

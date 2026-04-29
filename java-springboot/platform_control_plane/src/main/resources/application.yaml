@@ -6,12 +6,16 @@ platform:
   controlplane:
     release:
       environment: local
+    session:
+      defaults:
+        ttl: ${PLATFORM_CONTROLPLANE_SESSION_DEFAULTS_TTL:180m}
     execution:
       base-url: ${EXECUTION_PLANE_BASE_URL:http://localhost:9001}
       shared-secret: ${EXECUTION_PLANE_SHARED_SECRET:}
       launch-timeout: 450s
       restart-timeout: 450s
       readiness-timeout: 480s
+      readiness-poll-interval: ${PLATFORM_CONTROLPLANE_EXECUTION_READINESS_POLL_INTERVAL:15s}
       termination-timeout: 30s
     runtime:
       public-base-url:

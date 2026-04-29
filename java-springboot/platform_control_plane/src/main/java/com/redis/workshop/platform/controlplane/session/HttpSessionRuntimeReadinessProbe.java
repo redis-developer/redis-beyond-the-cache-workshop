@@ -31,7 +31,7 @@ class HttpSessionRuntimeReadinessProbe implements SessionRuntimeReadinessProbe {
         ObjectMapper objectMapper,
         @Value("${platform.controlplane.execution.readiness-timeout:480s}")
         Duration timeout,
-        @Value("${platform.controlplane.execution.readiness-poll-interval:2s}")
+        @Value("${platform.controlplane.execution.readiness-poll-interval:15s}")
         Duration pollInterval,
         @Value("${platform.controlplane.execution.readiness-request-timeout:3s}")
         Duration requestTimeout
@@ -57,7 +57,7 @@ class HttpSessionRuntimeReadinessProbe implements SessionRuntimeReadinessProbe {
         this.objectMapper = objectMapper;
         this.httpClient = httpClient;
         this.timeout = positiveDuration(timeout, Duration.ofSeconds(90));
-        this.pollInterval = positiveDuration(pollInterval, Duration.ofSeconds(2));
+        this.pollInterval = positiveDuration(pollInterval, Duration.ofSeconds(15));
         this.requestTimeout = positiveDuration(requestTimeout, Duration.ofSeconds(3));
     }
 

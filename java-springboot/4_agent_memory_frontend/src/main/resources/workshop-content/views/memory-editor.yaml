@@ -14,7 +14,7 @@ sections:
       - type: widget
         widgetId: memory-editor.progress
       - type: markdown
-        body: Click the play button next to a step to auto-apply that change, or type the code manually if you prefer.
+        body: Edit and save the files directly in embedded VS Code. If guided action buttons are available, use them as a legacy shortcut.
   - sectionId: service-steps
     title: Part 1 - AgentMemoryService
     blocks:
@@ -359,7 +359,7 @@ sections:
       - type: callout
         tone: info
         title: Reset Progress
-        body: Reset the guided editor progress if you want to repeat the exercise. Use the shared restart controls if you also need to restart or rebuild the runtime.
+        body: Reset the guided step progress if you want to repeat the exercise. Use the shared restart controls if you also need to restart or rebuild the runtime.
         actions:
           - id: resetProgress
             label: Reset Progress

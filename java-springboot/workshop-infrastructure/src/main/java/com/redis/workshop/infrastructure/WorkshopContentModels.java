@@ -364,6 +364,7 @@ enum WorkshopContentActionId {
     RUN_CHECK("runCheck", "checkId"),
     RESTART_LAB("restartLab"),
     RESTART_RUNTIME("restartRuntime"),
+    RECOMPILE_APP("recompileApp"),
     REBUILD_RUNTIME("rebuildRuntime"),
     RESET_PROGRESS("resetProgress");
 

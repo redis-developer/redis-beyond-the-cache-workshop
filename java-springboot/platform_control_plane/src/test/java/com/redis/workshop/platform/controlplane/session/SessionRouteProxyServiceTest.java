@@ -15,6 +15,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.ResponseEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.mock.web.MockHttpServletRequest;
 
 import java.io.IOException;
@@ -75,6 +76,96 @@ class SessionRouteProxyServiceTest {
         ResponseEntity<byte[]> response = new SessionRouteProxyService(sessionRepository).proxy("sess-002", request, null);
 
         assertThat(response.getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void resolvesCodeRouteTargetByStrippingStableSessionBasePath() {
+        PlatformSessionRecord record = readySession("sess-code");
+        record.setRouteUpstreamBaseUrl("https://runner.example.dev/base/");
+        when(sessionRepository.findById("sess-code")).thenReturn(Optional.of(record));
+
+        MockHttpServletRequest request = new MockHttpServletRequest(
+            "GET",
+            "/session/sess-code/code/stable/socket"
+        );
+        request.setQueryString("folder=%2Fworkspace&reconnectionToken=abc");
+
+        SessionRouteProxyService.RouteResolution routeResolution =
+            new SessionRouteProxyService(sessionRepository).resolveRoute("sess-code", request);
+
+        assertThat(routeResolution.routable()).isTrue();
+        assertThat(routeResolution.target().basePath()).isEqualTo("/session/sess-code");
+        assertThat(routeResolution.target().upstreamBaseUrl()).isEqualTo("https://runner.example.dev/base");
+        assertThat(routeResolution.target().targetUrl())
+            .isEqualTo("https://runner.example.dev/base/code/stable/socket?folder=%2Fworkspace&reconnectionToken=abc");
+    }
+
+    @Test
+    void resolveRouteKeepsHttpNotFoundBehaviorForMissingSession() {
+        when(sessionRepository.findById("missing-session")).thenReturn(Optional.empty());
+
+        MockHttpServletRequest request = new MockHttpServletRequest(
+            "GET",
+            "/session/missing-session/code/"
+        );
+        request.setServerName("localhost");
+
+        SessionRouteProxyService.RouteResolution routeResolution =
+            new SessionRouteProxyService(sessionRepository).resolveRoute("missing-session", request);
+
+        assertThat(routeResolution.routable()).isFalse();
+        assertThat(routeResolution.rejection().getStatusCode().value()).isEqualTo(404);
+    }
+
+    @Test
+    void resolvesMissingCloudRunSessionByStableRunnerServiceName() {
+        String sessionId = "45dd7e1b-6c72-44c2-a3b2-24dfbfea869f";
+        when(sessionRepository.findById(sessionId)).thenReturn(Optional.empty());
+
+        MockHttpServletRequest request = new MockHttpServletRequest(
+            "GET",
+            "/session/" + sessionId + "/code/"
+        );
+        request.setServerName("workshop-control-plane-123773370917.europe-west4.run.app");
+        request.setQueryString("folder=%2Fopt%2Frunner%2Fworkspace");
+
+        SessionRouteProxyService.RouteResolution routeResolution =
+            new SessionRouteProxyService(sessionRepository).resolveRoute(sessionId, request);
+
+        assertThat(routeResolution.routable()).isTrue();
+        assertThat(routeResolution.target().basePath()).isEqualTo("/session/" + sessionId);
+        assertThat(routeResolution.target().upstreamBaseUrl())
+            .isEqualTo("https://ws-" + sessionId + "-123773370917.europe-west4.run.app");
+        assertThat(routeResolution.target().targetUrl())
+            .isEqualTo("https://ws-" + sessionId + "-123773370917.europe-west4.run.app/code/?folder=%2Fopt%2Frunner%2Fworkspace");
+    }
+
+    @Test
+    void skipsForwardedPrefixForCodeEditorRoutes() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/session/sess-001/code/");
+        request.setScheme("https");
+        request.addHeader(HttpHeaders.HOST, "workshop-control-plane.example");
+
+        HttpHeaders headers = new SessionRouteProxyService(sessionRepository)
+            .requestHeaders(request, "/session/sess-001");
+
+        assertThat(headers.get("X-Forwarded-Prefix")).isNull();
+        assertThat(headers.getFirst("X-Forwarded-Host")).isEqualTo("workshop-control-plane.example");
+        assertThat(headers.getFirst("X-Forwarded-Proto")).isEqualTo("https");
+    }
+
+    @Test
+    void keepsForwardedPrefixForNonCodeRoutes() {
+        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/session/sess-001/1");
+        request.setScheme("https");
+        request.addHeader(HttpHeaders.HOST, "workshop-control-plane.example");
+
+        HttpHeaders headers = new SessionRouteProxyService(sessionRepository)
+            .requestHeaders(request, "/session/sess-001");
+
+        assertThat(headers.getFirst("X-Forwarded-Prefix")).isEqualTo("/session/sess-001");
+        assertThat(headers.getFirst("X-Forwarded-Host")).isEqualTo("workshop-control-plane.example");
+        assertThat(headers.getFirst("X-Forwarded-Proto")).isEqualTo("https");
     }
 
     @Test

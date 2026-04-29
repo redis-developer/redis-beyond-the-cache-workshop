@@ -70,7 +70,7 @@ class ReleaseCatalogServiceTest {
             assertThat(release.releaseId()).isEqualTo("distributed-locks-2026.04.1");
             assertThat(release.releaseVersion()).isEqualTo("2026.04.1");
             assertThat(release.resourceClass()).isEqualTo("medium");
-            assertThat(release.sessionTtlMinutes()).isEqualTo(60);
+            assertThat(release.sessionTtlMinutes()).isEqualTo(180);
             assertThat(release.mutableDependencies()).containsExactly("redis", "postgres");
             assertThat(release.images().frontend()).contains("@sha256:");
             assertThat(release.images().backend()).contains("@sha256:");
@@ -79,7 +79,7 @@ class ReleaseCatalogServiceTest {
             assertThat(release.releaseId()).isEqualTo("agent-memory-2026.04.1");
             assertThat(release.releaseVersion()).isEqualTo("2026.04.1");
             assertThat(release.resourceClass()).isEqualTo("medium");
-            assertThat(release.sessionTtlMinutes()).isEqualTo(60);
+            assertThat(release.sessionTtlMinutes()).isEqualTo(180);
             assertThat(release.mutableDependencies()).containsExactly("redis");
             assertThat(release.images().frontend()).contains("@sha256:");
             assertThat(release.images().backend()).contains("@sha256:");

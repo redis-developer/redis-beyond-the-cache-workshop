@@ -1,72 +1,148 @@
 <template>
-  <main class="session-editor-shell">
-    <header class="session-editor-shell__top-bar">
-      <div class="session-editor-shell__top-bar-content">
-        <div class="session-editor-shell__brand" aria-label="Redis workshop">
-          <RedisWordmark
-            class="session-editor-shell__logo"
-          />
-          <h1>Distributed Session Management with Redis</h1>
-        </div>
-
-        <nav class="session-editor-shell__header-actions" aria-label="Editor navigation">
-          <router-link
-            class="session-editor-shell__header-action"
-            :to="redisInsightRoute"
-          >
-            Redis Insight
-          </router-link>
-          <router-link
-            class="session-editor-shell__header-action"
-            :to="backToWorkshopRoute"
-          >
-            Back to Workshop
-          </router-link>
-          <a
-            class="session-editor-shell__header-action"
-            :href="workshopHubUrl"
-          >
-            Back to Hub
-          </a>
-        </nav>
+  <WorkshopCodeEditorShell
+    title="Distributed Session Management with Redis"
+    :editor-title="editorTitle"
+    :editor-src="codeEditorUrl"
+    :back-to-workshop-url="backToWorkshopUrl"
+    :redis-insight-url="redisInsightUrl"
+    :hub-url="workshopHubUrl"
+    :use-embedded-editor="useEmbeddedEditor"
+  >
+    <template #instructions>
+      <div v-if="contentError" class="content-state content-state--error">
+        {{ contentError }}
       </div>
-    </header>
+      <div v-else-if="!editorContent" class="content-state">
+        Loading editor instructions...
+      </div>
+      <div v-if="editorNotice" class="content-state content-state--notice">
+        {{ editorNotice }}
+      </div>
+      <WorkshopContentRenderer
+        v-if="editorContent"
+        :content="editorContent"
+        :action-handlers="contentActionHandlers"
+        :show-title="false"
+        :show-summary="false"
+        :show-stage-title="false"
+        @render-error="handleContentRenderError"
+      />
+    </template>
 
-    <WorkshopEditorLayout
-      ref="layout"
-      :title="editorTitle"
-      :files="files"
-      :show-session-restart-controls="true"
-    >
-      <template #instructions>
-        <div v-if="contentError" class="content-state content-state--error">
-          {{ contentError }}
-        </div>
-        <div v-else-if="!editorContent" class="content-state">
-          Loading editor instructions...
-        </div>
-        <WorkshopContentRenderer
-          v-else
-          :content="editorContent"
-          :action-handlers="contentActionHandlers"
-          :show-title="false"
-          :show-summary="false"
-          :show-stage-title="false"
-          @render-error="handleContentRenderError"
-        />
-      </template>
-    </WorkshopEditorLayout>
-  </main>
+    <template #fallback>
+      <div class="legacy-editor-fallback">
+        <WorkshopEditorLayout
+          ref="layout"
+          :title="editorTitle"
+          :files="files"
+          :show-session-restart-controls="true"
+        >
+          <template #instructions>
+            <div v-if="contentError" class="content-state content-state--error">
+              {{ contentError }}
+            </div>
+            <div v-else-if="!editorContent" class="content-state">
+              Loading editor instructions...
+            </div>
+            <WorkshopContentRenderer
+              v-else
+              :content="editorContent"
+              :action-handlers="contentActionHandlers"
+              :show-title="false"
+              :show-summary="false"
+              :show-stage-title="false"
+              @render-error="handleContentRenderError"
+            />
+          </template>
+        </WorkshopEditorLayout>
+      </div>
+    </template>
+  </WorkshopCodeEditorShell>
 </template>
 
 <script>
 import {
+  getBasePath,
+  getApiUrl,
+  getCodeEditorFileUrl,
+  getCodeEditorUrl,
+  getWorkshopHubUrl,
+  loadEditorWorkspaceMetadata,
+  WorkshopCodeEditorShell,
   WorkshopContentRenderer,
   WorkshopEditorLayout
 } from '../../../../../workshop-frontend-shared/src/index.js';
-import { getWorkshopHubUrl } from '../utils/basePath';
-import RedisWordmark from '../components/RedisWordmark.vue';
 import { loadWorkshopContentView } from '../utils/workshopContent';
+
+function buildRouteUrl(routePath) {
+  const basePath = getBasePath();
+  const normalizedRoutePath = routePath.startsWith('/') ? routePath : `/${routePath}`;
+
+  if (!basePath || basePath === '/') {
+    return normalizedRoutePath;
+  }
+
+  return `${basePath}${normalizedRoutePath}`;
+}
+
+function showEmbeddedEditorNotice(view, target) {
+  view.editorNotice = target
+    ? `Open ${target} in VS Code and save manual edits there. Apply Change can also update the file automatically.`
+    : 'Use VS Code to edit and save manual changes. Apply Change saves guided edits automatically.';
+}
+
+const EDITOR_STEP_CONFIG = {
+  '4.changeStoreType': {
+    fileName: 'application.properties',
+    successMessage: 'Store type changed to redis.',
+    transform: content => content.replace(
+      'spring.session.store-type=none',
+      'spring.session.store-type=redis'
+    )
+  },
+  '4.uncommentGradleDependencies': {
+    fileName: 'build.gradle.kts',
+    successMessage: 'Redis dependencies uncommented.',
+    transform: content => content
+      .replace(
+        '// implementation("org.springframework.boot:spring-boot-starter-data-redis")',
+        'implementation("org.springframework.boot:spring-boot-starter-data-redis")'
+      )
+      .replace(
+        '// implementation("org.springframework.session:spring-session-data-redis")',
+        'implementation("org.springframework.session:spring-session-data-redis")'
+      )
+  },
+  '4.uncommentRedisConfig': {
+    fileName: 'application.properties',
+    successMessage: 'Redis session config uncommented.',
+    transform: content => content
+      .replace('#spring.session.redis.namespace=spring:session', 'spring.session.redis.namespace=spring:session')
+      .replace('#spring.session.redis.flush-mode=immediate', 'spring.session.redis.flush-mode=immediate')
+      .replace('#spring.session.redis.repository-type=default', 'spring.session.redis.repository-type=default')
+  },
+  '4.uncommentSecurityConfig': {
+    fileName: 'SecurityConfig.java',
+    successMessage: 'Security session config uncommented.',
+    transform: content => content
+      .replace(
+        '// import org.springframework.security.web.context.HttpSessionSecurityContextRepository;',
+        'import org.springframework.security.web.context.HttpSessionSecurityContextRepository;'
+      )
+      .replace(
+        '// import org.springframework.security.web.context.SecurityContextRepository;',
+        'import org.springframework.security.web.context.SecurityContextRepository;'
+      )
+      .replace(
+        '            // .securityContext(context -> context\n            //     .securityContextRepository(securityContextRepository())\n            // )',
+        '            .securityContext(context -> context\n                .securityContextRepository(securityContextRepository())\n            )'
+      )
+      .replace(
+        '    // @Bean\n    // public SecurityContextRepository securityContextRepository() {\n    //     return new HttpSessionSecurityContextRepository();\n    // }',
+        '    @Bean\n    public SecurityContextRepository securityContextRepository() {\n        return new HttpSessionSecurityContextRepository();\n    }'
+      )
+  }
+};
 
 function updateEditorFile(view, fileName, transform, successMessage) {
   if (view.$refs.layout.getCurrentFile() !== fileName) {
@@ -82,14 +158,19 @@ function updateEditorFile(view, fileName, transform, successMessage) {
 export default {
   name: 'SessionEditor',
   components: {
-    RedisWordmark,
+    WorkshopCodeEditorShell,
     WorkshopContentRenderer,
     WorkshopEditorLayout
   },
   data() {
     return {
+      activeCodeEditorFilePath: '',
+      codeEditorFilePathByName: {},
+      codeEditorWorkspaceRoot: '',
+      codeEditorOpenRequest: 0,
       editorContent: null,
       contentError: '',
+      editorNotice: '',
       files: [
         'build.gradle.kts',
         'application.properties',
@@ -106,49 +187,107 @@ export default {
 
       return '/2';
     },
+    backToWorkshopUrl() {
+      return buildRouteUrl(this.backToWorkshopRoute);
+    },
+    codeEditorUrl() {
+      if (this.activeCodeEditorFilePath) {
+        return getCodeEditorFileUrl(this.activeCodeEditorFilePath, {
+          workspaceRoot: this.codeEditorWorkspaceRoot,
+          requestId: this.codeEditorOpenRequest
+        });
+      }
+
+      return getCodeEditorUrl({ workspaceRoot: this.codeEditorWorkspaceRoot });
+    },
     contentActionHandlers() {
+      const navigationHandlers = {
+        openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
+        openRoute: ({ args }) => {
+          if (args?.route) {
+            this.$router.push(args.route);
+          }
+        }
+      };
+
+      if (this.useEmbeddedEditor) {
+        return {
+          ...navigationHandlers,
+          applyEditorStep: ({ args }) => this.applyEmbeddedEditorStep(args?.stepId),
+          openFile: ({ args }) => this.openEmbeddedEditorFile(args?.file),
+          recompileApp: () => this.recompileLearnerApp(),
+          saveFile: () => showEmbeddedEditorNotice(this)
+        };
+      }
+
       return {
+        ...navigationHandlers,
         applyEditorStep: ({ args }) => this.applyEditorStep(args.stepId),
         openFile: ({ args }) => this.loadFileStep(args.file),
-        openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
-        openRoute: ({ args }) => this.$router.push(args.route),
+        recompileApp: () => this.recompileLearnerApp(),
         saveFile: () => this.saveFile()
       };
     },
     editorTitle() {
       return this.editorContent?.title || 'Code Editor: Enable Redis';
     },
-    redisInsightRoute() {
-      return `/redis-insight-view?returnTo=${encodeURIComponent(this.backToWorkshopRoute)}`;
+    redisInsightUrl() {
+      return buildRouteUrl(`${this.backToWorkshopRoute}?tool=redis-insight`);
+    },
+    useEmbeddedEditor() {
+      return this.$route.query.editor !== 'legacy';
     },
     workshopHubUrl() {
       return getWorkshopHubUrl();
     }
   },
   async mounted() {
-    await this.loadEditorContent();
+    await Promise.all([
+      this.loadEditorContent(),
+      this.loadCodeEditorFiles()
+    ]);
   },
   methods: {
     applyEditorStep(stepId) {
-      const handlers = {
-        '4.changeStoreType': () => this.changeStoreType(),
-        '4.uncommentGradleDependencies': () => this.uncommentGradleDependencies(),
-        '4.uncommentRedisConfig': () => this.uncommentRedisConfig(),
-        '4.uncommentSecurityConfig': () => this.uncommentSecurityConfig()
-      };
-
-      const handler = handlers[stepId];
-      if (!handler) {
+      const config = EDITOR_STEP_CONFIG[stepId];
+      if (!config) {
         this.$refs.layout.showStatus(`Unknown editor step: ${stepId}`, 'error');
         return;
       }
 
-      handler();
+      updateEditorFile(
+        this,
+        config.fileName,
+        config.transform,
+        `${config.successMessage} Click Save!`
+      );
     },
-    changeStoreType() {
-      updateEditorFile(this, 'application.properties', content => (
-        content.replace('spring.session.store-type=none', 'spring.session.store-type=redis')
-      ), 'Store type changed to redis! Click Save!');
+    async applyEmbeddedEditorStep(stepId) {
+      const config = EDITOR_STEP_CONFIG[stepId];
+      if (!config) {
+        this.editorNotice = `Unknown editor step: ${stepId || 'missing step id'}.`;
+        return;
+      }
+
+      this.editorNotice = `Applying change to ${config.fileName}...`;
+
+      try {
+        const currentContent = await this.loadEditableFile(config.fileName);
+        const nextContent = config.transform(currentContent);
+
+        if (nextContent === currentContent) {
+          this.editorNotice = `${config.successMessage} No file changes were needed.`;
+          await this.refreshEmbeddedEditorFile(config.fileName);
+          return;
+        }
+
+        await this.saveEditableFile(config.fileName, nextContent);
+        this.editorNotice = `${config.successMessage} File saved. Recompile App when you finish all changes.`;
+        await this.refreshEmbeddedEditorFile(config.fileName);
+      } catch (error) {
+        console.error('Failed to apply editor step:', error);
+        this.editorNotice = `Could not apply change: ${error.message}`;
+      }
     },
     handleContentRenderError(issues) {
       console.warn('Session editor content render issues:', issues);
@@ -161,145 +300,142 @@ export default {
         this.contentError = 'Unable to load editor instructions. Refresh the page and try again.';
       }
     },
+    async loadCodeEditorFiles() {
+      if (!this.useEmbeddedEditor) {
+        return;
+      }
+
+      try {
+        const metadata = await loadEditorWorkspaceMetadata();
+        this.codeEditorFilePathByName = metadata.filePathMap;
+        this.codeEditorWorkspaceRoot = metadata.codeEditorWorkspaceRoot || metadata.workspaceRoot;
+      } catch (error) {
+        console.warn('Failed to load code editor file metadata:', error);
+      }
+    },
     async loadFileStep(fileName) {
       await this.$refs.layout.loadFile(fileName);
+    },
+    async loadEditableFile(fileName) {
+      const response = await fetch(getApiUrl(`/api/editor/file/${encodeURIComponent(fileName)}`), {
+        cache: 'no-store',
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to load ${fileName}: ${response.status}`);
+      }
+
+      const payload = await response.json();
+      if (payload.error) {
+        throw new Error(payload.error);
+      }
+
+      if (typeof payload.content !== 'string') {
+        throw new Error(`No content returned for ${fileName}`);
+      }
+
+      return payload.content;
+    },
+    async openEmbeddedEditorFile(fileName) {
+      if (!fileName) {
+        showEmbeddedEditorNotice(this);
+        return;
+      }
+
+      if (!Object.keys(this.codeEditorFilePathByName).length) {
+        await this.loadCodeEditorFiles();
+      }
+
+      const workspacePath = this.codeEditorFilePathByName[fileName];
+      if (!workspacePath) {
+        this.editorNotice = `Could not resolve ${fileName} from the workshop manifest. Open it manually in VS Code.`;
+        return;
+      }
+
+      this.codeEditorOpenRequest += 1;
+      this.activeCodeEditorFilePath = workspacePath;
+      this.editorNotice = `Opening ${fileName} in VS Code.`;
+    },
+    async refreshEmbeddedEditorFile(fileName) {
+      if (!Object.keys(this.codeEditorFilePathByName).length) {
+        await this.loadCodeEditorFiles();
+      }
+
+      const workspacePath = this.codeEditorFilePathByName[fileName];
+      if (!workspacePath) {
+        return;
+      }
+
+      this.activeCodeEditorFilePath = workspacePath;
+      this.codeEditorOpenRequest += 1;
     },
     saveFile() {
       this.$refs.layout.save();
     },
-    uncommentGradleDependencies() {
-      updateEditorFile(this, 'build.gradle.kts', content => (
-        content
-          .replace(
-            '// implementation("org.springframework.boot:spring-boot-starter-data-redis")',
-            'implementation("org.springframework.boot:spring-boot-starter-data-redis")'
-          )
-          .replace(
-            '// implementation("org.springframework.session:spring-session-data-redis")',
-            'implementation("org.springframework.session:spring-session-data-redis")'
-          )
-      ), 'Redis dependencies uncommented! Click Save!');
+    async recompileLearnerApp() {
+      this.editorNotice = 'Recompiling and restarting the learner app...';
+
+      try {
+        const response = await fetch(getApiUrl('/internal/session-runner/restart'), {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ rebuild: true, async: true })
+        });
+        const data = await this.readResponseBody(response);
+
+        if (!response.ok || data.error) {
+          throw new Error(data.error || data.message || 'Failed to recompile app');
+        }
+
+        this.editorNotice = 'Recompile started. When the app is ready, return to the learner app and verify the session behavior.';
+      } catch (error) {
+        this.editorNotice = `Could not recompile app: ${error.message}`;
+      }
     },
-    uncommentRedisConfig() {
-      updateEditorFile(this, 'application.properties', content => (
-        content
-          .replace('#spring.session.redis.namespace=spring:session', 'spring.session.redis.namespace=spring:session')
-          .replace('#spring.session.redis.flush-mode=immediate', 'spring.session.redis.flush-mode=immediate')
-          .replace('#spring.session.redis.repository-type=default', 'spring.session.redis.repository-type=default')
-      ), 'Redis config uncommented! Click Save!');
+    async readResponseBody(response) {
+      const text = await response.text();
+
+      if (!text) {
+        return {};
+      }
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        return {
+          error: response.ok ? '' : text
+        };
+      }
     },
-    uncommentSecurityConfig() {
-      updateEditorFile(this, 'SecurityConfig.java', content => (
-        content
-          .replace(
-            '// import org.springframework.security.web.context.HttpSessionSecurityContextRepository;',
-            'import org.springframework.security.web.context.HttpSessionSecurityContextRepository;'
-          )
-          .replace(
-            '// import org.springframework.security.web.context.SecurityContextRepository;',
-            'import org.springframework.security.web.context.SecurityContextRepository;'
-          )
-          .replace(
-            '            // .securityContext(context -> context\n            //     .securityContextRepository(securityContextRepository())\n            // )',
-            '            .securityContext(context -> context\n                .securityContextRepository(securityContextRepository())\n            )'
-          )
-          .replace(
-            '    // @Bean\n    // public SecurityContextRepository securityContextRepository() {\n    //     return new HttpSessionSecurityContextRepository();\n    // }',
-            '    @Bean\n    public SecurityContextRepository securityContextRepository() {\n        return new HttpSessionSecurityContextRepository();\n    }'
-          )
-      ), 'Security config uncommented! Click Save!');
+    async saveEditableFile(fileName, content) {
+      const response = await fetch(getApiUrl(`/api/editor/file/${encodeURIComponent(fileName)}`), {
+        method: 'POST',
+        cache: 'no-store',
+        credentials: 'include',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ content })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to save ${fileName}: ${response.status}`);
+      }
+
+      const payload = await response.json();
+      if (payload.error) {
+        throw new Error(payload.error);
+      }
     }
   }
 };
 </script>
 
 <style scoped>
-.session-editor-shell {
-  min-height: 100vh;
-  background: var(--color-background, #0A151B);
-  color: var(--color-text, #e2e8f0);
-}
-
-.session-editor-shell__top-bar {
-  align-items: center;
-  background-color: var(--color-dark-800, #0D1A22);
-  border-bottom: 1px solid var(--color-border, rgba(71, 85, 105, 0.5));
-  display: flex;
-  height: 72px;
-}
-
-.session-editor-shell__top-bar-content {
-  align-items: center;
-  display: flex;
-  gap: var(--spacing-4, 1rem);
-  justify-content: space-between;
-  padding: 0 var(--spacing-6, 1.5rem);
-  width: 100%;
-}
-
-.session-editor-shell__brand {
-  align-items: center;
-  display: flex;
-  gap: var(--spacing-4, 1rem);
-  min-width: 0;
-}
-
-.session-editor-shell__logo {
-  flex: 0 0 auto;
-  height: 1.75rem;
-  width: 5.25rem;
-}
-
-.session-editor-shell__brand h1 {
-  color: var(--color-text, #e2e8f0);
-  font-size: clamp(1.125rem, 2vw, 1.5rem);
-  font-weight: var(--font-weight-semibold, 600);
-  letter-spacing: -0.01em;
-  line-height: 1.2;
-  margin: 0;
-  min-width: 0;
-}
-
-.session-editor-shell__header-actions {
-  align-items: center;
-  display: flex;
-  flex: 0 0 auto;
-  gap: var(--spacing-2, 0.5rem);
-}
-
-.session-editor-shell__header-action {
-  align-items: center;
-  background: var(--color-restart-bg, rgba(59, 130, 246, 0.2));
-  border: 1px solid var(--color-restart-border, rgba(59, 130, 246, 0.4));
-  border-radius: var(--radius-lg, 8px);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
-  color: var(--color-restart-text, #93c5fd);
-  display: inline-flex;
-  font-size: var(--font-size-sm, 0.875rem);
-  font-weight: var(--font-weight-semibold, 600);
-  justify-content: center;
-  line-height: 1;
-  min-height: 2.5rem;
-  padding: 0.65rem 0.95rem;
-  text-decoration: none;
-  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
-}
-
-.session-editor-shell__header-action:hover {
-  background: rgba(59, 130, 246, 0.28);
-  border-color: rgba(59, 130, 246, 0.58);
-  color: #bfdbfe;
-}
-
-:deep(.workshop-editor) {
-  height: calc(100vh - 72px) !important;
-}
-
-:deep(.main-container) {
-  height: calc(100vh - 72px) !important;
-  width: 100% !important;
-}
-
 .content-state {
   color: #cccccc;
   line-height: 1.6;
@@ -307,6 +443,25 @@ export default {
 
 .content-state--error {
   color: #fca5a5;
+}
+
+.content-state--notice {
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(59, 130, 246, 0.32);
+  border-radius: var(--radius-lg, 8px);
+  color: #bfdbfe;
+  margin-bottom: var(--spacing-4, 1rem);
+  padding: var(--spacing-3, 0.75rem);
+}
+
+.legacy-editor-fallback {
+  height: calc(100vh - 72px);
+}
+
+.legacy-editor-fallback :deep(.workshop-editor),
+.legacy-editor-fallback :deep(.main-container) {
+  height: 100%;
+  width: 100%;
 }
 
 :deep(.content-editor-step-item__hint),
@@ -319,28 +474,5 @@ export default {
 :deep(.content-editor-step-list__title),
 :deep(.content-step-item__heading h4) {
   color: #ffffff;
-}
-
-@media (max-width: 720px) {
-  .session-editor-shell__top-bar {
-    height: auto;
-    min-height: 72px;
-  }
-
-  .session-editor-shell__top-bar-content {
-    align-items: flex-start;
-    flex-direction: column;
-    padding: var(--spacing-3, 0.75rem) var(--spacing-4, 1rem);
-  }
-
-  .session-editor-shell__header-actions {
-    flex-wrap: wrap;
-    width: 100%;
-  }
-
-  :deep(.workshop-editor),
-  :deep(.main-container) {
-    height: calc(100vh - 120px) !important;
-  }
 }
 </style>

@@ -83,7 +83,8 @@ class SessionLaunchDescriptorTest {
             SessionMode.LAB
         );
 
-        assertThat(descriptor.resourcePolicy().memoryMiB()).isEqualTo(2048);
+        assertThat(descriptor.resourcePolicy().cpuMillis()).isEqualTo(2000);
+        assertThat(descriptor.resourcePolicy().memoryMiB()).isEqualTo(3072);
     }
 
     private ReleaseCatalogEntry redisRelease() {

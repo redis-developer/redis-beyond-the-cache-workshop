@@ -157,6 +157,11 @@
   --table-border: rgba(71, 85, 105, 0.5);
   --table-stripe-bg: #0D1A22;
   --table-hover-bg: rgba(30, 41, 59, 0.6);
+
+  --scrollbar-size: 0.75rem;
+  --scrollbar-track: #08141a;
+  --scrollbar-thumb: rgba(96, 165, 250, 0.5);
+  --scrollbar-thumb-hover: rgba(147, 197, 253, 0.72);
 }
 
 /* Base Styles */
@@ -164,6 +169,35 @@
   margin: 0;
   padding: 0;
   box-sizing: border-box;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+  scrollbar-width: thin;
+}
+
+*::-webkit-scrollbar {
+  width: var(--scrollbar-size);
+  height: var(--scrollbar-size);
+}
+
+*::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+  border-radius: var(--radius-lg);
+}
+
+*::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border: 3px solid var(--scrollbar-track);
+  border-radius: var(--radius-lg);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-thumb-hover);
+  border: 3px solid var(--scrollbar-track);
+  background-clip: padding-box;
+}
+
+*::-webkit-scrollbar-corner {
+  background: var(--scrollbar-track);
 }
 
 body {
@@ -177,4 +211,3 @@ body {
 #app {
   min-height: 100vh;
 }
-

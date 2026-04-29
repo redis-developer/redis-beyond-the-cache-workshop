@@ -12,8 +12,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 // TODO: Uncomment the imports below to enable session persistence
-import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
-import org.springframework.security.web.context.SecurityContextRepository;
+// import org.springframework.security.web.context.HttpSessionSecurityContextRepository;
+// import org.springframework.security.web.context.SecurityContextRepository;
 import org.springframework.security.web.session.HttpSessionEventPublisher;
 import org.springframework.http.HttpStatus;
 
@@ -25,11 +25,21 @@ public class SecurityConfig {
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
         http
             // TODO: Uncomment the lines below to store SecurityContext in HTTP session
-            .securityContext(context -> context
-                .securityContextRepository(securityContextRepository())
-            )
+            // .securityContext(context -> context
+            //     .securityContextRepository(securityContextRepository())
+            // )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/app", "/app/**", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                .requestMatchers(
+                    "/",
+                    "/index.html",
+                    "/app",
+                    "/app/",
+                    "/app/**",
+                    "/css/**",
+                    "/js/**",
+                    "/images/**",
+                    "/favicon.ico"
+                ).permitAll()
                 .requestMatchers("/login").permitAll()
                 .anyRequest().authenticated()
             )
@@ -41,12 +51,12 @@ public class SecurityConfig {
                         response.setContentType("application/json");
                         response.getWriter().write("{\"error\":\"Unauthorized\"}");
                     } else {
-                        response.sendRedirect("/login");
+                        response.sendRedirect("/app/");
                     }
                 })
             )
             .formLogin(form -> form
-                .loginPage("/login")
+                .loginPage("/app/")
                 .loginProcessingUrl("/login")
                 .defaultSuccessUrl("/app/", true)
                 .permitAll()
@@ -55,19 +65,16 @@ public class SecurityConfig {
                 .logoutSuccessUrl("/app/?logout")
                 .permitAll()
             )
-            .headers(headers -> headers
-                .frameOptions(frameOptions -> frameOptions.sameOrigin())
-            )
             .csrf(csrf -> csrf.disable());
 
         return http.build();
     }
 
     // TODO: Uncomment the bean below to enable session-based security context
-    @Bean
-    public SecurityContextRepository securityContextRepository() {
-        return new HttpSessionSecurityContextRepository();
-    }
+    // @Bean
+    // public SecurityContextRepository securityContextRepository() {
+    //     return new HttpSessionSecurityContextRepository();
+    // }
 
     @Bean
     public UserDetailsService userDetailsService() {

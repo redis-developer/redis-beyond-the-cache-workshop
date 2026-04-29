@@ -122,7 +122,7 @@ stages:
           - type: callout
             tone: success
             title: Ready to Build It?
-            body: Open the in-browser editor to wire the AMS SDK, the Spring AI bridge, and the advisor chain used by the chat UI.
+            body: Open the Code Editor and use embedded VS Code to wire the AMS SDK, the Spring AI bridge, and the advisor chain used by the chat UI.
             actions:
               - id: openEditor
                 label: Start the Hands-On Lab

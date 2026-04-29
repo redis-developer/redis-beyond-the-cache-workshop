@@ -1,142 +1,66 @@
 # Workshop Infrastructure Module
 
-## 🎯 Purpose
+This shared Spring Boot module provides the runtime shell for workshop frontend modules. It owns workshop metadata loading, content delivery, backend proxying, session runner lifecycle endpoints, Redis Insight proxying, and the embedded VS Code proxy.
 
-This is a **shared library module** that provides reusable workshop infrastructure for all Redis workshop modules. It enables in-browser code editing functionality that can be used across multiple workshops without duplication.
+## Runtime Boundary
 
-## ✨ Key Features
+Workshop frontend modules compose this infrastructure with workshop specific Vue views and content. Keep generic shell behavior here or in `workshop-frontend-shared`; keep workshop specific copy, routes, widgets, and domain API calls in each `java-springboot/<id>_frontend/` module.
 
-- **100% Reusable** - Works with any workshop module
-- **Configuration-Driven** - No hardcoded file paths or content
-- **Dependency Injection** - Clean architecture using Spring DI
-- **Secure** - Only configured files can be edited
-- **Multi-Language Support** - Syntax highlighting for 10+ languages
-- **Zero Duplication** - Write once, use everywhere
+This module should own:
 
-## 📦 What's Included
+1. editor APIs for manifest backed restore and legacy file operations
+2. diagnostics, status, restart, rebuild, and restore endpoints
+3. backend learner app proxying
+4. Redis Insight proxying
+5. embedded VS Code HTTP and WebSocket proxying
+6. shared workshop content loading
+7. session runner lifecycle wiring
 
-### `WorkshopConfig.java` (Interface)
-Generic configuration interface that defines:
-- `getEditableFiles()` - Map of files that can be edited
-- `getOriginalContent(fileName)` - Original content for lab reset
-- `getBasePath()` - Base path calculation (with smart defaults)
-- `getModuleName()` - Module directory name
-- `getLanguage(fileName)` - Syntax highlighting language
-- `getWorkshopTitle()` - Workshop title for display
-- `getWorkshopDescription()` - Workshop description
+Workshop app Vue code should not call direct local ports, control plane URLs, session runner endpoints, Redis Insight ports, or `/api/editor/restore` directly. Use shared shell helpers and same origin routes.
 
-### `EditorController.java` (Controller)
-Generic Spring MVC controller that provides:
-- `/editor` - Main editor page with Monaco Editor
-- `/api/editor/file/{fileName}` - Read file content (GET)
-- `/api/editor/file/{fileName}` - Save file content (POST)
-- `/api/editor/restore` - Restore all files to original state (POST)
+## Embedded VS Code
 
-### `WorkshopContentController.java` (Controller)
-Generic Spring MVC controller that provides:
-- `/api/content/manifest` - Load the content manifest for the current workshop frontend
-- `/api/content/views/{viewId}` - Load one content view document as JSON
+The session runner starts `code-server` as a local child process when `WORKSHOP_LOCAL_CODE_EDITOR_COMMAND` is configured. The runner image default command is `/opt/runner/bin/start-code-editor.sh`, and the runner build currently defaults `CODE_SERVER_VERSION` to `4.103.2`.
 
-### `WorkshopContentLoader.java` (Loader)
-Shared loader that:
-- resolves `src/main/resources/workshop-content/manifest.yaml` from the configured workshop source path when available
-- falls back to packaged `classpath:workshop-content/manifest.yaml`
-- validates content manifests and view files before serving them
+Editor process contract:
 
-### `editor.html` (Template)
-Thymeleaf template with:
-- Full-screen split-pane layout
-- Monaco Editor (VS Code's editor engine)
-- File tabs for switching between files
-- Workshop instructions with auto-fix buttons
-- Hint tooltips for each step
-- Save and restore functionality
+1. `WORKSHOP_LOCAL_CODE_EDITOR_COMMAND`: command used by the manager to start code-server.
+2. `WORKSHOP_LOCAL_CODE_EDITOR_PORT`: localhost only code-server port. Defaults to `39000`.
+3. `WORKSHOP_LOCAL_CODE_EDITOR_HEALTH_PATH`: optional code editor health path. Defaults to `/healthz`.
+4. `WORKSHOP_SESSION_WORKSPACE_PATH`: workspace root opened by VS Code.
 
-## 🚀 How to Use in a Workshop Module
+The selected code-server setup runs with no learner authentication inside the container because access is already scoped by the outer session route. It must bind only to `127.0.0.1`, disable telemetry and update checks, disable workspace trust, and avoid terminal exposure in the first release.
 
-### Step 1: Add Dependency
+Routing contract:
 
-In your workshop module's `build.gradle.kts`:
+1. Manager local route: `/code/`
+2. Public session route: `/session/{sessionId}/code/`
+3. Local code-server upstream: `http://127.0.0.1:${WORKSHOP_LOCAL_CODE_EDITOR_PORT}`
+4. WebSocket traffic follows the same `/code/` route
 
-```kotlin
-dependencies {
-    // Shared workshop infrastructure
-    implementation(project(":workshop-infrastructure"))
-    
-    // Your other dependencies...
-}
-```
+The manager rewrites code-server response headers, cookies, and text assets so the editor remains usable behind a base path. The control plane forwards public session traffic to the manager and sets `X-Forwarded-Prefix` so links remain under `/session/{sessionId}`.
 
-### Step 2: Create Workshop Configuration
+## Restore And Rebuild Lifecycle
 
-Create a class implementing `WorkshopConfig`:
+Reset and rebuild are shell owned. The embedded editor edits files in `WORKSHOP_SESSION_WORKSPACE_PATH`, but it does not decide when the learner JVM is restarted.
 
-```java
-package com.redis.workshop.yourmodule.infrastructure;
+Expected flow:
 
-import com.redis.workshop.infrastructure.WorkshopConfig;
-import org.springframework.stereotype.Component;
-import java.util.Map;
+1. Learner edits files in embedded VS Code.
+2. Learner saves files in VS Code.
+3. Learner uses Recompile App when Java changes need to affect the running learner JVM.
+4. Manager runs the child rebuild command against the session workspace.
+5. Manager restarts the child JVM from the rebuilt artifact.
 
-@Component
-public class YourWorkshopConfig implements WorkshopConfig {
-    
-    private static final Map<String, String> EDITABLE_FILES = Map.of(
-        "config.yml", "src/main/resources/config.yml",
-        "AppConfig.java", "src/main/java/com/redis/workshop/yourmodule/config/AppConfig.java"
-    );
-    
-    private static final Map<String, String> ORIGINAL_CONTENTS = Map.of(
-        "config.yml", """
-            # Your original YAML content
-            """,
-        "AppConfig.java", """
-            // Your original Java content
-            """
-    );
-    
-    @Override
-    public Map<String, String> getEditableFiles() {
-        return EDITABLE_FILES;
-    }
-    
-    @Override
-    public String getOriginalContent(String fileName) {
-        return ORIGINAL_CONTENTS.get(fileName);
-    }
-    
-    @Override
-    public String getModuleName() {
-        return "2_your_module_name";
-    }
-    
-    @Override
-    public String getWorkshopTitle() {
-        return "Your Workshop Title";
-    }
-    
-    @Override
-    public String getWorkshopDescription() {
-        return "Learn about Redis feature X";
-    }
-}
-```
+Reset flow:
 
-### Step 3: Link to Editor
+1. Learner clicks Reset Code in the shared editor shell.
+2. Shell calls `/internal/session-runner/restore`.
+3. Manager restores editable files from the workshop manifest.
+4. Learner clicks Recompile App.
+5. Manager rebuilds and restarts the child JVM from restored files.
 
-In your workshop's HTML template:
-
-```html
-<a href="/editor">Open Code Editor →</a>
-```
-
-### Step 4: That's It!
-
-The infrastructure automatically:
-- Detects your configuration via Spring component scanning
-- Injects it into the `EditorController`
-- Provides full editor functionality
-- Handles file reading, writing, and restoration
+Reset alone only restores files. Recompile App is required before restored Java files affect the learner app.
 
 ## Shared Content Delivery
 
@@ -149,84 +73,67 @@ src/main/resources/workshop-content/
     <view-id>.yaml
 ```
 
-The shared runtime will look for content in that location without any workshop-specific controller code.
-
 Runtime API:
-- `GET /api/content/manifest`
-- `GET /api/content/views/{viewId}`
+
+1. `GET /api/content/manifest`
+2. `GET /api/content/views/{viewId}`
 
 Failure behavior:
-- Missing content manifest returns `404` with `WORKSHOP_CONTENT_NOT_FOUND`
-- Missing `viewId` in the manifest returns `404` with `WORKSHOP_CONTENT_VIEW_NOT_FOUND`
-- Malformed manifest or view files return `500` with `WORKSHOP_CONTENT_INVALID`
 
-## 📋 Supported Languages
+1. Missing content manifest returns `404` with `WORKSHOP_CONTENT_NOT_FOUND`.
+2. Missing `viewId` in the manifest returns `404` with `WORKSHOP_CONTENT_VIEW_NOT_FOUND`.
+3. Malformed manifest or view files return `500` with `WORKSHOP_CONTENT_INVALID`.
 
-Automatic syntax highlighting for:
-- Java (`.java`)
-- Kotlin (`.kts`, `.kt`)
-- Properties (`.properties`)
-- YAML (`.yaml`, `.yml`)
-- JSON (`.json`)
-- XML (`.xml`)
-- JavaScript (`.js`)
-- TypeScript (`.ts`)
-- Python (`.py`)
-- Go (`.go`)
+The loader resolves `src/main/resources/workshop-content/manifest.yaml` from the configured workshop source path when available, then falls back to packaged `classpath:workshop-content/manifest.yaml`.
 
-## 🏗️ Architecture
+## Local Testing
 
-```
-┌──────────────────────────────────────┐
-│   workshop-infrastructure module    │
-│   (Shared Library)                   │
-│                                      │
-│   - WorkshopConfig (interface)       │
-│   - EditorController (controller)    │
-│   - editor.html (template)           │
-└──────────────┬───────────────────────┘
-               │
-               │ Used by (dependency)
-               │
-    ┌──────────┴──────────┬─────────────────┐
-    │                     │                  │
-    ▼                     ▼                  ▼
-┌─────────────┐   ┌─────────────┐   ┌─────────────┐
-│ 1_session   │   │ 2_caching   │   │ 3_pubsub    │
-│ _management │   │             │   │             │
-│             │   │             │   │             │
-│ Implements  │   │ Implements  │   │ Implements  │
-│ Workshop    │   │ Workshop    │   │ Workshop    │
-│ Config      │   │ Config      │   │ Config      │
-└─────────────┘   └─────────────┘   └─────────────┘
+Use the repository helper from the repository root:
+
+```bash
+./scripts/run-workshop.sh up 1_session_management
+./scripts/run-workshop.sh down 1_session_management
 ```
 
-## 🎓 Benefits
+When `code-server` is installed locally, the helper configures `WORKSHOP_LOCAL_CODE_EDITOR_COMMAND` and starts the embedded editor automatically. When it is not installed, the helper logs that the embedded VS Code process will not start locally while the manager and child JVM still run.
 
-### For Workshop Creators:
-- **Write once, use everywhere** - No code duplication
-- **Consistent experience** - Same editor across all workshops
-- **Easy maintenance** - Update infrastructure in one place
-- **Fast development** - New workshop in minutes
+Manual checks:
 
-### For Students:
-- **Consistent interface** - Same editor for all workshops
-- **No IDE required** - Edit code directly in browser
-- **Guided learning** - Auto-fix buttons with hints
-- **Safe experimentation** - Easy lab reset
+1. Open the workshop editor route and confirm the frame loads from `/code/`.
+2. Confirm the same route works under `/session/{sessionId}/code/` in a public session.
+3. Save a file in VS Code and use Recompile App.
+4. Reset Code, then use Recompile App again before checking learner app behavior.
+5. Confirm Redis Insight and backend learner app routes remain same origin and session scoped.
 
-## 📝 Example: Session Management Workshop
+## Validation Notes
 
-See `1_session_management` module for a complete example:
-- `SessionManagementWorkshopConfig.java` - Configuration implementation
-- Links to `/editor` from `welcome.html`
-- Provides 3 editable files with auto-fix functionality
+Run:
 
-## 🔧 Technical Details
+```bash
+bash scripts/validate-workshops.sh
+./gradlew --no-daemon :1_session_management_frontend:build
+```
 
-- **Spring Boot 3.5.10** - Modern Spring framework
-- **Monaco Editor** - VS Code's editor engine (via CDN)
-- **Thymeleaf** - Server-side templating
-- **REST API** - JSON-based file operations
-- **Component Scanning** - Automatic configuration detection
-- **Dependency Injection** - Clean, testable architecture
+The embedded VS Code validation boundary accepts `WorkshopCodeEditorShell` as the shared editor shell and continues to reject workshop app views that call direct restore transport. Scaffold smoke validation checks numbered content files such as `views/0.yaml` and `views/1.yaml`.
+
+## Legacy Editor Compatibility
+
+The manifest backed editor APIs remain available while embedded VS Code is rolled out. They are used by the legacy editor fallback and by restore behavior.
+
+Manifest fields:
+
+1. `moduleName`
+2. `title`
+3. `description`
+4. `editableFiles[].name`
+5. `editableFiles[].path`
+6. `editableFiles[].resetContent` or `editableFiles[].resetContentLocation`
+
+Legacy API surface:
+
+1. `GET /api/editor/files`
+2. `GET /api/editor/file/{fileName}`
+3. `POST /api/editor/file/{fileName}`
+4. `POST /internal/session-runner/restore`
+
+New workshop code should prefer the shared embedded editor shell and should keep reset and recompile controls shell owned.

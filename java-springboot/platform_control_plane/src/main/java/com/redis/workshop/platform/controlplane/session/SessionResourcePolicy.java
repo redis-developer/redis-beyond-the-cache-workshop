@@ -19,9 +19,9 @@ record SessionResourcePolicy(
         String normalized = requireText(resourceClass, "resourceClass");
         int effectiveTtl = Math.toIntExact(Math.max(1, ttlMinutes));
         return switch (normalized) {
-            case "medium" -> new SessionResourcePolicy(normalized, 1000, 2048, 2048, effectiveTtl);
-            case "large" -> new SessionResourcePolicy(normalized, 2000, 4096, 4096, effectiveTtl);
-            default -> new SessionResourcePolicy(normalized, 1000, 2048, 1024, effectiveTtl);
+            case "medium" -> new SessionResourcePolicy(normalized, 2000, 4096, 4096, effectiveTtl);
+            case "large" -> new SessionResourcePolicy(normalized, 4000, 8192, 8192, effectiveTtl);
+            default -> new SessionResourcePolicy(normalized, 2000, 3072, 2048, effectiveTtl);
         };
     }
 

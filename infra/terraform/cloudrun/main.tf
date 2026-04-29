@@ -178,6 +178,16 @@ resource "google_cloud_run_v2_service" "control_plane" {
         name  = "EXECUTION_PLANE_SHARED_SECRET"
         value = var.execution_plane_shared_secret
       }
+
+      env {
+        name  = "PLATFORM_CONTROLPLANE_EXECUTION_READINESS_POLL_INTERVAL"
+        value = var.control_plane_readiness_poll_interval
+      }
+
+      env {
+        name  = "PLATFORM_CONTROLPLANE_SESSION_DEFAULTS_TTL"
+        value = var.control_plane_session_default_ttl
+      }
     }
   }
 
@@ -254,6 +264,11 @@ resource "google_cloud_run_v2_service" "execution_plane" {
       env {
         name  = "PLATFORM_EXECUTION_PLANE_CLOUD_RUN_MANAGER_RESTART_TIMEOUT"
         value = var.session_runner_manager_restart_timeout
+      }
+
+      env {
+        name  = "PLATFORM_EXECUTION_PLANE_CLOUD_RUN_OPERATION_POLL_INTERVAL"
+        value = var.cloud_run_operation_poll_interval
       }
 
       env {

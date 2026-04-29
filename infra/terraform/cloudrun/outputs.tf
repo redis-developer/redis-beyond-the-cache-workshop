@@ -71,6 +71,7 @@ output "session_runner_defaults" {
     PLATFORM_EXECUTION_PLANE_CLOUD_RUN_EVENT_ID                = var.event_id
     PLATFORM_EXECUTION_PLANE_CLOUD_RUN_MANAGER_PORT            = tostring(var.session_runner_manager_port)
     PLATFORM_EXECUTION_PLANE_CLOUD_RUN_MANAGER_RESTART_TIMEOUT = var.session_runner_manager_restart_timeout
+    PLATFORM_EXECUTION_PLANE_CLOUD_RUN_OPERATION_POLL_INTERVAL = var.cloud_run_operation_poll_interval
     PLATFORM_EXECUTION_PLANE_CLOUD_RUN_CONCURRENCY             = tostring(var.session_runner_concurrency)
     PLATFORM_EXECUTION_PLANE_CLOUD_RUN_MIN_INSTANCES           = tostring(var.session_runner_min_instances)
     PLATFORM_EXECUTION_PLANE_CLOUD_RUN_MAX_INSTANCES           = tostring(var.session_runner_max_instances)

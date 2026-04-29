@@ -29,7 +29,17 @@ public class SecurityConfig {
             //     .securityContextRepository(securityContextRepository())
             // )
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/", "/index.html", "/css/**", "/js/**", "/images/**", "/favicon.ico").permitAll()
+                .requestMatchers(
+                    "/",
+                    "/index.html",
+                    "/app",
+                    "/app/",
+                    "/app/**",
+                    "/css/**",
+                    "/js/**",
+                    "/images/**",
+                    "/favicon.ico"
+                ).permitAll()
                 .requestMatchers("/login").permitAll()
                 .anyRequest().authenticated()
             )
@@ -41,18 +51,18 @@ public class SecurityConfig {
                         response.setContentType("application/json");
                         response.getWriter().write("{\"error\":\"Unauthorized\"}");
                     } else {
-                        response.sendRedirect("/login");
+                        response.sendRedirect("/app/");
                     }
                 })
             )
             .formLogin(form -> form
-                .loginPage("/login")
+                .loginPage("/app/")
                 .loginProcessingUrl("/login")
                 .defaultSuccessUrl("/app/", true)
                 .permitAll()
             )
             .logout(logout -> logout
-                .logoutSuccessUrl("/login?logout")
+                .logoutSuccessUrl("/app/?logout")
                 .permitAll()
             )
             .csrf(csrf -> csrf.disable());

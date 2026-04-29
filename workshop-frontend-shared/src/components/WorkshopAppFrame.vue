@@ -31,6 +31,15 @@
         </button>
         <button
           type="button"
+          class="workshop-app-frame__action"
+          :class="{ 'workshop-app-frame__action--active': logsOpen }"
+          :aria-pressed="logsOpen ? 'true' : 'false'"
+          @click="toggleLogs"
+        >
+          Logs
+        </button>
+        <button
+          type="button"
           class="workshop-app-frame__action workshop-app-frame__action--icon"
           :class="{ 'workshop-app-frame__action--busy': refreshInProgress }"
           :disabled="!src || Boolean(pendingAction)"
@@ -98,31 +107,6 @@
       </div>
     </header>
 
-    <button
-      v-if="isMaximized"
-      type="button"
-      class="workshop-app-frame__restore"
-      aria-label="Return to normal size"
-      title="Return to normal size"
-      @click="toggleMaximized"
-    >
-      <svg
-        class="workshop-app-frame__icon"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        stroke-width="2"
-        stroke-linecap="round"
-        stroke-linejoin="round"
-        aria-hidden="true"
-      >
-        <path d="M9 3v6H3" />
-        <path d="M15 3v6h6" />
-        <path d="M9 21v-6H3" />
-        <path d="M15 21v-6h6" />
-      </svg>
-    </button>
-
     <div class="workshop-app-frame__viewport">
       <iframe
         v-if="src && !isBlocked"
@@ -138,6 +122,25 @@
         <p class="workshop-app-frame__state">{{ overlayTitle }}</p>
         <p class="workshop-app-frame__message">{{ overlayMessage }}</p>
       </div>
+
+      <aside
+        v-if="logsOpen"
+        class="workshop-app-frame__logs"
+        aria-label="Runtime logs"
+      >
+        <header class="workshop-app-frame__logs-header">
+          <p class="workshop-app-frame__logs-title">Runtime logs</p>
+          <button
+            type="button"
+            class="workshop-app-frame__logs-close"
+            aria-label="Close runtime logs"
+            @click="toggleLogs"
+          >
+            Close
+          </button>
+        </header>
+        <pre class="workshop-app-frame__logs-body">{{ formattedRuntimeLogs }}</pre>
+      </aside>
     </div>
   </section>
 </template>
@@ -161,9 +164,10 @@ export default {
     refreshKey: { type: [String, Number], default: 0 },
     canRestart: { type: Boolean, default: false },
     canRebuild: { type: Boolean, default: false },
-    actionsDisabled: { type: Boolean, default: false }
+    actionsDisabled: { type: Boolean, default: false },
+    runtimeLogs: { type: Array, default: () => [] }
   },
-  emits: ['load', 'error', 'retry', 'runtime-action'],
+  emits: ['load', 'error', 'retry', 'runtime-action', 'logs-toggle'],
   data() {
     return {
       loading: Boolean(this.src),
@@ -171,6 +175,7 @@ export default {
       localRefreshKey: 0,
       pendingAction: '',
       pendingActionTimer: null,
+      logsOpen: false,
       isMaximized: false,
       previousBodyOverflow: ''
     };
@@ -283,6 +288,13 @@ export default {
       }
 
       return '';
+    },
+    formattedRuntimeLogs() {
+      if (!this.runtimeLogs.length) {
+        return 'No runtime logs captured yet.';
+      }
+
+      return this.runtimeLogs.join('\n');
     }
   },
   watch: {
@@ -337,6 +349,10 @@ export default {
       this.frameError = false;
       this.$emit('retry');
     },
+    toggleLogs() {
+      this.logsOpen = !this.logsOpen;
+      this.$emit('logs-toggle', this.logsOpen);
+    },
     toggleMaximized() {
       this.isMaximized = !this.isMaximized;
       this.setBodyScrollLock(this.isMaximized);
@@ -384,11 +400,12 @@ export default {
 
 <style scoped>
 .workshop-app-frame {
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   width: 100%;
   height: 100%;
-  min-height: 34rem;
+  min-height: 0;
   overflow: hidden;
   border: 1px solid var(--color-border, rgba(71, 85, 105, 0.5));
   border-radius: var(--radius-xl, 0.75rem);
@@ -398,40 +415,15 @@ export default {
 
 .workshop-app-frame--maximized {
   position: fixed;
-  inset: 0;
+  inset: calc(72px + var(--spacing-4, 1rem)) var(--spacing-4, 1rem) var(--spacing-4, 1rem);
   z-index: 1000;
-  width: 100vw;
-  height: 100vh;
+  width: auto;
+  height: auto;
   min-height: 0;
-  border-radius: 0;
-}
-
-.workshop-app-frame__restore {
-  position: absolute;
-  top: 4.25rem;
-  right: 1rem;
-  z-index: 2;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 2.25rem;
-  min-height: 2.25rem;
-  padding: 0;
-  border: 1px solid var(--color-restart-border, rgba(59, 130, 246, 0.4));
-  border-radius: var(--radius-lg, 8px);
-  background: rgba(13, 26, 34, 0.92);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
-  color: var(--color-restart-text, #93c5fd);
-  cursor: pointer;
-  font-size: var(--font-size-xs, 0.75rem);
-  font-weight: var(--font-weight-semibold, 600);
-  line-height: 1;
-}
-
-.workshop-app-frame__restore:hover {
-  background: rgba(59, 130, 246, 0.28);
-  border-color: rgba(59, 130, 246, 0.58);
-  color: #bfdbfe;
+  border-radius: var(--radius-xl, 0.75rem);
+  box-shadow:
+    0 0 0 100vmax var(--color-background, #0A151B),
+    0 24px 80px rgba(0, 0, 0, 0.5);
 }
 
 .workshop-app-frame__header {
@@ -511,6 +503,12 @@ export default {
   opacity: 1;
 }
 
+.workshop-app-frame__action--active {
+  background: rgba(59, 130, 246, 0.32);
+  border-color: rgba(59, 130, 246, 0.68);
+  color: #bfdbfe;
+}
+
 .workshop-app-frame__action:disabled {
   opacity: 0.5;
   cursor: not-allowed;
@@ -523,6 +521,10 @@ export default {
   background:
     radial-gradient(circle at 20% 20%, rgba(0, 188, 212, 0.08), transparent 28rem),
     var(--color-dark-900, #0A151B);
+}
+
+.workshop-app-frame--maximized .workshop-app-frame__viewport {
+  background: var(--color-dark-900, #0A151B);
 }
 
 .workshop-app-frame__iframe {
@@ -561,5 +563,74 @@ export default {
   color: var(--color-text-secondary, #94a3b8);
   font-size: var(--font-size-sm, 0.875rem);
   line-height: 1.6;
+}
+
+.workshop-app-frame__logs {
+  position: absolute;
+  right: var(--spacing-3, 0.75rem);
+  bottom: var(--spacing-3, 0.75rem);
+  left: var(--spacing-3, 0.75rem);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  max-height: min(22rem, 45%);
+  overflow: hidden;
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  border-radius: var(--radius-lg, 8px);
+  background: rgba(2, 8, 13, 0.94);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
+}
+
+.workshop-app-frame__logs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-2, 0.5rem);
+  padding: 0.55rem 0.75rem;
+  border-bottom: 1px solid rgba(71, 85, 105, 0.42);
+  background: rgba(13, 26, 34, 0.96);
+}
+
+.workshop-app-frame__logs-title {
+  margin: 0;
+  color: var(--color-text, #e2e8f0);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: var(--font-weight-semibold, 600);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.workshop-app-frame__logs-close {
+  border: 0;
+  background: transparent;
+  color: var(--color-restart-text, #93c5fd);
+  font-size: var(--font-size-xs, 0.75rem);
+  font-weight: var(--font-weight-semibold, 600);
+  cursor: pointer;
+}
+
+.workshop-app-frame__logs-close:hover {
+  color: #bfdbfe;
+}
+
+.workshop-app-frame__logs-body {
+  margin: 0;
+  padding: 0.75rem;
+  overflow: auto;
+  color: #cbd5e1;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+  font-size: 0.72rem;
+  line-height: 1.55;
+  white-space: pre-wrap;
+}
+
+@media (max-width: 720px) {
+  .workshop-app-frame--maximized {
+    inset: calc(72px + var(--spacing-2, 0.5rem)) var(--spacing-2, 0.5rem) var(--spacing-2, 0.5rem);
+  }
+
+  .workshop-app-frame__logs {
+    max-height: 55%;
+  }
 }
 </style>

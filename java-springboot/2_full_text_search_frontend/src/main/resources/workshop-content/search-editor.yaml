@@ -12,7 +12,7 @@ sections:
         tone: info
         body: Configure Redis OM Spring to enable full-text search on movie data.
       - type: markdown
-        body: Click the action button next to each item to apply the guided change, or type the code manually if you prefer.
+        body: Edit and save the files directly in embedded VS Code. If guided action buttons are available, use them as a legacy shortcut.
   - sectionId: dependencies
     title: Step 1 - Add Redis OM Dependencies
     blocks:

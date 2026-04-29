@@ -23,7 +23,7 @@ public class DefaultSessionProvisioningPolicy implements SessionProvisioningPoli
     public DefaultSessionProvisioningPolicy(
         ReleaseCatalogService releaseCatalogService,
         PilotLaunchRuleService pilotLaunchRuleService,
-        @Value("${platform.controlplane.session.defaults.ttl:60m}") Duration defaultSessionTtl,
+        @Value("${platform.controlplane.session.defaults.ttl:180m}") Duration defaultSessionTtl,
         @Value("${platform.controlplane.session.defaults.quota-class:standard}") String defaultQuotaClass,
         @Value("${platform.controlplane.session.defaults.resource-class:small}") String defaultResourceClass
     ) {

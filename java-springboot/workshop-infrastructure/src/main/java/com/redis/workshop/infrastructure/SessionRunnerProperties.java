@@ -29,6 +29,9 @@ public class SessionRunnerProperties {
     private String redisInsightCommand;
     private int redisInsightPort = 5540;
     private String redisInsightHealthPath;
+    private String codeEditorCommand;
+    private int codeEditorPort = 39000;
+    private String codeEditorHealthPath;
     private Duration startupTimeout = Duration.ofSeconds(30);
     private Duration stopTimeout = Duration.ofSeconds(5);
     private Duration rebuildTimeout = Duration.ofMinutes(3);
@@ -146,6 +149,30 @@ public class SessionRunnerProperties {
 
     public void setRedisInsightHealthPath(String redisInsightHealthPath) {
         this.redisInsightHealthPath = redisInsightHealthPath;
+    }
+
+    public String getCodeEditorCommand() {
+        return codeEditorCommand;
+    }
+
+    public void setCodeEditorCommand(String codeEditorCommand) {
+        this.codeEditorCommand = codeEditorCommand;
+    }
+
+    public int getCodeEditorPort() {
+        return codeEditorPort;
+    }
+
+    public void setCodeEditorPort(int codeEditorPort) {
+        this.codeEditorPort = codeEditorPort;
+    }
+
+    public String getCodeEditorHealthPath() {
+        return codeEditorHealthPath;
+    }
+
+    public void setCodeEditorHealthPath(String codeEditorHealthPath) {
+        this.codeEditorHealthPath = codeEditorHealthPath;
     }
 
     public Duration getStartupTimeout() {
@@ -313,6 +340,46 @@ public class SessionRunnerProperties {
         }
         String trimmed = value.trim();
         return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
+    }
+
+    boolean hasLocalCodeEditorCommand() {
+        return StringUtils.hasText(resolveLocalCodeEditorCommand());
+    }
+
+    String resolveLocalCodeEditorCommand() {
+        return firstNonBlank(codeEditorCommand, System.getenv("WORKSHOP_LOCAL_CODE_EDITOR_COMMAND"));
+    }
+
+    int resolveLocalCodeEditorPort() {
+        return firstPositiveInt(System.getenv("WORKSHOP_LOCAL_CODE_EDITOR_PORT"), codeEditorPort);
+    }
+
+    Optional<URI> resolveLocalCodeEditorUri() {
+        int port = resolveLocalCodeEditorPort();
+        if (!enabled || port <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(URI.create("http://127.0.0.1:" + port));
+    }
+
+    String normalizedLocalCodeEditorHealthPath() {
+        String value = firstNonBlank(codeEditorHealthPath, System.getenv("WORKSHOP_LOCAL_CODE_EDITOR_HEALTH_PATH"));
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String trimmed = value.trim();
+        return trimmed.startsWith("/") ? trimmed : "/" + trimmed;
+    }
+
+    Optional<Path> resolveCodeEditorWorkspaceRoot() {
+        String value = firstNonBlank(
+            environment.get("WORKSHOP_SESSION_WORKSPACE_PATH"),
+            System.getenv("WORKSHOP_SESSION_WORKSPACE_PATH")
+        );
+        if (!StringUtils.hasText(value)) {
+            return Optional.empty();
+        }
+        return Optional.of(Path.of(value).toAbsolutePath().normalize());
     }
 
     boolean hasChildHealthPath() {

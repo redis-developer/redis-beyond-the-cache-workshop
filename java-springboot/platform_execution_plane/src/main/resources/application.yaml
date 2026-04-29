@@ -6,3 +6,5 @@ platform:
   execution-plane:
     runtime-provider: ${EXECUTION_PLANE_RUNTIME_PROVIDER:cloud-run}
     internal-api: {}
+    cloud-run:
+      operation-poll-interval: ${PLATFORM_EXECUTION_PLANE_CLOUD_RUN_OPERATION_POLL_INTERVAL:5s}

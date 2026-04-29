@@ -36,7 +36,7 @@ class CloudRunSessionRuntimeAdapterTest {
         CloudRunServiceSpec spec = cloudRunClient.createdSpecs().getFirst();
         assertThat(spec.serviceName()).isEqualTo("ws-sess-001");
         assertThat(spec.image()).contains("@sha256:");
-        assertThat(spec.concurrency()).isEqualTo(1);
+        assertThat(spec.concurrency()).isEqualTo(1000);
         assertThat(spec.minInstances()).isZero();
         assertThat(spec.maxInstances()).isEqualTo(1);
         assertThat(spec.environment())
@@ -140,7 +140,7 @@ class CloudRunSessionRuntimeAdapterTest {
         runtimeProperties.setRegion("europe-west1");
         runtimeProperties.setGatewayHost("workshops.example.com");
         runtimeProperties.setManagerPort(8080);
-        runtimeProperties.setConcurrency(1);
+        runtimeProperties.setConcurrency(1000);
         runtimeProperties.setMaxInstances(1);
         runtimeProperties.setEnvironment("prod-event");
         runtimeProperties.setEventId("redis-days-2026");

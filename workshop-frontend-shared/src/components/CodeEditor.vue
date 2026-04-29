@@ -26,6 +26,9 @@
           </button>
           <button @click="save" class="btn btn-primary" :disabled="!currentFile">Save Changes</button>
           <button @click="reload" class="btn btn-secondary" :disabled="!currentFile">Reload</button>
+          <button @click="resetCode" class="btn btn-danger" :disabled="isResettingCode || !files.length">
+            {{ isResettingCode ? 'Resetting...' : 'Reset Code' }}
+          </button>
         </div>
       </div>
       <div class="code-editor-wrapper">
@@ -116,6 +119,7 @@ export default {
       scrollTop: 0,
       serverDiagnostics: [],
       isCheckingDiagnostics: false,
+      isResettingCode: false,
       editorLineHeight: 21,
       editorPaddingTop: 16
     };
@@ -239,7 +243,7 @@ export default {
     async selectFile(fileName) {
       await this.loadFile(fileName);
     },
-    async loadFile(fileName) {
+    async loadFile(fileName, options = {}) {
       try {
         const url = `${this.basePath}/api/editor/file/${fileName}`;
         const response = await fetch(url, { credentials: 'include' });
@@ -261,7 +265,9 @@ export default {
         this.currentFile = fileName;
         this.content = data.content;
         this.fileLanguage = data.language || this.getLanguageFromFile(fileName);
-        this.showStatus('File loaded successfully', 'success');
+        if (!options.silent) {
+          this.showStatus('File loaded successfully', 'success');
+        }
         this.$emit('file-loaded', { fileName, content: this.content });
         this.$nextTick(() => {
           this.measureEditorMetrics();
@@ -378,6 +384,57 @@ export default {
     reload() {
       if (this.currentFile) {
         this.loadFile(this.currentFile);
+      }
+    },
+    async resetCode() {
+      if (this.isResettingCode || !this.files.length) {
+        return;
+      }
+
+      const confirmed = window.confirm(
+        'Reset all workshop code files to their original state? This will overwrite your saved changes.'
+      );
+
+      if (!confirmed) {
+        return;
+      }
+
+      this.isResettingCode = true;
+
+      try {
+        const response = await fetch(`${this.basePath}/internal/session-runner/restore`, {
+          method: 'POST',
+          credentials: 'include'
+        });
+        const data = await this.readJsonResponse(response);
+
+        if (!response.ok || data.error) {
+          throw new Error(data.error || data.message || 'Failed to reset code');
+        }
+
+        this.serverDiagnostics = [];
+        if (this.currentFile) {
+          await this.loadFile(this.currentFile, { silent: true });
+        }
+        this.showStatus('Code reset. Recompile App to apply it.', 'success');
+      } catch (error) {
+        this.showStatus(`Failed to reset code: ${error.message}`, 'error');
+      } finally {
+        this.isResettingCode = false;
+      }
+    },
+    async readJsonResponse(response) {
+      const text = await response.text();
+      if (!text) {
+        return {};
+      }
+
+      try {
+        return JSON.parse(text);
+      } catch {
+        return {
+          error: response.ok ? '' : text
+        };
       }
     },
     showStatus(message, type) {
@@ -509,6 +566,8 @@ export default {
 .btn-primary:hover:not(:disabled) { background: #c42f24; }
 .btn-secondary { background: var(--color-dark-800); color: var(--color-text); border: 1px solid var(--color-border); }
 .btn-secondary:hover:not(:disabled) { background: var(--color-border); }
+.btn-danger { background: rgba(239, 68, 68, 0.16); color: #fca5a5; border: 1px solid rgba(239, 68, 68, 0.42); }
+.btn-danger:hover:not(:disabled) { background: rgba(239, 68, 68, 0.26); }
 .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 .code-highlight :deep(.hljs-keyword) { color: #569cd6; }
 .code-highlight :deep(.hljs-built_in) { color: #4ec9b0; }

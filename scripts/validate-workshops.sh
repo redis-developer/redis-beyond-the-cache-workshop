@@ -1085,12 +1085,18 @@ def validate_existing_workshops() -> None:
                 f"{workshop_id} frontend shell readiness check failed: "
                 "must use the shared shell or shared header in at least one app view"
             )
-        for marker, reason in [
-            ("WorkshopEditorLayout", "must use the shared editor shell"),
-            ("show-session-restart-controls", "must expose shared restart and rebuild controls"),
-        ]:
-            if frontend_view_text and marker not in frontend_view_text:
-                errors.append(f"{workshop_id} frontend shell readiness check failed: {reason}")
+        if frontend_view_text:
+            uses_legacy_editor_shell = "WorkshopEditorLayout" in frontend_view_text
+            uses_embedded_editor_shell = "WorkshopCodeEditorShell" in frontend_view_text
+            if not uses_legacy_editor_shell and not uses_embedded_editor_shell:
+                errors.append(
+                    f"{workshop_id} frontend shell readiness check failed: must use the shared editor shell"
+                )
+            if not uses_embedded_editor_shell and "show-session-restart-controls" not in frontend_view_text:
+                errors.append(
+                    f"{workshop_id} frontend shell readiness check failed: "
+                    "must expose shared restart and rebuild controls"
+                )
 
         if not list(backend_dir.glob("src/main/java/**/*.java")):
             errors.append(f"{workshop_id} backend module does not contain any src/main/java sources")
@@ -1262,6 +1268,11 @@ def validate_scaffold_smoke() -> None:
                 "Workshop standardization check failed:\n"
                 "- Scaffold output no longer calls out the generated learner app iframe."
             )
+        if "embedded VS Code for learner code editing" not in output:
+            fail(
+                "Workshop standardization check failed:\n"
+                "- Scaffold output no longer calls out stable shell ownership of embedded VS Code."
+            )
 
         generated_backend_dir = temp_java_dir / smoke_id
         generated_frontend_dir = temp_java_dir / f"{smoke_id}_frontend"
@@ -1289,8 +1300,8 @@ def validate_scaffold_smoke() -> None:
             generated_frontend_dir / f"frontend/src/views/{pascal_case}Editor.vue",
             generated_frontend_dir / "src/main/resources/application.properties",
             generated_frontend_dir / "src/main/resources/workshop-content/manifest.yaml",
-            generated_frontend_dir / f"src/main/resources/workshop-content/views/{smoke_service}-home.yaml",
-            generated_frontend_dir / f"src/main/resources/workshop-content/views/{smoke_service}-editor.yaml",
+            generated_frontend_dir / "src/main/resources/workshop-content/views/0.yaml",
+            generated_frontend_dir / "src/main/resources/workshop-content/views/1.yaml",
             generated_frontend_dir / "src/main/resources/workshop-manifest.yaml",
             generated_frontend_dir / "src/main/resources/workshop-manifest-reset/build.gradle.kts",
             generated_frontend_dir / "src/main/resources/workshop-manifest-reset/application.properties",
@@ -1490,18 +1501,18 @@ def validate_scaffold_smoke() -> None:
             relative_to=temp_dir,
             require_views_directory=True,
             expected_views={
-                f"{smoke_service}-home": {
-                    "route": "/",
+                "0": {
+                    "route": "/0",
                     "pageType": "narrative",
-                    "file": f"views/{smoke_service}-home.yaml",
+                    "file": "views/0.yaml",
                     "title": smoke_title,
                     "slot": "instructions",
                     "requireSummary": True,
                 },
-                f"{smoke_service}-editor": {
-                    "route": "/editor",
+                "1": {
+                    "route": "/1",
                     "pageType": "editor",
-                    "file": f"views/{smoke_service}-editor.yaml",
+                    "file": "views/1.yaml",
                     "title": smoke_title,
                     "slot": "instructions",
                     "requireSummary": True,
@@ -1509,7 +1520,7 @@ def validate_scaffold_smoke() -> None:
             },
         )
         assert_contains(
-            generated_frontend_dir / f"src/main/resources/workshop-content/views/{smoke_service}-home.yaml",
+            generated_frontend_dir / "src/main/resources/workshop-content/views/0.yaml",
             [
                 "type: markdown",
                 "{{sessionId}}",
@@ -1523,7 +1534,7 @@ def validate_scaffold_smoke() -> None:
 
         generated_router_path = generated_frontend_dir / "frontend/src/router/index.js"
         router_paths = [route_path for route_path, _ in parse_vue_router_paths(generated_router_path)]
-        for expected_route in ["/", "/editor"]:
+        for expected_route in ["/", "/0", "/1"]:
             if expected_route not in router_paths:
                 fail(
                     "Workshop standardization check failed:\n"
@@ -1568,7 +1579,7 @@ def validate_scaffold_smoke() -> None:
                 "learnerAppUrl",
                 "/api/learner-app",
                 "fetchWorkshopContent",
-                f"this.content = await fetchWorkshopContent('{smoke_service}-home')",
+                "this.content = await fetchWorkshopContent('0')",
                 "openApp",
             ],
             label="Scaffold home view",
@@ -1583,17 +1594,29 @@ def validate_scaffold_smoke() -> None:
         assert_contains(
             generated_frontend_dir / f"frontend/src/views/{pascal_case}Editor.vue",
             [
-                "WorkshopEditorLayout",
                 "WorkshopContentRenderer",
                 "getWorkshopHubUrl",
                 "../../../../../workshop-frontend-shared/src/",
-                "show-session-restart-controls",
                 "fetchWorkshopContent",
-                f"this.content = await fetchWorkshopContent('{smoke_service}-editor')",
+                "this.content = await fetchWorkshopContent('1')",
             ],
             label="Scaffold editor view",
             relative_to=temp_dir,
         )
+        generated_editor_text = (
+            generated_frontend_dir / f"frontend/src/views/{pascal_case}Editor.vue"
+        ).read_text(encoding="utf-8")
+        scaffold_uses_legacy_editor_shell = (
+            "WorkshopEditorLayout" in generated_editor_text
+            and "show-session-restart-controls" in generated_editor_text
+        )
+        scaffold_uses_embedded_editor_shell = "WorkshopCodeEditorShell" in generated_editor_text
+        if not scaffold_uses_legacy_editor_shell and not scaffold_uses_embedded_editor_shell:
+            fail(
+                "Workshop standardization check failed:\n"
+                "- Scaffold editor view must use the legacy editor shell with restart controls "
+                "or the embedded VS Code editor shell."
+            )
         assert_not_contains(
             generated_frontend_dir / f"frontend/src/views/{pascal_case}Editor.vue",
             ["../utils/components", "../utils/basePath"],

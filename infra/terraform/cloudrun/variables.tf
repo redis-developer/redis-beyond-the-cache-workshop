@@ -150,6 +150,28 @@ variable "control_plane_max_instances" {
   default     = 10
 }
 
+variable "control_plane_readiness_poll_interval" {
+  description = "Interval used by the control plane when checking a deployed session runner for readiness."
+  type        = string
+  default     = "15s"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]*(ms|s|m|h)$", var.control_plane_readiness_poll_interval))
+    error_message = "control_plane_readiness_poll_interval must be a positive duration such as 15s."
+  }
+}
+
+variable "control_plane_session_default_ttl" {
+  description = "Default control plane session lifetime for non release backed sessions."
+  type        = string
+  default     = "180m"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]*(ms|s|m|h)$", var.control_plane_session_default_ttl))
+    error_message = "control_plane_session_default_ttl must be a positive duration such as 180m."
+  }
+}
+
 variable "execution_plane_min_instances" {
   description = "Minimum always warm execution plane instances."
   type        = number
@@ -185,10 +207,21 @@ variable "session_runner_manager_restart_timeout" {
   }
 }
 
+variable "cloud_run_operation_poll_interval" {
+  description = "Interval used by the execution plane when polling Cloud Run Admin API operations during service create, update, or delete."
+  type        = string
+  default     = "5s"
+
+  validation {
+    condition     = can(regex("^[1-9][0-9]*(ms|s|m|h)$", var.cloud_run_operation_poll_interval))
+    error_message = "cloud_run_operation_poll_interval must be a positive duration such as 5s."
+  }
+}
+
 variable "session_runner_concurrency" {
   description = "Default Cloud Run concurrency for session runner services."
   type        = number
-  default     = 1
+  default     = 1000
 }
 
 variable "session_runner_min_instances" {

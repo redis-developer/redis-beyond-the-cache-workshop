@@ -35,6 +35,7 @@ public class LocalSessionRunnerManager {
         CHILD_STARTING,
         CHILD_READY,
         CHILD_FAILED,
+        REBUILDING,
         RESTARTING,
         STOPPING
     }
@@ -53,6 +54,7 @@ public class LocalSessionRunnerManager {
     private Process childProcess;
     private Process redisProcess;
     private Process redisInsightProcess;
+    private Process codeEditorProcess;
     private long generation;
     private Integer lastExitCode;
     private String lastError;
@@ -125,13 +127,13 @@ public class LocalSessionRunnerManager {
                 lastError = "Session runner is disabled";
                 return statusLocked();
             }
-            state = RunnerState.RESTARTING;
+            state = rebuild ? RunnerState.REBUILDING : RunnerState.RESTARTING;
             lastError = null;
-            stopChildLocked();
             if (rebuild && !rebuildChild()) {
-                state = RunnerState.CHILD_FAILED;
+                state = childProcess != null && childProcess.isAlive() ? RunnerState.CHILD_READY : RunnerState.CHILD_FAILED;
                 return statusLocked();
             }
+            stopChildLocked();
             startChildLocked();
             return statusLocked();
         }
@@ -145,11 +147,12 @@ public class LocalSessionRunnerManager {
                 return statusLocked();
             }
             if (state == RunnerState.RESTARTING
+                || state == RunnerState.REBUILDING
                 || state == RunnerState.STOPPING
                 || state == RunnerState.CHILD_STARTING) {
                 return statusLocked();
             }
-            state = RunnerState.RESTARTING;
+            state = rebuild ? RunnerState.REBUILDING : RunnerState.RESTARTING;
             lastError = null;
             lastExitCode = null;
             appendLog(rebuild ? "restart with rebuild requested" : "restart requested");
@@ -166,16 +169,18 @@ public class LocalSessionRunnerManager {
 
     private void runRestart(boolean rebuild) {
         try {
+            if (rebuild && !rebuildChild()) {
+                synchronized (lifecycleLock) {
+                    state = childProcess != null && childProcess.isAlive()
+                        ? RunnerState.CHILD_READY
+                        : RunnerState.CHILD_FAILED;
+                }
+                return;
+            }
             synchronized (lifecycleLock) {
                 stopChildLocked();
                 state = RunnerState.RESTARTING;
                 lastError = null;
-            }
-            if (rebuild && !rebuildChild()) {
-                synchronized (lifecycleLock) {
-                    state = RunnerState.CHILD_FAILED;
-                }
-                return;
             }
             startChild();
         } catch (RuntimeException exception) {
@@ -230,6 +235,10 @@ public class LocalSessionRunnerManager {
         processBuilder.environment().putAll(properties.getEnvironment());
         processBuilder.environment().put("SERVER_PORT", String.valueOf(properties.resolveChildPort()));
         processBuilder.environment().put("WORKSHOP_CHILD_PORT", String.valueOf(properties.resolveChildPort()));
+        processBuilder.environment().put(
+            "WORKSHOP_LOCAL_CODE_EDITOR_PORT",
+            String.valueOf(properties.resolveLocalCodeEditorPort())
+        );
         if (properties.resolveLocalRedisUri().isPresent()) {
             processBuilder.environment().put("SPRING_DATA_REDIS_HOST", "127.0.0.1");
             processBuilder.environment().put("SPRING_DATA_REDIS_PORT", String.valueOf(properties.resolveLocalRedisPort()));
@@ -257,6 +266,9 @@ public class LocalSessionRunnerManager {
         if (properties.hasLocalRedisInsightCommand() && !isAlive(redisInsightProcess)) {
             redisInsightProcess = startDependencyProcess("redis-insight", properties.resolveLocalRedisInsightCommand());
         }
+        if (properties.hasLocalCodeEditorCommand() && !isAlive(codeEditorProcess)) {
+            codeEditorProcess = startDependencyProcess("code-editor", properties.resolveLocalCodeEditorCommand());
+        }
     }
 
     private Process startDependencyProcess(String name, String command) {
@@ -270,6 +282,10 @@ public class LocalSessionRunnerManager {
         processBuilder.environment().putAll(properties.getEnvironment());
         processBuilder.environment().put("WORKSHOP_LOCAL_REDIS_PORT", String.valueOf(properties.resolveLocalRedisPort()));
         processBuilder.environment().put("WORKSHOP_REDIS_INSIGHT_PORT", String.valueOf(properties.resolveLocalRedisInsightPort()));
+        processBuilder.environment().put("WORKSHOP_LOCAL_CODE_EDITOR_PORT", String.valueOf(properties.resolveLocalCodeEditorPort()));
+        if ("code-editor".equals(name)) {
+            configureCodeEditorProcess(processBuilder);
+        }
 
         try {
             Process process = processBuilder.start();
@@ -287,14 +303,6 @@ public class LocalSessionRunnerManager {
             return failRebuild("Child rebuild command is not configured");
         }
 
-        properties.resolveRebuiltChildJar().ifPresent(path -> {
-            try {
-                java.nio.file.Files.deleteIfExists(path);
-            } catch (IOException exception) {
-                appendLog("Unable to delete previous rebuilt child jar: " + exception.getMessage());
-            }
-        });
-
         ProcessBuilder processBuilder = new ProcessBuilder(
             properties.resolveShellExecutable(),
             properties.resolveShellArgument(),
@@ -305,21 +313,21 @@ public class LocalSessionRunnerManager {
         processBuilder.environment().putAll(properties.getEnvironment());
         processBuilder.environment().put("SERVER_PORT", String.valueOf(properties.resolveChildPort()));
         processBuilder.environment().put("WORKSHOP_CHILD_PORT", String.valueOf(properties.resolveChildPort()));
+        processBuilder.environment().put(
+            "WORKSHOP_LOCAL_CODE_EDITOR_PORT",
+            String.valueOf(properties.resolveLocalCodeEditorPort())
+        );
 
-        java.nio.file.Path rebuildLog = null;
         try {
             appendLog("rebuild started");
-            rebuildLog = java.nio.file.Files.createTempFile("workshop-child-rebuild-", ".log");
-            processBuilder.redirectOutput(ProcessBuilder.Redirect.appendTo(rebuildLog.toFile()));
             Process rebuildProcess = processBuilder.start();
+            pumpLogs(rebuildProcess, "rebuild", generation);
             Duration timeout = safeDuration(properties.getRebuildTimeout(), Duration.ofMinutes(3));
             boolean completed = rebuildProcess.waitFor(timeout.toMillis(), TimeUnit.MILLISECONDS);
             if (!completed) {
                 rebuildProcess.destroyForcibly();
-                appendRebuildLog(rebuildLog);
                 return failRebuild("Child rebuild command timed out");
             }
-            appendRebuildLog(rebuildLog);
             if (rebuildProcess.exitValue() != 0) {
                 return failRebuild("Child rebuild command exited with code " + rebuildProcess.exitValue());
             }
@@ -330,14 +338,6 @@ public class LocalSessionRunnerManager {
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             return failRebuild("Interrupted while rebuilding child process");
-        } finally {
-            if (rebuildLog != null) {
-                try {
-                    java.nio.file.Files.deleteIfExists(rebuildLog);
-                } catch (IOException ignored) {
-                    // Best effort cleanup of the temporary rebuild log.
-                }
-            }
         }
     }
 
@@ -347,16 +347,6 @@ public class LocalSessionRunnerManager {
         }
         appendLog(message);
         return false;
-    }
-
-    private void appendRebuildLog(java.nio.file.Path rebuildLog) {
-        try {
-            for (String line : java.nio.file.Files.readAllLines(rebuildLog, StandardCharsets.UTF_8)) {
-                appendLog("rebuild: " + line);
-            }
-        } catch (IOException exception) {
-            appendLog("rebuild log capture failed: " + exception.getMessage());
-        }
     }
 
     private void waitForReadinessLocked(Process process) {
@@ -443,6 +433,7 @@ public class LocalSessionRunnerManager {
     }
 
     private void stopDependencyProcessesLocked() {
+        codeEditorProcess = stopDependencyProcess("code-editor", codeEditorProcess);
         redisInsightProcess = stopDependencyProcess("redis-insight", redisInsightProcess);
         redisProcess = stopDependencyProcess("redis", redisProcess);
     }
@@ -465,6 +456,20 @@ public class LocalSessionRunnerManager {
         }
         appendLog(name + " stopped");
         return null;
+    }
+
+    private void configureCodeEditorProcess(ProcessBuilder processBuilder) {
+        processBuilder.environment().remove("PORT");
+        processBuilder.environment().remove("SERVER_PORT");
+        processBuilder.environment().put("WORKSHOP_LOCAL_CODE_EDITOR_COMMAND", properties.resolveLocalCodeEditorCommand());
+        processBuilder.environment().put(
+            "WORKSHOP_LOCAL_CODE_EDITOR_HEALTH_PATH",
+            properties.normalizedLocalCodeEditorHealthPath()
+        );
+        properties.resolveCodeEditorWorkspaceRoot().ifPresent(path -> {
+            processBuilder.directory(path.toFile());
+            processBuilder.environment().put("WORKSHOP_SESSION_WORKSPACE_PATH", path.toString());
+        });
     }
 
     private void pumpLogs(Process process, long processGeneration) {
@@ -565,6 +570,14 @@ public class LocalSessionRunnerManager {
                 isAlive(redisInsightProcess),
                 properties.resolveLocalRedisInsightUri().map(URI::toString).orElse(""),
                 properties.normalizedLocalRedisInsightHealthPath()
+            ),
+            new SessionRunnerDependencyStatus(
+                "code-editor",
+                "local-process",
+                properties.hasLocalCodeEditorCommand(),
+                isAlive(codeEditorProcess),
+                properties.resolveLocalCodeEditorUri().map(URI::toString).orElse(""),
+                properties.normalizedLocalCodeEditorHealthPath()
             )
         );
     }

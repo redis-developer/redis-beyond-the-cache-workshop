@@ -22,13 +22,21 @@
           aria-label="Workshop navigation"
         >
           <a
-            v-if="shellState.canOpenRedisInsight"
+            v-if="shellState.canOpenRedisInsight && !redisInsightInPlace"
             class="workshop-shell__header-action"
             :href="shellState.redisInsightUrl"
             @click="handleHeaderLinkAction('redisInsight')"
           >
-            Redis Insight
+            {{ redisInsightLabel }}
           </a>
+          <button
+            v-if="shellState.canOpenRedisInsight && redisInsightInPlace"
+            type="button"
+            class="workshop-shell__header-action"
+            @click="handleHeaderLinkAction('redisInsight')"
+          >
+            {{ redisInsightLabel }}
+          </button>
           <a
             v-if="shellState.canOpenEditor"
             class="workshop-shell__header-action"
@@ -117,6 +125,15 @@
         </slot>
       </aside>
     </section>
+
+    <iframe
+      v-if="shouldPreloadEditorFrame"
+      class="workshop-shell__editor-preload"
+      :src="editorPreloadUrl"
+      title="Preloaded code editor"
+      aria-hidden="true"
+      tabindex="-1"
+    ></iframe>
   </main>
 </template>
 
@@ -149,6 +166,8 @@ export default {
     learnerApp: { type: Object, default: () => ({}) },
     learnerAppTitle: { type: String, default: 'Learner application' },
     runtimeActionsDisabled: { type: Boolean, default: false },
+    redisInsightInPlace: { type: Boolean, default: false },
+    redisInsightLabel: { type: String, default: 'Redis Insight' },
     showContentTitle: { type: Boolean, default: false },
     showContentSummary: { type: Boolean, default: true },
     showStageTitle: { type: Boolean, default: true }
@@ -166,7 +185,10 @@ export default {
     return {
       appRefreshKey: 0,
       instructionsPanelPercent: 42,
-      isResizingShell: false
+      isResizingShell: false,
+      editorPreloadEnabled: false,
+      editorPreloadTimer: null,
+      editorPreloadTimerType: ''
     };
   },
   computed: {
@@ -201,13 +223,32 @@ export default {
       return {
         gridTemplateColumns: `minmax(22rem, ${this.instructionsPanelPercent}fr) 0.75rem minmax(32rem, ${100 - this.instructionsPanelPercent}fr)`
       };
+    },
+    editorPreloadUrl() {
+      return this.shellState.editorUrl || '';
+    },
+    canPreloadEditorFrame() {
+      return this.shellState.canOpenEditor && Boolean(this.editorPreloadUrl);
+    },
+    shouldPreloadEditorFrame() {
+      return this.editorPreloadEnabled && this.canPreloadEditorFrame;
+    }
+  },
+  watch: {
+    canPreloadEditorFrame() {
+      this.scheduleEditorPreload();
+    },
+    editorPreloadUrl() {
+      this.scheduleEditorPreload();
     }
   },
   mounted() {
     this.restoreShellSplit();
+    this.scheduleEditorPreload();
   },
   beforeUnmount() {
     this.stopShellResize();
+    this.clearEditorPreloadTimer();
   },
   methods: {
     clampShellSplit(percent) {
@@ -230,6 +271,46 @@ export default {
     handleAppRetry() {
       this.appRefreshKey += 1;
       this.$emit('app-retry');
+    },
+    scheduleEditorPreload() {
+      this.clearEditorPreloadTimer();
+      this.editorPreloadEnabled = false;
+
+      if (!this.canPreloadEditorFrame) {
+        return;
+      }
+
+      const preload = () => {
+        this.editorPreloadTimer = null;
+        this.editorPreloadTimerType = '';
+
+        if (this.canPreloadEditorFrame) {
+          this.editorPreloadEnabled = true;
+        }
+      };
+
+      if (typeof window.requestIdleCallback === 'function') {
+        this.editorPreloadTimer = window.requestIdleCallback(preload, { timeout: 2500 });
+        this.editorPreloadTimerType = 'idle';
+        return;
+      }
+
+      this.editorPreloadTimer = window.setTimeout(preload, 1200);
+      this.editorPreloadTimerType = 'timeout';
+    },
+    clearEditorPreloadTimer() {
+      if (!this.editorPreloadTimer) {
+        return;
+      }
+
+      if (this.editorPreloadTimerType === 'idle' && typeof window.cancelIdleCallback === 'function') {
+        window.cancelIdleCallback(this.editorPreloadTimer);
+      } else {
+        window.clearTimeout(this.editorPreloadTimer);
+      }
+
+      this.editorPreloadTimer = null;
+      this.editorPreloadTimerType = '';
     },
     onShellResize(event) {
       if (!this.isResizingShell || !this.$refs.shellBody) {
@@ -282,7 +363,9 @@ export default {
   --workshop-shell-gutter: var(--spacing-6, 1.5rem);
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
+  min-height: 0;
+  overflow: hidden;
   background: var(--color-background, #0A151B);
   color: var(--color-text, #e2e8f0);
 }
@@ -292,6 +375,7 @@ export default {
   background-color: var(--color-dark-800, #0D1A22);
   border-bottom: 1px solid var(--color-border, rgba(71, 85, 105, 0.5));
   display: flex;
+  flex: 0 0 auto;
   height: 72px;
   position: sticky;
   top: 0;
@@ -337,12 +421,15 @@ export default {
 
 .workshop-shell__header-action {
   align-items: center;
+  appearance: none;
   background: var(--color-restart-bg, rgba(59, 130, 246, 0.2));
   border: 1px solid var(--color-restart-border, rgba(59, 130, 246, 0.4));
   border-radius: var(--radius-lg, 8px);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
   color: var(--color-restart-text, #93c5fd);
+  cursor: pointer;
   display: inline-flex;
+  font-family: inherit;
   font-size: var(--font-size-sm, 0.875rem);
   font-weight: var(--font-weight-semibold, 600);
   justify-content: center;
@@ -361,6 +448,7 @@ export default {
 
 .workshop-shell__hero {
   display: flex;
+  flex: 0 0 auto;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--spacing-4, 1rem);
@@ -403,6 +491,7 @@ export default {
   grid-auto-rows: minmax(0, 1fr);
   margin-top: var(--spacing-4, 1rem);
   margin-bottom: var(--spacing-4, 1rem);
+  overflow: hidden;
 }
 
 .workshop-shell__body--resizing .workshop-shell__instructions,
@@ -424,8 +513,10 @@ export default {
 
 .workshop-shell__app {
   display: flex;
+  height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
 }
 
 .workshop-shell__resize-handle {
@@ -463,9 +554,21 @@ export default {
   text-align: center;
 }
 
+.workshop-shell__editor-preload {
+  border: 0;
+  height: 1px;
+  left: -10000px;
+  opacity: 0;
+  pointer-events: none;
+  position: fixed;
+  top: -10000px;
+  width: 1px;
+}
+
 @media (max-width: 1180px) {
   .workshop-shell__body {
     grid-template-columns: 1fr !important;
+    grid-template-rows: minmax(0, 0.45fr) minmax(0, 1fr);
   }
 
   .workshop-shell__resize-handle {

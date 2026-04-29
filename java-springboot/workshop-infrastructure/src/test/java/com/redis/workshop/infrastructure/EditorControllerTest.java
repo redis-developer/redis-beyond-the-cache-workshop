@@ -87,6 +87,37 @@ class EditorControllerTest {
     }
 
     @Test
+    void editableFileMetadataIncludesResolvedWorkspacePaths() {
+        String fileName = "application.properties";
+        String relativePath = "src/main/resources/application.properties";
+
+        FrontendRuntimeProperties runtimeProperties = new FrontendRuntimeProperties();
+        runtimeProperties.setWorkspacePath(configuredSourceDir.toString());
+        runtimeProperties.setCodeEditorWorkspacePath("/home/coder/project");
+
+        WorkshopConfig workshopConfig = new TestWorkshopConfig(
+            fallbackSourceDir.toString(),
+            Map.of(fileName, relativePath),
+            Map.of()
+        );
+        EditorController controller = new EditorController(workshopConfig, runtimeProperties);
+
+        Map<String, Object> response = controller.getEditableFiles();
+
+        assertThat(response).containsEntry("workspaceRoot", configuredSourceDir.toString());
+        assertThat(response).containsEntry("codeEditorWorkspaceRoot", "/home/coder/project");
+        assertThat(response.get("files"))
+            .asList()
+            .singleElement()
+            .satisfies(file -> assertThat(file)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("name", fileName)
+                .containsEntry("path", relativePath)
+                .containsEntry("workspacePath", configuredSourceDir.resolve(relativePath).toString())
+                .containsEntry("codeEditorWorkspacePath", "/home/coder/project/" + relativePath));
+    }
+
+    @Test
     void loadSaveAndRestoreUseManifestBackedWorkshopConfig() throws IOException {
         String fileName = "application.properties";
         String relativePath = "src/main/resources/application.properties";

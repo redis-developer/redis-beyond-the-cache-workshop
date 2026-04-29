@@ -1,13 +1,19 @@
 <template>
-  <WorkshopEditorLayout
-    ref="layout"
-    title="Agent Memory Workshop"
-    :files="files"
-    show-session-restart-controls
-    @file-loaded="onFileLoaded"
+  <WorkshopCodeEditorShell
+    title="Agent Memory Server"
+    :editor-title="editorTitle"
+    :editor-src="codeEditorUrl"
+    :back-to-workshop-url="backToWorkshopUrl"
+    :redis-insight-url="redisInsightUrl"
+    :hub-url="workshopHubUrl"
+    :use-embedded-editor="useEmbeddedEditor"
   >
     <template #instructions>
       <div class="memory-editor-instructions">
+        <div v-if="editorNotice" class="content-status content-status--notice">
+          {{ editorNotice }}
+        </div>
+
         <WorkshopContentRenderer
           v-if="content"
           :content="content"
@@ -28,12 +34,53 @@
         </div>
       </div>
     </template>
-  </WorkshopEditorLayout>
+
+    <template #fallback>
+      <div class="legacy-editor-fallback">
+        <WorkshopEditorLayout
+          ref="layout"
+          :title="editorTitle"
+          :files="files"
+          show-session-restart-controls
+          @file-loaded="onFileLoaded"
+        >
+          <template #instructions>
+            <div class="memory-editor-instructions">
+              <WorkshopContentRenderer
+                v-if="content"
+                :content="content"
+                :show-title="false"
+                :show-summary="true"
+                :show-stage-title="false"
+                :action-handlers="actionHandlers"
+                :widgets="widgets"
+                :widget-props="widgetProps"
+              />
+
+              <div v-else-if="loadingContent" class="content-status">
+                Loading workshop content...
+              </div>
+
+              <div v-else class="content-status content-status--error">
+                {{ loadError }}
+              </div>
+            </div>
+          </template>
+        </WorkshopEditorLayout>
+      </div>
+    </template>
+  </WorkshopCodeEditorShell>
 </template>
 
 <script>
 import {
+  getBasePath,
+  getCodeEditorFileUrl,
+  getCodeEditorUrl,
+  getRedisInsightUrl,
+  loadEditorWorkspaceMetadata,
   WorkshopContentRenderer,
+  WorkshopCodeEditorShell,
   WorkshopEditorLayout,
   getWorkshopHubUrl
 } from '../../../../../workshop-frontend-shared/src/index.js';
@@ -65,11 +112,32 @@ const EDITOR_STEP_HANDLERS = {
   'memory-editor.uncommentLongTermMemoryAdvisor': 'uncommentLongTermMemoryAdvisor'
 };
 
+function buildRouteUrl(routePath) {
+  const basePath = getBasePath();
+  const normalizedRoutePath = routePath.startsWith('/') ? routePath : `/${routePath}`;
+
+  if (!basePath || basePath === '/') {
+    return normalizedRoutePath;
+  }
+
+  return `${basePath}${normalizedRoutePath}`;
+}
+
+function showEmbeddedEditorNotice(view, target) {
+  view.editorNotice = target
+    ? `Open ${target} in VS Code and save changes there. Guided auto-apply remains available in the legacy editor fallback.`
+    : 'Use VS Code to edit and save files. Guided auto-apply remains available in the legacy editor fallback.';
+}
+
 export default {
   name: 'MemoryEditor',
-  components: { WorkshopContentRenderer, WorkshopEditorLayout },
+  components: { WorkshopCodeEditorShell, WorkshopContentRenderer, WorkshopEditorLayout },
   data() {
     return {
+      activeCodeEditorFilePath: '',
+      codeEditorFilePathByName: {},
+      codeEditorWorkspaceRoot: '',
+      codeEditorOpenRequest: 0,
       files: ['AgentMemoryService.java', 'AmsChatMemoryRepository.java', 'ChatService.java'],
       currentFile: null,
       fileContent: '',
@@ -79,6 +147,7 @@ export default {
       progressExpanded: false,
       completedStepsSet: new Set(),
       content: null,
+      editorNotice: '',
       loadingContent: true,
       loadError: ''
     };
@@ -92,10 +161,42 @@ export default {
         this.completedStepsSet = new Set(data.completedSteps || []);
       } catch (e) { console.error('Failed to load saved progress', e); }
     }
-    await this.loadContent();
-    await this.checkWorkshopCompletion();
+    await Promise.all([
+      this.loadContent(),
+      this.loadCodeEditorFiles()
+    ]);
+    if (!this.useEmbeddedEditor) {
+      await this.checkWorkshopCompletion();
+    }
   },
   computed: {
+    backToWorkshopUrl() {
+      const route = this.$route.query.returnTo;
+      const backRoute = typeof route === 'string' && route.startsWith('/') && !route.startsWith('//')
+        ? route
+        : '/challenges';
+
+      return buildRouteUrl(backRoute);
+    },
+    codeEditorUrl() {
+      if (this.activeCodeEditorFilePath) {
+        return getCodeEditorFileUrl(this.activeCodeEditorFilePath, {
+          workspaceRoot: this.codeEditorWorkspaceRoot,
+          requestId: this.codeEditorOpenRequest
+        });
+      }
+
+      return getCodeEditorUrl({ workspaceRoot: this.codeEditorWorkspaceRoot });
+    },
+    editorTitle() {
+      return this.content?.title || 'Agent Memory Workshop';
+    },
+    redisInsightUrl() {
+      return getRedisInsightUrl();
+    },
+    useEmbeddedEditor() {
+      return this.$route.query.editor !== 'legacy';
+    },
     workshopHubUrl() {
       return getWorkshopHubUrl();
     },
@@ -131,16 +232,29 @@ export default {
       };
     },
     actionHandlers() {
-      return {
-        applyEditorStep: ({ args }) => this.applyEditorStep(args?.stepId),
-        openFile: payload => this.handleOpenFileAction(payload),
+      const navigationHandlers = {
         openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
         openRoute: ({ args }) => {
           if (args?.route) {
             this.$router.push(args.route);
           }
         },
-        resetProgress: () => this.resetProgress(),
+        resetProgress: () => this.resetProgress()
+      };
+
+      if (this.useEmbeddedEditor) {
+        return {
+          ...navigationHandlers,
+          applyEditorStep: () => showEmbeddedEditorNotice(this),
+          openFile: ({ args }) => this.openEmbeddedEditorFile(args?.file),
+          saveFile: () => showEmbeddedEditorNotice(this)
+        };
+      }
+
+      return {
+        ...navigationHandlers,
+        applyEditorStep: ({ args }) => this.applyEditorStep(args?.stepId),
+        openFile: payload => this.handleOpenFileAction(payload),
         saveFile: () => this.saveFile()
       };
     }
@@ -156,6 +270,19 @@ export default {
         this.loadError = error.message || 'Failed to load workshop content.';
       } finally {
         this.loadingContent = false;
+      }
+    },
+    async loadCodeEditorFiles() {
+      if (!this.useEmbeddedEditor) {
+        return;
+      }
+
+      try {
+        const metadata = await loadEditorWorkspaceMetadata();
+        this.codeEditorFilePathByName = metadata.filePathMap;
+        this.codeEditorWorkspaceRoot = metadata.codeEditorWorkspaceRoot || metadata.workspaceRoot;
+      } catch (error) {
+        console.warn('Failed to load code editor file metadata:', error);
       }
     },
     onFileLoaded({ fileName, content }) {
@@ -223,6 +350,26 @@ export default {
     handleOpenFileAction({ args, item }) {
       const step = item?.itemId ? OPEN_FILE_STEPS[item.itemId] : null;
       return this.loadFileStep(args?.file, step ?? null);
+    },
+    async openEmbeddedEditorFile(fileName) {
+      if (!fileName) {
+        showEmbeddedEditorNotice(this);
+        return;
+      }
+
+      if (!Object.keys(this.codeEditorFilePathByName).length) {
+        await this.loadCodeEditorFiles();
+      }
+
+      const workspacePath = this.codeEditorFilePathByName[fileName];
+      if (!workspacePath) {
+        this.editorNotice = `Could not resolve ${fileName} from the workshop manifest. Open it manually in VS Code.`;
+        return;
+      }
+
+      this.codeEditorOpenRequest += 1;
+      this.activeCodeEditorFilePath = workspacePath;
+      this.editorNotice = `Opening ${fileName} in VS Code.`;
     },
     applyEditorStep(stepId) {
       const handlerName = EDITOR_STEP_HANDLERS[stepId];
@@ -642,6 +789,22 @@ export default {
 
 .content-status--error {
   background: rgba(239, 68, 68, 0.18);
+}
+
+.content-status--notice {
+  background: rgba(59, 130, 246, 0.14);
+  border: 1px solid rgba(59, 130, 246, 0.32);
+  color: #bfdbfe;
+}
+
+.legacy-editor-fallback {
+  height: calc(100vh - 72px);
+}
+
+.legacy-editor-fallback :deep(.workshop-editor),
+.legacy-editor-fallback :deep(.main-container) {
+  height: 100%;
+  width: 100%;
 }
 
 /* Progress Tracker */

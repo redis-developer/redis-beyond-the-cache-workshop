@@ -2,6 +2,7 @@ const BUSY_STATES = new Set([
   'admitted',
   'admitting',
   'building',
+  'child_starting',
   'deploying',
   'initializing',
   'launching',

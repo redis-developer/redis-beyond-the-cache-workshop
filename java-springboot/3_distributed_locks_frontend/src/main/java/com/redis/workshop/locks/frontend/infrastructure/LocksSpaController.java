@@ -17,6 +17,7 @@ public class LocksSpaController {
         "/reentrant/editor",
         "/reentrant/demo",
         "/demo",
+        "/editor",
         "/implement",
         "/implementation",
         "/complete",

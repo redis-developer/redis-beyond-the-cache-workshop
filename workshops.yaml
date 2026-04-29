@@ -40,7 +40,7 @@ workshops:
           backend: registry.example.com/workshops/session-management-backend@sha256:2222222222222222222222222222222222222222222222222222222222222222
           combined: registry.example.com/workshops/session-management-runner@sha256:9999999999999999999999999999999999999999999999999999999999999999
         resourceClass: small
-        sessionTtlMinutes: 60
+        sessionTtlMinutes: 180
         mutableDependencies:
           - redis
   - id: 2_full_text_search
@@ -82,7 +82,7 @@ workshops:
           backend: registry.example.com/workshops/full-text-search-backend@sha256:4444444444444444444444444444444444444444444444444444444444444444
           combined: registry.example.com/workshops/full-text-search-runner@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
         resourceClass: small
-        sessionTtlMinutes: 60
+        sessionTtlMinutes: 180
         mutableDependencies:
           - redis
   - id: 3_distributed_locks
@@ -131,7 +131,7 @@ workshops:
           backend: registry.example.com/workshops/distributed-locks-backend@sha256:6666666666666666666666666666666666666666666666666666666666666666
           combined: registry.example.com/workshops/distributed-locks-runner@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
         resourceClass: medium
-        sessionTtlMinutes: 60
+        sessionTtlMinutes: 180
         mutableDependencies:
           - redis
           - postgres
@@ -215,6 +215,6 @@ workshops:
           backend: registry.example.com/workshops/agent-memory-backend@sha256:8888888888888888888888888888888888888888888888888888888888888888
           combined: registry.example.com/workshops/agent-memory-runner@sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
         resourceClass: medium
-        sessionTtlMinutes: 60
+        sessionTtlMinutes: 180
         mutableDependencies:
           - redis

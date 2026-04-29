@@ -1,11 +1,12 @@
 <template>
-  <WorkshopEditorLayout
-    ref="layout"
+  <WorkshopCodeEditorShell
     title="Full-Text Search Workshop"
-    :files="files"
-    show-session-restart-controls
-    @file-loaded="onFileLoaded"
-    @file-saved="onFileSaved"
+    editor-title="Full-Text Search Workshop"
+    :editor-src="codeEditorUrl"
+    :back-to-workshop-url="backToWorkshopUrl"
+    :redis-insight-url="redisInsightUrl"
+    :hub-url="workshopHubUrl"
+    :use-embedded-editor="useEmbeddedEditor"
   >
     <template #instructions>
       <div v-if="contentLoading" class="content-status">
@@ -16,8 +17,12 @@
         {{ contentError }}
       </div>
 
+      <div v-if="editorNotice" class="content-status content-status--notice">
+        {{ editorNotice }}
+      </div>
+
       <WorkshopContentRenderer
-        v-else-if="content"
+        v-if="content"
         :content="content"
         :show-title="false"
         :show-summary="false"
@@ -29,12 +34,54 @@
         All steps completed! Restart the app to test your search.
       </div>
     </template>
-  </WorkshopEditorLayout>
+
+    <template #fallback>
+      <div class="legacy-editor-fallback">
+        <WorkshopEditorLayout
+          ref="layout"
+          title="Full-Text Search Workshop"
+          :files="files"
+          show-session-restart-controls
+          @file-loaded="onFileLoaded"
+          @file-saved="onFileSaved"
+        >
+          <template #instructions>
+            <div v-if="contentLoading" class="content-status">
+              Loading workshop instructions...
+            </div>
+
+            <div v-else-if="contentError" class="content-status content-status--error">
+              {{ contentError }}
+            </div>
+
+            <WorkshopContentRenderer
+              v-else-if="content"
+              :content="content"
+              :show-title="false"
+              :show-summary="false"
+              :action-handlers="actionHandlers"
+              @render-error="handleRenderIssues"
+            />
+
+            <div v-if="workshopComplete" class="completion-banner">
+              All steps completed! Restart the app to test your search.
+            </div>
+          </template>
+        </WorkshopEditorLayout>
+      </div>
+    </template>
+  </WorkshopCodeEditorShell>
 </template>
 
 <script>
 import {
+  getBasePath,
+  getCodeEditorFileUrl,
+  getCodeEditorUrl,
+  getRedisInsightUrl,
   getWorkshopHubUrl,
+  loadEditorWorkspaceMetadata,
+  WorkshopCodeEditorShell,
   WorkshopContentRenderer,
   WorkshopEditorLayout
 } from '../../../../../workshop-frontend-shared/src/index.js';
@@ -59,17 +106,40 @@ const EDITOR_STEP_HANDLERS = {
   'search-editor.enableGetAllGenres': 'enableGetAllGenres'
 };
 
+function buildRouteUrl(routePath) {
+  const basePath = getBasePath();
+  const normalizedRoutePath = routePath.startsWith('/') ? routePath : `/${routePath}`;
+
+  if (!basePath || basePath === '/') {
+    return normalizedRoutePath;
+  }
+
+  return `${basePath}${normalizedRoutePath}`;
+}
+
+function showEmbeddedEditorNotice(view, target) {
+  view.editorNotice = target
+    ? `Open ${target} in VS Code and save changes there. Guided auto-apply remains available in the legacy editor fallback.`
+    : 'Use VS Code to edit and save files. Guided auto-apply remains available in the legacy editor fallback.';
+}
+
 export default {
   name: 'SearchEditor',
   components: {
+    WorkshopCodeEditorShell,
     WorkshopContentRenderer,
     WorkshopEditorLayout
   },
   data() {
     return {
+      activeCodeEditorFilePath: '',
+      codeEditorFilePathByName: {},
+      codeEditorWorkspaceRoot: '',
+      codeEditorOpenRequest: 0,
       content: null,
       contentLoading: true,
       contentError: '',
+      editorNotice: '',
       files: [
         'build.gradle.kts',
         'application.properties',
@@ -98,20 +168,57 @@ export default {
       }
     }
 
-    await this.loadContent();
-    await this.checkWorkshopCompletion();
+    await Promise.all([
+      this.loadContent(),
+      this.loadCodeEditorFiles()
+    ]);
+    if (!this.useEmbeddedEditor) {
+      await this.checkWorkshopCompletion();
+    }
   },
   computed: {
+    backToWorkshopUrl() {
+      return buildRouteUrl('/');
+    },
+    codeEditorUrl() {
+      if (this.activeCodeEditorFilePath) {
+        return getCodeEditorFileUrl(this.activeCodeEditorFilePath, {
+          workspaceRoot: this.codeEditorWorkspaceRoot,
+          requestId: this.codeEditorOpenRequest
+        });
+      }
+
+      return getCodeEditorUrl({ workspaceRoot: this.codeEditorWorkspaceRoot });
+    },
+    redisInsightUrl() {
+      return getRedisInsightUrl();
+    },
+    useEmbeddedEditor() {
+      return this.$route.query.editor !== 'legacy';
+    },
     workshopHubUrl() {
       return getWorkshopHubUrl();
     },
     actionHandlers() {
+      const navigationHandlers = {
+        openHub: () => this.openHub(),
+        openRoute: ({ args }) => this.openRoute(args?.route)
+      };
+
+      if (this.useEmbeddedEditor) {
+        return {
+          ...navigationHandlers,
+          applyEditorStep: () => showEmbeddedEditorNotice(this),
+          openFile: ({ args }) => this.openEmbeddedEditorFile(args?.file),
+          saveFile: () => showEmbeddedEditorNotice(this)
+        };
+      }
+
       return {
+        ...navigationHandlers,
         openFile: ({ args }) => this.loadFileStep(args.file),
         saveFile: () => this.saveFile(),
-        applyEditorStep: ({ args }) => this.applyEditorStep(args.stepId),
-        openHub: () => this.openHub(),
-        openRoute: ({ args }) => this.openRoute(args.route)
+        applyEditorStep: ({ args }) => this.applyEditorStep(args.stepId)
       };
     }
   },
@@ -129,6 +236,19 @@ export default {
         this.contentLoading = false;
       }
     },
+    async loadCodeEditorFiles() {
+      if (!this.useEmbeddedEditor) {
+        return;
+      }
+
+      try {
+        const metadata = await loadEditorWorkspaceMetadata();
+        this.codeEditorFilePathByName = metadata.filePathMap;
+        this.codeEditorWorkspaceRoot = metadata.codeEditorWorkspaceRoot || metadata.workspaceRoot;
+      } catch (error) {
+        console.warn('Failed to load code editor file metadata:', error);
+      }
+    },
     handleRenderIssues(issues) {
       if (issues?.length) {
         console.warn('SearchEditor content render issues:', issues);
@@ -143,6 +263,26 @@ export default {
       }
 
       this.$router.push(route).catch(() => {});
+    },
+    async openEmbeddedEditorFile(fileName) {
+      if (!fileName) {
+        showEmbeddedEditorNotice(this);
+        return;
+      }
+
+      if (!Object.keys(this.codeEditorFilePathByName).length) {
+        await this.loadCodeEditorFiles();
+      }
+
+      const workspacePath = this.codeEditorFilePathByName[fileName];
+      if (!workspacePath) {
+        this.editorNotice = `Could not resolve ${fileName} from the workshop manifest. Open it manually in VS Code.`;
+        return;
+      }
+
+      this.codeEditorOpenRequest += 1;
+      this.activeCodeEditorFilePath = workspacePath;
+      this.editorNotice = `Opening ${fileName} in VS Code.`;
     },
     applyEditorStep(stepId) {
       const handlerName = EDITOR_STEP_HANDLERS[stepId];
@@ -581,6 +721,12 @@ export default {
   color: #fca5a5;
 }
 
+.content-status--notice {
+  background: rgba(59, 130, 246, 0.14);
+  border-color: rgba(59, 130, 246, 0.32);
+  color: #bfdbfe;
+}
+
 .completion-banner {
   margin-top: var(--spacing-6);
   padding: var(--spacing-4);
@@ -589,5 +735,15 @@ export default {
   border-radius: var(--radius-md);
   text-align: center;
   font-weight: var(--font-weight-semibold);
+}
+
+.legacy-editor-fallback {
+  height: calc(100vh - 72px);
+}
+
+.legacy-editor-fallback :deep(.workshop-editor),
+.legacy-editor-fallback :deep(.main-container) {
+  height: 100%;
+  width: 100%;
 }
 </style>

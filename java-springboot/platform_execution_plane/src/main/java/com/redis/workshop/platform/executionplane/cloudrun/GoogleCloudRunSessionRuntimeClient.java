@@ -327,7 +327,7 @@ public class GoogleCloudRunSessionRuntimeClient implements CloudRunSessionRuntim
     }
 
     private Duration operationPollInterval() {
-        return positiveDuration(properties.getOperationPollInterval(), Duration.ofSeconds(2));
+        return positiveDuration(properties.getOperationPollInterval(), Duration.ofSeconds(5));
     }
 
     private Duration operationPollTimeout() {

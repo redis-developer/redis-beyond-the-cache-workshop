@@ -19,7 +19,7 @@
  * @returns {string} The base path (e.g., '/workshop/session-management' or '/')
  */
 export function getBasePath() {
-  const defaultBase = process.env.BASE_URL || '/';
+  const defaultBase = getDefaultBasePath();
   const pathname = window.location.pathname || '';
 
   const proxyContext = getWorkshopProxyContext(pathname);
@@ -29,7 +29,7 @@ export function getBasePath() {
   }
 
   // Running standalone - return default base path without trailing slash
-  return defaultBase.replace(/\/$/, '');
+  return defaultBase;
 }
 
 /**
@@ -60,6 +60,88 @@ export function getApiUrl(endpoint) {
   return `${basePath}${normalizedEndpoint}`;
 }
 
+/**
+ * Resolve the embedded VS Code proxy URL for the current runtime.
+ *
+ * The editor is always exposed through the same origin at /code/. When the
+ * workshop runs behind a session route, the proxy stays session scoped at
+ * /session/{sessionId}/code/.
+ *
+ * @param {Object} [options]
+ * @param {Location} [options.location] - Override location, mainly for tests
+ * @param {string} [options.basePath] - Explicit base path override
+ * @returns {string} The same origin editor proxy URL
+ */
+export function getCodeEditorUrl(options = {}) {
+  const runtimeLocation = getRuntimeLocation(options.location);
+  const proxyContext = getWorkshopProxyContext(runtimeLocation.pathname || '');
+  const basePath = normalizeBasePath(
+    options.basePath !== undefined
+      ? options.basePath
+      : (proxyContext?.basePath || getDefaultBasePath())
+  );
+  const editorUrl = new URL(`${basePath}/code/`, getRuntimeOrigin(runtimeLocation));
+  const normalizedWorkspaceRoot = normalizeCodeEditorFilePath(options.workspaceRoot);
+
+  if (normalizedWorkspaceRoot) {
+    editorUrl.searchParams.set('folder', normalizedWorkspaceRoot);
+  }
+
+  return toSameOriginPath(editorUrl, runtimeLocation);
+}
+
+/**
+ * Resolve a code-server URL that opens a specific file in the embedded editor.
+ *
+ * code-server's web workbench does not support a plain `file=` query parameter.
+ * It accepts an initial workbench payload with an `openFile` entry instead.
+ *
+ * @param {string} filePath - Absolute path inside the code-server workspace
+ * @param {Object} [options]
+ * @param {Location} [options.location] - Override location, mainly for tests
+ * @param {string} [options.basePath] - Explicit base path override
+ * @param {string} [options.workspaceRoot] - Absolute code-server workspace folder
+ * @param {string|number} [options.requestId] - Optional value to force iframe reloads
+ * @returns {string} The same origin editor proxy URL with open-file payload
+ */
+export function getCodeEditorFileUrl(filePath, options = {}) {
+  const runtimeLocation = getRuntimeLocation(options.location);
+  const editorUrl = new URL(
+    getCodeEditorUrl(options),
+    getRuntimeOrigin(runtimeLocation)
+  );
+  const normalizedFilePath = normalizeCodeEditorFilePath(filePath);
+
+  if (!normalizedFilePath) {
+    return toSameOriginPath(editorUrl, runtimeLocation);
+  }
+
+  editorUrl.searchParams.set('payload', JSON.stringify([['openFile', toCodeServerRemoteUri(normalizedFilePath)]]));
+  const normalizedWorkspaceRoot = normalizeCodeEditorFilePath(options.workspaceRoot);
+  if (normalizedWorkspaceRoot) {
+    editorUrl.searchParams.set('folder', normalizedWorkspaceRoot);
+  }
+
+  if (options.requestId !== undefined && options.requestId !== null) {
+    editorUrl.searchParams.set('workshopOpen', String(options.requestId));
+  }
+
+  return toSameOriginPath(editorUrl, runtimeLocation);
+}
+
+function getDefaultBasePath() {
+  return (process.env.BASE_URL || '/').replace(/\/$/, '');
+}
+
+function normalizeBasePath(basePath) {
+  if (!basePath || basePath === '/') {
+    return '';
+  }
+
+  const withLeadingSlash = basePath.startsWith('/') ? basePath : `/${basePath}`;
+  return withLeadingSlash.replace(/\/$/, '');
+}
+
 function getRuntimeLocation(location = globalThis.window?.location) {
   return location || { pathname: '', protocol: 'http:', hostname: 'localhost' };
 }
@@ -75,6 +157,36 @@ function getRuntimeOrigin(location = globalThis.window?.location) {
   const host = runtimeLocation.host || runtimeLocation.hostname || 'localhost';
 
   return `${protocol}//${host}`;
+}
+
+function normalizeCodeEditorFilePath(filePath) {
+  if (typeof filePath !== 'string') {
+    return '';
+  }
+
+  const trimmed = filePath.trim();
+  if (!trimmed || !trimmed.startsWith('/')) {
+    return '';
+  }
+
+  return trimmed.replace(/\/+/g, '/');
+}
+
+function toCodeServerRemoteUri(filePath) {
+  const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+
+  return `vscode-remote://remote${encodedPath}`;
+}
+
+function toSameOriginPath(url, location = globalThis.window?.location) {
+  const runtimeLocation = getRuntimeLocation(location);
+  const runtimeOrigin = getRuntimeOrigin(runtimeLocation);
+
+  if (url.origin === runtimeOrigin) {
+    return `${url.pathname}${url.search}${url.hash}`;
+  }
+
+  return url.toString();
 }
 
 function getWorkshopProxyContext(pathname = '') {
