@@ -14,6 +14,12 @@
             </defs>
           </svg>
         </div>
+        <div v-if="portalUser" class="portal-account">
+          <span class="portal-email">{{ portalUser.email }}</span>
+          <button type="button" class="logout-button" @click="logout">
+            Logout
+          </button>
+        </div>
       </div>
     </header>
 
@@ -46,7 +52,7 @@ export default {
     };
   },
   computed: {
-    ...mapState(['error']),
+    ...mapState(['error', 'portalUser']),
     ...mapGetters(['allWorkshops']),
     workshops() {
       return this.allWorkshops;
@@ -64,7 +70,10 @@ export default {
     }
   },
   methods: {
-    ...mapActions(['refreshAll', 'fetchSessions'])
+    ...mapActions(['refreshAll', 'fetchSessions', 'logoutFromPortal']),
+    async logout() {
+      await this.logoutFromPortal();
+    }
   }
 };
 </script>
@@ -91,6 +100,7 @@ export default {
 .top-bar-content {
   align-items: center;
   display: flex;
+  justify-content: space-between;
   padding: 0 var(--spacing-6);
   width: 100%;
 }
@@ -98,6 +108,31 @@ export default {
 .redis-logo {
   align-items: center;
   display: flex;
+}
+
+.portal-account {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-3);
+}
+
+.portal-email {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.logout-button {
+  background-color: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-size: var(--font-size-sm);
+  padding: var(--spacing-2) var(--spacing-3);
+}
+
+.logout-button:hover {
+  border-color: #ff4438;
+  color: #ff6b5f;
 }
 
 .main-content {
@@ -140,6 +175,19 @@ export default {
 
   .top-bar-content {
     padding: 0 var(--spacing-4);
+  }
+
+  .portal-account {
+    align-items: flex-end;
+    flex-direction: column;
+    gap: var(--spacing-2);
+  }
+
+  .portal-email {
+    max-width: 12rem;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .content-header h1 {

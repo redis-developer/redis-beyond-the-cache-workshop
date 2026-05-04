@@ -9,6 +9,13 @@ platform:
     session:
       defaults:
         ttl: ${PLATFORM_CONTROLPLANE_SESSION_DEFAULTS_TTL:180m}
+    portal:
+      session:
+        cookie-name: ${PLATFORM_CONTROLPLANE_PORTAL_SESSION_COOKIE_NAME:portal_session}
+        ttl: ${PLATFORM_CONTROLPLANE_PORTAL_SESSION_TTL:180m}
+        secure-cookie: ${PLATFORM_CONTROLPLANE_PORTAL_SESSION_COOKIE_SECURE:false}
+        redis-key-prefix: ${PLATFORM_CONTROLPLANE_PORTAL_SESSION_REDIS_KEY_PREFIX:platform:portal:sessions:}
+        contact-preference-redis-key-prefix: ${PLATFORM_CONTROLPLANE_PORTAL_CONTACT_PREFERENCE_REDIS_KEY_PREFIX:platform:portal:contact_preferences:}
     execution:
       base-url: ${EXECUTION_PLANE_BASE_URL:http://localhost:9001}
       shared-secret: ${EXECUTION_PLANE_SHARED_SECRET:}

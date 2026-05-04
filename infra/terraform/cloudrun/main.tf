@@ -27,6 +27,33 @@ locals {
     managed_by  = "terraform"
     runtime     = "cloud-run"
   })
+
+  control_plane_redis_env = var.control_plane_redis_host == null ? [] : concat(
+    [
+      {
+        name  = "SPRING_DATA_REDIS_HOST"
+        value = trimspace(var.control_plane_redis_host)
+      },
+      {
+        name  = "SPRING_DATA_REDIS_PORT"
+        value = tostring(var.control_plane_redis_port)
+      },
+      {
+        name  = "SPRING_DATA_REDIS_DATABASE"
+        value = tostring(var.control_plane_redis_database)
+      },
+      {
+        name  = "SPRING_DATA_REDIS_SSL_ENABLED"
+        value = tostring(var.control_plane_redis_ssl_enabled)
+      }
+    ],
+    var.control_plane_redis_username == null ? [] : [
+      {
+        name  = "SPRING_DATA_REDIS_USERNAME"
+        value = trimspace(var.control_plane_redis_username)
+      }
+    ]
+  )
 }
 
 data "google_project" "current" {
@@ -188,6 +215,42 @@ resource "google_cloud_run_v2_service" "control_plane" {
         name  = "PLATFORM_CONTROLPLANE_SESSION_DEFAULTS_TTL"
         value = var.control_plane_session_default_ttl
       }
+
+      env {
+        name  = "PLATFORM_CONTROLPLANE_PORTAL_SESSION_TTL"
+        value = var.control_plane_session_default_ttl
+      }
+
+      env {
+        name  = "PLATFORM_CONTROLPLANE_PORTAL_SESSION_COOKIE_SECURE"
+        value = "true"
+      }
+
+      dynamic "env" {
+        for_each = local.control_plane_redis_env
+        iterator = redis_env
+
+        content {
+          name  = redis_env.value.name
+          value = redis_env.value.value
+        }
+      }
+
+      dynamic "env" {
+        for_each = var.control_plane_redis_password_secret_id == null ? [] : [trimspace(var.control_plane_redis_password_secret_id)]
+        iterator = redis_password_env
+
+        content {
+          name = "SPRING_DATA_REDIS_PASSWORD"
+
+          value_source {
+            secret_key_ref {
+              secret  = redis_password_env.value
+              version = trimspace(var.control_plane_redis_password_secret_version)
+            }
+          }
+        }
+      }
     }
   }
 
@@ -196,7 +259,10 @@ resource "google_cloud_run_v2_service" "control_plane" {
     percent = 100
   }
 
-  depends_on = [google_project_service.required]
+  depends_on = [
+    google_project_service.required,
+    google_secret_manager_secret_iam_member.control_plane_redis_password_access
+  ]
 }
 
 resource "google_cloud_run_v2_service" "execution_plane" {
@@ -373,4 +439,13 @@ resource "google_secret_manager_secret_iam_member" "session_runner_secret_access
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.platform["session_runner"].email}"
+}
+
+resource "google_secret_manager_secret_iam_member" "control_plane_redis_password_access" {
+  for_each = var.control_plane_redis_password_secret_id == null ? toset([]) : toset([trimspace(var.control_plane_redis_password_secret_id)])
+
+  project   = var.project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.platform["control_plane"].email}"
 }

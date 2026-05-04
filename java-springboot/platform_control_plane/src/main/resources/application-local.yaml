@@ -12,6 +12,9 @@ spring:
 
 platform:
   controlplane:
+    portal:
+      session:
+        secure-cookie: false
     execution:
       base-url:
       shared-secret:

@@ -5,6 +5,7 @@ import com.redis.workshop.platform.controlplane.observability.SessionLifecycleMe
 import com.redis.workshop.platform.controlplane.release.ReleaseCatalogEntry;
 import com.redis.workshop.platform.controlplane.release.ReleaseCatalogService;
 import com.redis.workshop.platform.controlplane.persistence.model.RouteType;
+import com.redis.workshop.platform.controlplane.portal.PortalSessionService;
 import com.redis.workshop.platform.controlplane.security.HeaderAuthenticatedActorFilter;
 import com.redis.workshop.platform.controlplane.security.SecurityConfiguration;
 import com.redis.workshop.platform.controlplane.session.SessionController;
@@ -52,6 +53,9 @@ class SessionLifecycleAuditResponseBodyAdviceWebMvcTest {
 
     @MockitoBean
     private ReleaseCatalogAuditHooks releaseCatalogAuditHooks;
+
+    @MockitoBean
+    private PortalSessionService portalSessionService;
 
     @Test
     void recordsSessionCreatedAuditEvent() throws Exception {

@@ -68,6 +68,20 @@ event_id                      = "personal-rdlts-smoke"
 
 Set `workspace_bucket_name` only when the generated bucket name is unavailable. Set `billing_account_id`, `budget_amount_units`, and `budget_notification_channels` only when budget alerts should be created.
 
+To store browser portal sessions in Redis, provision Redis outside this Terraform root and pass the endpoint to the control plane:
+
+```hcl
+control_plane_redis_host                       = "redis.example.internal"
+control_plane_redis_port                       = 6379
+control_plane_redis_database                   = 0
+control_plane_redis_username                   = "default"
+control_plane_redis_ssl_enabled                = true
+control_plane_redis_password_secret_id         = "control-plane-portal-redis-password"
+control_plane_redis_password_secret_version    = "latest"
+```
+
+The password secret must already exist in Secret Manager in `project_id`. Terraform grants the control plane service account `roles/secretmanager.secretAccessor` for that secret and injects it as `SPRING_DATA_REDIS_PASSWORD`.
+
 If you do not have a custom domain yet, set `gateway_host` to a temporary value for the first apply, read `cloud_run_services.control_plane.uri` from the outputs, strip the `https://` prefix, then apply again with `gateway_host` set to that host before launching sessions.
 
 The current implementation proxies through Cloud Run service URLs, so `execution_plane_ingress` and `session_runner_ingress` default to `INGRESS_TRAFFIC_ALL`. Move them to private ingress only after the control plane uses a private service path that is verified by a launch smoke test.
@@ -91,6 +105,19 @@ terraform -chdir=infra/terraform/cloudrun validate
 The deployed execution plane uses the real Google Cloud Run runtime client by default through `PLATFORM_EXECUTION_PLANE_CLOUD_RUN_CLIENT=google`.
 
 The deployed control plane receives `EXECUTION_PLANE_BASE_URL` from the execution plane service URI and sends `EXECUTION_PLANE_SHARED_SECRET` on internal execution plane calls. Both long lived Cloud Run services disable Cloud Run invoker IAM in this Terraform root; keep the execution plane shared secret in place because the current verified path uses Cloud Run URL ingress.
+
+When `control_plane_redis_host` is set, the control plane also receives:
+
+```text
+SPRING_DATA_REDIS_HOST
+SPRING_DATA_REDIS_PORT
+SPRING_DATA_REDIS_DATABASE
+SPRING_DATA_REDIS_SSL_ENABLED
+SPRING_DATA_REDIS_USERNAME
+SPRING_DATA_REDIS_PASSWORD
+```
+
+`SPRING_DATA_REDIS_USERNAME` is omitted when `control_plane_redis_username` is null. `SPRING_DATA_REDIS_PASSWORD` is omitted when `control_plane_redis_password_secret_id` is null.
 
 The `session_runner_defaults` output records the environment defaults used by the execution plane:
 

@@ -7,6 +7,8 @@ import com.redis.workshop.platform.controlplane.console.ControlPlaneConsoleContr
 import com.redis.workshop.platform.controlplane.audit.AuditTrailService;
 import com.redis.workshop.platform.controlplane.audit.ReleaseCatalogAuditHooks;
 import com.redis.workshop.platform.controlplane.observability.SessionLifecycleMetricsRecorder;
+import com.redis.workshop.platform.controlplane.portal.PortalSession;
+import com.redis.workshop.platform.controlplane.portal.PortalSessionService;
 import com.redis.workshop.platform.controlplane.release.ReleaseCatalogService;
 import com.redis.workshop.platform.controlplane.persistence.model.RouteType;
 import com.redis.workshop.platform.controlplane.session.SessionController;
@@ -23,8 +25,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 
+import jakarta.servlet.http.Cookie;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static org.mockito.BDDMockito.given;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -58,6 +62,9 @@ class SecurityConfigurationWebMvcTest {
 
     @MockitoBean
     private ReleaseCatalogAuditHooks releaseCatalogAuditHooks;
+
+    @MockitoBean
+    private PortalSessionService portalSessionService;
 
     @Test
     void allowsAnonymousControlPlaneConsole() throws Exception {
@@ -116,6 +123,22 @@ class SecurityConfigurationWebMvcTest {
 
         mockMvc.perform(get("/api/sessions")
                 .header(HeaderAuthenticatedActorFilter.ACTOR_ID_HEADER, "learner-1"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0].sessionId").value("sess-001"));
+    }
+
+    @Test
+    void acceptsPortalCookieIdentityOnProtectedSessionRoutes() throws Exception {
+        given(sessionService.listSessions()).willReturn(List.of(sampleSession("sess-001")));
+        given(portalSessionService.findByToken("opaque-token")).willReturn(Optional.of(new PortalSession(
+            "learner@example.com",
+            Instant.parse("2026-04-21T10:00:00Z"),
+            Instant.parse("2026-04-21T18:00:00Z"),
+            List.of("sess-001")
+        )));
+
+        mockMvc.perform(get("/api/sessions")
+                .cookie(new Cookie("portal_session", "opaque-token")))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$[0].sessionId").value("sess-001"));
     }

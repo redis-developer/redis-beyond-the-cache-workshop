@@ -172,6 +172,78 @@ variable "control_plane_session_default_ttl" {
   }
 }
 
+variable "control_plane_redis_host" {
+  description = "Optional Redis host used by the control plane for browser portal session storage. Leave null to use application local defaults."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.control_plane_redis_host == null ? true : length(trimspace(var.control_plane_redis_host)) > 0
+    error_message = "control_plane_redis_host must be null or a non empty host name."
+  }
+}
+
+variable "control_plane_redis_port" {
+  description = "Redis port used by the control plane for browser portal session storage."
+  type        = number
+  default     = 6379
+
+  validation {
+    condition     = var.control_plane_redis_port >= 1 && var.control_plane_redis_port <= 65535
+    error_message = "control_plane_redis_port must be between 1 and 65535."
+  }
+}
+
+variable "control_plane_redis_database" {
+  description = "Redis logical database index used by the control plane for browser portal session storage."
+  type        = number
+  default     = 0
+
+  validation {
+    condition     = var.control_plane_redis_database >= 0
+    error_message = "control_plane_redis_database must be zero or greater."
+  }
+}
+
+variable "control_plane_redis_username" {
+  description = "Optional Redis ACL username used by the control plane for browser portal session storage."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.control_plane_redis_username == null ? true : length(trimspace(var.control_plane_redis_username)) > 0
+    error_message = "control_plane_redis_username must be null or a non empty username."
+  }
+}
+
+variable "control_plane_redis_ssl_enabled" {
+  description = "Whether the control plane should use TLS for Redis portal session storage."
+  type        = bool
+  default     = false
+}
+
+variable "control_plane_redis_password_secret_id" {
+  description = "Optional Secret Manager secret id containing the Redis password for control plane browser portal session storage."
+  type        = string
+  default     = null
+
+  validation {
+    condition     = var.control_plane_redis_password_secret_id == null ? true : length(trimspace(var.control_plane_redis_password_secret_id)) > 0
+    error_message = "control_plane_redis_password_secret_id must be null or a non empty Secret Manager secret id."
+  }
+}
+
+variable "control_plane_redis_password_secret_version" {
+  description = "Secret Manager version for control_plane_redis_password_secret_id."
+  type        = string
+  default     = "latest"
+
+  validation {
+    condition     = length(trimspace(var.control_plane_redis_password_secret_version)) > 0
+    error_message = "control_plane_redis_password_secret_version must be non empty."
+  }
+}
+
 variable "execution_plane_min_instances" {
   description = "Minimum always warm execution plane instances."
   type        = number

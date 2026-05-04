@@ -10,6 +10,7 @@ import com.redis.workshop.platform.controlplane.persistence.model.WorkspaceClean
 import com.redis.workshop.platform.controlplane.persistence.model.WorkspacePolicy;
 import com.redis.workshop.platform.controlplane.persistence.repository.PlatformSessionRecordRepository;
 import com.redis.workshop.platform.controlplane.policy.PolicyDecision;
+import com.redis.workshop.platform.controlplane.policy.DefaultSessionAccessPolicy;
 import com.redis.workshop.platform.controlplane.policy.SessionAccessPolicy;
 import com.redis.workshop.platform.controlplane.policy.SessionProvisioningPolicy;
 import com.redis.workshop.platform.controlplane.policy.SessionProvisioningProfile;
@@ -25,6 +26,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
+import org.mockito.ArgumentCaptor;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -42,6 +44,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -348,6 +351,84 @@ class SessionServiceTest {
 
         verify(sessionRepository, never()).save(any());
         verify(sessionRuntimeLifecyclePort, never()).requestLaunch(any(SessionLaunchRequest.class));
+    }
+
+    @Test
+    void allowsDifferentEmailLearnersToCreateSessionsForTheSameWorkshop() {
+        SessionService service = sessionServiceWithDefaultPolicy();
+        CurrentActor alice = learnerActor("alice@example.com");
+        CurrentActor bob = learnerActor("bob@example.com");
+        List<String> savedOwnerIds = new ArrayList<>();
+        when(currentActorProvider.requireCurrentActor()).thenReturn(alice, bob);
+        when(workshopCatalogService.getWorkshopEntry("1_session_management")).thenReturn(workshopEntry());
+        when(pilotLaunchRuleService.resolveRequestedReleaseVersion("1_session_management", null, "current"))
+            .thenReturn("current");
+        when(sessionProvisioningPolicy.resolve(any())).thenReturn(defaultProvisioningProfile());
+        when(sessionRepository.findFirstByOwnerUserIdAndWorkshopIdAndStateInOrderByCreatedAtDesc(
+            anyString(),
+            anyString(),
+            any()
+        )).thenReturn(Optional.empty());
+        when(sessionRepository.save(any(PlatformSessionRecord.class))).thenAnswer(invocation -> {
+            PlatformSessionRecord record = invocation.getArgument(0);
+            savedOwnerIds.add(record.getOwnerUserId());
+            return record;
+        });
+
+        SessionResponse aliceSession = service.createSession(new CreateSessionRequest(
+            "1_session_management",
+            null,
+            null
+        ));
+        SessionResponse bobSession = service.createSession(new CreateSessionRequest(
+            "1_session_management",
+            null,
+            null
+        ));
+
+        assertThat(aliceSession.workshopId()).isEqualTo("1_session_management");
+        assertThat(bobSession.workshopId()).isEqualTo("1_session_management");
+        assertThat(aliceSession.sessionId()).isNotEqualTo(bobSession.sessionId());
+        assertThat(savedOwnerIds)
+            .containsExactly("alice@example.com", "alice@example.com", "bob@example.com", "bob@example.com");
+        ArgumentCaptor<SessionLaunchRequest> launchRequest = ArgumentCaptor.forClass(SessionLaunchRequest.class);
+        verify(sessionRuntimeLifecyclePort, times(2)).requestLaunch(launchRequest.capture());
+        assertThat(launchRequest.getAllValues())
+            .extracting(SessionLaunchRequest::ownerUserId)
+            .containsExactly("alice@example.com", "bob@example.com");
+    }
+
+    @Test
+    void deniesOtherEmailFromReadingRestartingOrTerminatingOwnedSession() {
+        SessionService service = sessionServiceWithDefaultPolicy();
+        CurrentActor bob = learnerActor("bob@example.com");
+        PlatformSessionRecord readable = sessionRecord("sess-read", PlatformSessionState.READY);
+        PlatformSessionRecord restartable = sessionRecord("sess-restart", PlatformSessionState.READY);
+        PlatformSessionRecord terminable = sessionRecord("sess-terminate", PlatformSessionState.READY);
+        readable.setOwnerUserId("alice@example.com");
+        restartable.setOwnerUserId("alice@example.com");
+        terminable.setOwnerUserId("alice@example.com");
+        when(currentActorProvider.requireCurrentActor()).thenReturn(bob, bob, bob);
+        when(sessionRepository.findById("sess-read")).thenReturn(Optional.of(readable));
+        when(sessionRepository.findById("sess-restart")).thenReturn(Optional.of(restartable));
+        when(sessionRepository.findById("sess-terminate")).thenReturn(Optional.of(terminable));
+
+        assertThatThrownBy(() -> service.getSession("sess-read"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("403 FORBIDDEN")
+            .hasMessageContaining("session_read_not_authorized");
+        assertThatThrownBy(() -> service.restartSession("sess-restart", new RestartSessionRequest(false)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("403 FORBIDDEN")
+            .hasMessageContaining("session_restart_not_authorized");
+        assertThatThrownBy(() -> service.terminateSession("sess-terminate"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("403 FORBIDDEN")
+            .hasMessageContaining("session_terminate_not_authorized");
+
+        verify(sessionRepository, never()).save(any());
+        verify(sessionRuntimeLifecyclePort, never()).requestRestart(any());
+        verify(sessionRuntimeLifecyclePort, never()).requestTermination(any());
     }
 
     @Test
@@ -665,6 +746,43 @@ class SessionServiceTest {
         record.setWorkspaceRef("session-workspace:" + sessionId);
         record.setWorkspaceCleanupState(WorkspaceCleanupState.ACTIVE);
         return record;
+    }
+
+    private SessionService sessionServiceWithDefaultPolicy() {
+        return new SessionService(
+            sessionRepository,
+            workshopCatalogService,
+            new DefaultSessionAccessPolicy(),
+            sessionProvisioningPolicy,
+            currentActorProvider,
+            pilotLaunchRuleService,
+            releaseCatalogService,
+            sessionRuntimeLifecyclePort
+        );
+    }
+
+    private CurrentActor learnerActor(String email) {
+        return new CurrentActor(
+            email,
+            CurrentActorType.LEARNER,
+            java.util.Set.of(PlatformAuthorities.LEARNER)
+        );
+    }
+
+    private WorkshopCatalogEntry workshopEntry() {
+        return new WorkshopCatalogEntry(
+            "1_session_management",
+            "Distributed Session Management",
+            "Learn Redis backed sessions",
+            "Beginner",
+            30,
+            "/workshop/session-management/",
+            "current",
+            SessionMode.LAB,
+            List.of(SessionMode.LAB),
+            List.of("Sessions"),
+            true
+        );
     }
 
     private SessionProvisioningProfile defaultProvisioningProfile() {

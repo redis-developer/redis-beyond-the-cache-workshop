@@ -1,13 +1,14 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import store from '@/store'
 
 // Lazy-load view components for code splitting
-const WorkshopHub = () => import('../views/WorkshopHub.vue')
+const PortalHome = () => import('../views/PortalHome.vue')
 
 const routes = [
   {
     path: '/',
-    name: 'WorkshopHub',
-    component: WorkshopHub
+    name: 'PortalHome',
+    component: PortalHome
   }
 ]
 
@@ -16,5 +17,12 @@ const router = createRouter({
   routes
 })
 
-export default router
+router.beforeEach(async (to) => {
+  if (!store.state.portalLoaded) {
+    await store.dispatch('loadPortalUser');
+  }
 
+  return true;
+})
+
+export default router

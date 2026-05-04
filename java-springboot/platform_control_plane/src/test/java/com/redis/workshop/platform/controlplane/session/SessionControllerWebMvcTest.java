@@ -4,9 +4,11 @@ import com.redis.workshop.platform.controlplane.audit.AuditTrailService;
 import com.redis.workshop.platform.controlplane.audit.ReleaseCatalogAuditHooks;
 import com.redis.workshop.platform.controlplane.observability.SessionLifecycleMetricsRecorder;
 import com.redis.workshop.platform.controlplane.persistence.model.RouteType;
+import com.redis.workshop.platform.controlplane.portal.PortalSessionService;
 import com.redis.workshop.platform.controlplane.release.ReleaseCatalogService;
 import com.redis.workshop.platform.controlplane.security.HeaderAuthenticatedActorFilter;
 import com.redis.workshop.platform.controlplane.security.SecurityConfiguration;
+import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -23,6 +25,7 @@ import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
+import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -52,6 +55,9 @@ class SessionControllerWebMvcTest {
     @MockitoBean
     private ReleaseCatalogAuditHooks releaseCatalogAuditHooks;
 
+    @MockitoBean
+    private PortalSessionService portalSessionService;
+
     @Test
     void rejectsAnonymousSessionCreation() throws Exception {
         mockMvc.perform(post("/api/sessions")
@@ -66,12 +72,15 @@ class SessionControllerWebMvcTest {
 
         mockMvc.perform(post("/api/sessions")
                 .header(HeaderAuthenticatedActorFilter.ACTOR_ID_HEADER, "learner-1")
+                .cookie(new Cookie("portal_session", "opaque-token"))
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"workshopId\":\"1_session_management\"}"))
             .andExpect(status().isAccepted())
             .andExpect(header().string("Location", "/api/sessions/sess-001"))
             .andExpect(jsonPath("$.sessionId").value("sess-001"))
             .andExpect(jsonPath("$.state").value("ADMITTED"));
+
+        verify(portalSessionService).attachSession("opaque-token", "sess-001");
     }
 
     @Test
@@ -146,9 +155,12 @@ class SessionControllerWebMvcTest {
         given(sessionService.terminateSession("sess-001")).willReturn(sampleSession("sess-001", SessionState.TERMINATING));
 
         mockMvc.perform(delete("/api/sessions/sess-001")
-                .header(HeaderAuthenticatedActorFilter.ACTOR_ID_HEADER, "learner-1"))
+                .header(HeaderAuthenticatedActorFilter.ACTOR_ID_HEADER, "learner-1")
+                .cookie(new Cookie("portal_session", "opaque-token")))
             .andExpect(status().isAccepted())
             .andExpect(jsonPath("$.state").value("TERMINATING"));
+
+        verify(portalSessionService).detachSession("opaque-token", "sess-001");
     }
 
     private SessionResponse sampleSession(String sessionId, SessionState state) {

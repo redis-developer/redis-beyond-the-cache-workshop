@@ -1,22 +1,3 @@
-function actorHeaders() {
-  const actorId = process.env.VUE_APP_ACTOR_ID || 'local-learner';
-  const actorType = process.env.VUE_APP_ACTOR_TYPE || 'LEARNER';
-  const actorRoles = process.env.VUE_APP_ACTOR_ROLES || 'platform:learner';
-  const headers = {};
-
-  if (actorId) {
-    headers['X-Platform-Actor-Id'] = actorId;
-  }
-  if (actorType) {
-    headers['X-Platform-Actor-Type'] = actorType;
-  }
-  if (actorRoles) {
-    headers['X-Platform-Roles'] = actorRoles;
-  }
-
-  return headers;
-}
-
 export default {
   async request(url, options = {}) {
     const requestOptions = {
@@ -25,7 +6,6 @@ export default {
       credentials: 'include',
       headers: {
         'Content-Type': 'application/json',
-        ...actorHeaders(),
         ...options.headers
       }
     };

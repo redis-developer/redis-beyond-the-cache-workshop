@@ -1,4 +1,5 @@
 import { createStore } from 'vuex'
+import PortalService from '@/services/PortalService'
 import WorkshopService from '@/services/WorkshopService'
 
 const ACTIVE_SESSION_STATES = new Set([
@@ -85,6 +86,10 @@ function upsertSession(sessions, updatedSession) {
 
 export default createStore({
   state: {
+    portalUser: null,
+    portalLoaded: false,
+    portalLoading: false,
+    portalError: null,
     workshops: [],
     sessions: [],
     pendingActions: {},
@@ -107,6 +112,10 @@ export default createStore({
       });
     },
 
+    isPortalAuthenticated: (state) => {
+      return Boolean(state.portalUser);
+    },
+
     activeSessionByWorkshopId: (state) => (workshopId) => {
       return activeSessionFor(workshopId, state.sessions);
     },
@@ -117,6 +126,22 @@ export default createStore({
   },
 
   mutations: {
+    setPortalUser(state, user) {
+      state.portalUser = user;
+    },
+
+    setPortalLoaded(state, loaded) {
+      state.portalLoaded = loaded;
+    },
+
+    setPortalLoading(state, loading) {
+      state.portalLoading = loading;
+    },
+
+    setPortalError(state, error) {
+      state.portalError = error;
+    },
+
     setWorkshops(state, workshops) {
       state.workshops = workshops;
     },
@@ -152,10 +177,76 @@ export default createStore({
 
     setError(state, error) {
       state.error = error;
+    },
+
+    resetWorkshopState(state) {
+      state.workshops = [];
+      state.sessions = [];
+      state.pendingActions = {};
+      state.loading = false;
+      state.error = null;
     }
   },
 
   actions: {
+    async loadPortalUser({ commit }) {
+      commit('setPortalLoading', true);
+
+      try {
+        const user = await PortalService.getCurrentUser();
+        commit('setPortalUser', user);
+        commit('setPortalError', null);
+        return user;
+      } catch (error) {
+        commit('setPortalUser', null);
+        if (error.status === 401 || error.status === 403) {
+          commit('setPortalError', null);
+        } else {
+          commit('setPortalError', error.message);
+        }
+        return null;
+      } finally {
+        commit('setPortalLoaded', true);
+        commit('setPortalLoading', false);
+      }
+    },
+
+    async loginToPortal({ commit }, credentials) {
+      commit('setPortalLoading', true);
+      commit('setPortalError', null);
+
+      try {
+        const email = typeof credentials === 'string' ? credentials : credentials.email;
+        const allowMarketingContact = typeof credentials === 'string'
+          ? true
+          : credentials.allowMarketingContact;
+        const user = await PortalService.login(email, allowMarketingContact);
+        if (!user) {
+          throw new Error('Portal login did not return an authenticated user');
+        }
+        commit('setPortalUser', user);
+        commit('setPortalLoaded', true);
+        return user;
+      } catch (error) {
+        commit('setPortalUser', null);
+        commit('setPortalError', error.message);
+        throw error;
+      } finally {
+        commit('setPortalLoading', false);
+      }
+    },
+
+    async logoutFromPortal({ commit }) {
+      try {
+        await PortalService.logout();
+      } finally {
+        commit('setPortalUser', null);
+        commit('setPortalLoaded', true);
+        commit('setPortalError', null);
+        commit('resetWorkshopState');
+      }
+    },
+
     async refreshAll({ dispatch }) {
       await Promise.all([
         dispatch('fetchWorkshops'),
