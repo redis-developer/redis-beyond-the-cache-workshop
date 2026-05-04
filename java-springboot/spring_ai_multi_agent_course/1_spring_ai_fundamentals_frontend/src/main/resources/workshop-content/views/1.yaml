@@ -1,0 +1,61 @@
+schemaVersion: 1
+viewId: "1"
+route: /1
+pageType: narrative
+title: "ChatModel, ChatClient, And The Minimum Prompt"
+slot: instructions
+summary: Wire the model, create a ChatClient, and send the smallest useful stock prompt.
+navigation:
+  previousLabel: Intro and setup
+  nextLabel: Add structured output
+sections:
+  - sectionId: goal
+    title: Exercise Goal
+    blocks:
+      - type: markdown
+        body: |
+          Start with the two Spring AI building blocks you will use throughout the course.
+
+          `ChatModel` is the model integration. `ChatClient` is the fluent API you will use from application code.
+      - type: codeSnippet
+        language: java
+        title: Minimum Prompt Shape
+        caption: Keep the first prompt plain so you can see what the model returns before adding structure.
+        code: |
+          String answer = chatClient.prompt()
+              .user("Give a beginner friendly read on MSFT in three bullets.")
+              .call()
+              .content();
+      - type: stepList
+        listId: minimum-prompt
+        variant: ordered
+        items:
+          - itemId: add-dependencies
+            title: Add Spring AI Dependencies
+            body: Confirm the Spring AI starter is present in `build.gradle.kts`.
+            actions:
+              - id: openFile
+                label: Open Build File
+                args:
+                  file: build.gradle.kts
+          - itemId: find-client
+            title: Find The Client Setup
+            body: Open `SpringAiDemoService.java` and find where `ChatClient` is built around the OpenAI `ChatModel`.
+            actions:
+              - id: openFile
+                label: Open Service
+                args:
+                  file: SpringAiDemoService.java
+          - itemId: call-service
+            title: Change The Plain Prompt
+            body: Change the fallback stock question in `SpringAiDemoService.java`, recompile, and use the UI to compare the response.
+            hint: Do not add memory, tools, or JSON yet.
+            actions:
+              - id: openFile
+                label: Open Service
+                args:
+                  file: SpringAiDemoService.java
+      - type: callout
+        tone: warning
+        title: Checkpoint
+        body: If this step fails, fix model configuration before moving on. Every later exercise depends on a working plain prompt.

@@ -87,9 +87,9 @@ class SessionControllerWebMvcTest {
     void returnsExistingSessionOnDuplicateActiveSessionConflict() throws Exception {
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
             org.springframework.http.HttpStatus.CONFLICT,
-            "An active session already exists for this workshop."
+            "You already have an active workshop. Stop it before deploying another one."
         );
-        problemDetail.setProperty("message", "An active session already exists for this workshop.");
+        problemDetail.setProperty("message", "You already have an active workshop. Stop it before deploying another one.");
         problemDetail.setProperty("code", "active_session_exists");
         problemDetail.setProperty("existingSessionId", "sess-001");
         problemDetail.setProperty("existingSession", sampleSession("sess-001", SessionState.READY));

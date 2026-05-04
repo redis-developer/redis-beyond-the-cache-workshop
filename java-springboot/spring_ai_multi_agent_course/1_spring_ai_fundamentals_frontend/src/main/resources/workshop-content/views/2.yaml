@@ -1,0 +1,63 @@
+schemaVersion: 1
+viewId: "2"
+route: /2
+pageType: narrative
+title: "Structured Output"
+slot: instructions
+summary: Convert free text into a typed stock summary that application code can trust.
+navigation:
+  previousLabel: Minimum prompt
+  nextLabel: Add tools
+sections:
+  - sectionId: goal
+    title: Exercise Goal
+    blocks:
+      - type: markdown
+        body: |
+          Free text is useful for people. Application code needs predictable fields.
+
+          In this exercise, ask the model for a compact stock summary and map the response into a Java record.
+      - type: codeSnippet
+        language: java
+        title: Typed Response Shape
+        caption: A small record is enough for the first structured output pass.
+        code: |
+          public record StockDecision(
+              String finishReason,
+              String resolvedTicker,
+              String resolvedQuestion,
+              String reasoning
+          ) {
+          }
+      - type: codeSnippet
+        language: java
+        title: Entity Call
+        caption: Use `entity(...)` when you want Spring AI to map the answer into your type.
+        code: |
+          StockDecision decision = chatClient.prompt()
+              .user("Analyze Apple stock")
+              .call()
+              .responseEntity(StockDecision.class)
+              .entity();
+      - type: stepList
+        listId: structured-output
+        variant: ordered
+        items:
+          - itemId: define-record
+            title: Inspect The Output Type
+            body: Find the `StockDecision` record and note how the fields become UI fields.
+          - itemId: replace-content
+            title: Change The Structured Prompt
+            body: Change the structured prompt in `SpringAiDemoService.java` so it resolves a different stock question.
+            actions:
+              - id: openFile
+                label: Open Service
+                args:
+                  file: SpringAiDemoService.java
+          - itemId: tighten-prompt
+            title: Make The Prompt Specific
+            body: Ask for a ticker, a resolved question, and concise reasoning. Keep the wording short.
+      - type: callout
+        tone: info
+        title: Prompt Discipline
+        body: Structured output works best when the Java type is simple and the prompt names the fields the user expects.

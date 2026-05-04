@@ -1,0 +1,39 @@
+schemaVersion: 1
+viewId: "0"
+route: /0
+pageType: narrative
+title: "Part 0: Intro And Setup"
+slot: instructions
+summary: Start with the smallest Spring AI stock helper and keep the first build intentionally shallow.
+navigation:
+  nextLabel: Build the first prompt
+sections:
+  - sectionId: overview
+    title: What You Will Build
+    blocks:
+      - type: markdown
+        body: |
+          This module is a Part 0 workshop for Spring AI. You will build a small stock analysis helper that can answer simple questions, return structured data, call a local market data tool, and remember enough context to make follow up prompts useful.
+
+          The goal is not financial accuracy. The goal is to understand the Spring AI surface area before the later orchestration modules.
+      - type: stepList
+        listId: setup-checklist
+        variant: checklist
+        items:
+          - itemId: inspect-files
+            title: Inspect the learner files
+            body: Open the editor and find the Gradle build, application properties, AI config, demo service, and market data tools.
+            actions:
+              - id: openEditor
+                label: Open Editor
+          - itemId: add-key
+            title: Configure your model access
+            body: Put the model API key in the expected environment variable or local configuration used by your runtime.
+            hint: Keep secrets out of committed files.
+          - itemId: run-first
+            title: Run once before changing code
+            body: Start from a known baseline so each exercise has a clear before and after.
+      - type: callout
+        tone: info
+        title: Keep The Domain Small
+        body: Use stocks as the running example, but stay shallow. Prompts should ask for observations, risk notes, and next questions, not trading advice.

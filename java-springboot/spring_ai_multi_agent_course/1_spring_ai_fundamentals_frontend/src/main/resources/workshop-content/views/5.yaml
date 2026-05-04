@@ -1,0 +1,58 @@
+schemaVersion: 1
+viewId: "5"
+route: /5
+pageType: narrative
+title: "Final Stock Helper And Bridge To Orchestration"
+slot: instructions
+summary: Combine prompt, structure, tools, and memory into one small helper before moving to multi agent orchestration.
+navigation:
+  previousLabel: Memory and advisors
+  nextLabel: Open editor checklist
+sections:
+  - sectionId: final-helper
+    title: Exercise Goal
+    blocks:
+      - type: markdown
+        body: |
+          Finish with one helper method that shows the complete Part 0 pattern.
+
+          It should accept a ticker symbol and conversation id, use the market data tool, return a typed response, and keep enough context for one follow up.
+      - type: codeSnippet
+        language: java
+        title: Final Helper Shape
+        caption: This is the target shape, not a full solution.
+        code: |
+          StockSnapshot analyze(String symbol, String conversationId) {
+              return chatClient.prompt()
+                  .advisors(advisor -> advisor.param("conversationId", conversationId))
+                  .tools(marketDataTools)
+                  .user("Analyze " + symbol + " using the market snapshot tool.")
+                  .call()
+                  .entity(StockSnapshot.class);
+          }
+      - type: stepList
+        listId: final-helper-checklist
+        variant: checklist
+        items:
+          - itemId: prompt
+            title: Prompt
+            body: The helper asks a clear stock question and names the symbol.
+          - itemId: structure
+            title: Structure
+            body: The helper returns a typed snapshot instead of raw text.
+          - itemId: tools
+            title: Tools
+            body: The helper gives the model access to local market data.
+          - itemId: memory
+            title: Memory
+            body: The helper accepts or creates a conversation id for follow up prompts.
+      - type: callout
+        tone: success
+        title: Bridge To Module 2
+        body: This helper is still a single model call. Multi agent orchestration starts when planning, tool selection, review, and final response become separate responsibilities.
+      - type: actionRow
+        actions:
+          - id: openRoute
+            label: Open Editor Checklist
+            args:
+              route: /editor

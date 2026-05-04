@@ -17,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatExceptionOfType;
@@ -34,20 +35,20 @@ class PortalSessionServiceTest {
         Duration.ofHours(8),
         false,
         "test:portal:",
-        "test:portal:contacts:"
+        "test:portal:marketing:"
     );
 
     @Mock
     private RedisTemplate<String, PortalSession> redisTemplate;
 
     @Mock
-    private RedisTemplate<String, PortalContactPreference> contactPreferenceRedisTemplate;
+    private RedisTemplate<String, Map<String, PortalMarketingPreference>> marketingPreferencesRedisTemplate;
 
     @Mock
     private ValueOperations<String, PortalSession> valueOperations;
 
     @Mock
-    private ValueOperations<String, PortalContactPreference> contactPreferenceValueOperations;
+    private ValueOperations<String, Map<String, PortalMarketingPreference>> marketingPreferencesValueOperations;
 
     @Mock
     private PlatformSessionRecordRepository sessionRepository;
@@ -58,7 +59,7 @@ class PortalSessionServiceTest {
     void setUp() {
         portalSessionService = new PortalSessionService(
             redisTemplate,
-            contactPreferenceRedisTemplate,
+            marketingPreferencesRedisTemplate,
             sessionRepository,
             PROPERTIES
         );
@@ -67,7 +68,7 @@ class PortalSessionServiceTest {
     @Test
     void createsRedisBackedJsonSessionWithNormalizedEmailHashedTokenKeyAndActiveSessionIds() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(contactPreferenceRedisTemplate.opsForValue()).thenReturn(contactPreferenceValueOperations);
+        when(marketingPreferencesRedisTemplate.opsForValue()).thenReturn(marketingPreferencesValueOperations);
         when(sessionRepository.findAllByOwnerUserIdOrderByCreatedAtDesc("learner@example.com"))
             .thenReturn(List.of(
                 sessionRecord("sess-ready", PlatformSessionState.READY),
@@ -75,14 +76,14 @@ class PortalSessionServiceTest {
             ));
         ArgumentCaptor<String> keyCaptor = ArgumentCaptor.forClass(String.class);
         ArgumentCaptor<PortalSession> valueCaptor = ArgumentCaptor.forClass(PortalSession.class);
-        ArgumentCaptor<String> contactKeyCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<PortalContactPreference> contactValueCaptor =
-            ArgumentCaptor.forClass(PortalContactPreference.class);
+        ArgumentCaptor<String> marketingKeyCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<Map<String, PortalMarketingPreference>> marketingValueCaptor =
+            marketingPreferencesCaptor();
 
         PortalLoginResult result = portalSessionService.createSession(" Learner@Example.COM ");
 
         verify(valueOperations).set(keyCaptor.capture(), valueCaptor.capture(), eq(PROPERTIES.ttl()));
-        verify(contactPreferenceValueOperations).set(contactKeyCaptor.capture(), contactValueCaptor.capture());
+        verify(marketingPreferencesValueOperations).set(marketingKeyCaptor.capture(), marketingValueCaptor.capture());
         assertThat(result.token()).isNotBlank();
         assertThat(result.session().email()).isEqualTo("learner@example.com");
         assertThat(keyCaptor.getValue())
@@ -95,30 +96,28 @@ class PortalSessionServiceTest {
         assertThat(storedSession.expiresAt()).isAfter(storedSession.createdAt());
         assertThat(storedSession.sessionIds()).containsExactly("sess-ready");
 
-        assertThat(contactKeyCaptor.getValue())
-            .startsWith(PROPERTIES.contactPreferenceRedisKeyPrefix())
+        assertThat(marketingKeyCaptor.getValue())
+            .startsWith(PROPERTIES.marketingPreferenceRedisKeyPrefix())
             .doesNotContain("learner@example.com")
-            .hasSize(PROPERTIES.contactPreferenceRedisKeyPrefix().length() + 64);
-        PortalContactPreference storedPreference = contactValueCaptor.getValue();
-        assertThat(storedPreference.email()).isEqualTo("learner@example.com");
-        assertThat(storedPreference.allowMarketingContact()).isTrue();
-        assertThat(storedPreference.updatedAt()).isNotNull();
+            .hasSize(PROPERTIES.marketingPreferenceRedisKeyPrefix().length() + 64);
+        assertThat(marketingValueCaptor.getValue())
+            .containsEntry("learner@example.com", new PortalMarketingPreference(true));
     }
 
     @Test
     void storesDeclinedMarketingContactPreferenceOutsidePortalSession() {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(contactPreferenceRedisTemplate.opsForValue()).thenReturn(contactPreferenceValueOperations);
+        when(marketingPreferencesRedisTemplate.opsForValue()).thenReturn(marketingPreferencesValueOperations);
         when(sessionRepository.findAllByOwnerUserIdOrderByCreatedAtDesc("learner@example.com"))
             .thenReturn(List.of());
-        ArgumentCaptor<PortalContactPreference> contactValueCaptor =
-            ArgumentCaptor.forClass(PortalContactPreference.class);
+        ArgumentCaptor<Map<String, PortalMarketingPreference>> marketingValueCaptor =
+            marketingPreferencesCaptor();
 
         portalSessionService.createSession("learner@example.com", false);
 
-        verify(contactPreferenceValueOperations).set(any(), contactValueCaptor.capture());
-        assertThat(contactValueCaptor.getValue().email()).isEqualTo("learner@example.com");
-        assertThat(contactValueCaptor.getValue().allowMarketingContact()).isFalse();
+        verify(marketingPreferencesValueOperations).set(any(), marketingValueCaptor.capture());
+        assertThat(marketingValueCaptor.getValue())
+            .containsEntry("learner@example.com", new PortalMarketingPreference(false));
     }
 
     @Test
@@ -131,7 +130,7 @@ class PortalSessionServiceTest {
     @Test
     void resolvesStoredSessionFromOpaqueToken() throws Exception {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-        when(contactPreferenceRedisTemplate.opsForValue()).thenReturn(contactPreferenceValueOperations);
+        when(marketingPreferencesRedisTemplate.opsForValue()).thenReturn(marketingPreferencesValueOperations);
         when(sessionRepository.findAllByOwnerUserIdOrderByCreatedAtDesc("learner@example.com"))
             .thenReturn(List.of());
         PortalLoginResult result = portalSessionService.createSession("learner@example.com");
@@ -185,5 +184,12 @@ class PortalSessionServiceTest {
         record.setSessionId(sessionId);
         record.setState(state);
         return record;
+    }
+
+    @SuppressWarnings("unchecked")
+    private ArgumentCaptor<Map<String, PortalMarketingPreference>> marketingPreferencesCaptor() {
+        return (ArgumentCaptor<Map<String, PortalMarketingPreference>>) (ArgumentCaptor<?>) ArgumentCaptor.forClass(
+            Map.class
+        );
     }
 }

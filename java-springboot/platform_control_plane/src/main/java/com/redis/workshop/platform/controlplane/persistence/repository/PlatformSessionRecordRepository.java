@@ -17,9 +17,8 @@ public interface PlatformSessionRecordRepository extends JpaRepository<PlatformS
 
     List<PlatformSessionRecord> findAllByOwnerUserIdOrderByCreatedAtDesc(String ownerUserId);
 
-    Optional<PlatformSessionRecord> findFirstByOwnerUserIdAndWorkshopIdAndStateInOrderByCreatedAtDesc(
+    List<PlatformSessionRecord> findAllByOwnerUserIdAndStateInOrderByCreatedAtDesc(
         String ownerUserId,
-        String workshopId,
         Collection<PlatformSessionState> states
     );
 

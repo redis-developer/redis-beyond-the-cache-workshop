@@ -1,0 +1,121 @@
+schemaVersion: 1
+viewId: "6"
+route: /editor
+pageType: editor
+title: "Spring AI Fundamentals Editor"
+slot: instructions
+summary: Complete the Part 0 Spring AI exercises in the learner files.
+navigation:
+  previousLabel: Final helper
+sections:
+  - sectionId: overview
+    blocks:
+      - type: callout
+        tone: info
+        body: Work through the files in order. Keep each change small and verify plain chat before adding structure, tools, or memory.
+  - sectionId: setup
+    title: "Step 1: Configure Spring AI"
+    blocks:
+      - type: editorStepList
+        listId: configure-spring-ai
+        title: Build And Properties
+        startAt: 1
+        progressGroup: setup
+        items:
+          - itemId: open-build
+            body: Open `build.gradle.kts` and confirm the Spring AI starter dependencies are present.
+            action:
+              id: openFile
+              label: Open Build File
+              args:
+                file: build.gradle.kts
+          - itemId: open-properties
+            body: Open `application.properties` and confirm the model settings are configured for your runtime.
+            hint: Do not commit local secrets.
+            action:
+              id: openFile
+              label: Open Properties
+              args:
+                file: application.properties
+  - sectionId: client
+    title: "Step 2: Build The First Chat Call"
+    blocks:
+      - type: editorStepList
+        listId: first-chat-call
+        title: ChatModel And ChatClient
+        startAt: 3
+        progressGroup: client
+        items:
+          - itemId: open-config
+            body: Open `SpringAiFundamentalsAiConfig.java` and inspect the memory beans used later in the module.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: SpringAiFundamentalsAiConfig.java
+          - itemId: open-service
+            body: Open `SpringAiDemoService.java` and change the minimum stock prompt.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: SpringAiDemoService.java
+          - itemId: recompile-first
+            body: Recompile the app and verify the plain text answer works.
+            action:
+              id: recompileApp
+              label: Recompile App
+  - sectionId: structured
+    title: "Step 3: Add Structure"
+    blocks:
+      - type: editorStepList
+        listId: structured-call
+        title: Typed Stock Snapshot
+        startAt: 6
+        progressGroup: structured
+        items:
+          - itemId: add-record
+            body: Inspect the `StockDecision` record and the fields returned to the UI.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: SpringAiDemoService.java
+          - itemId: use-entity
+            body: Adjust one structured prompt and verify the typed result changes.
+            hint: Keep the prompt explicit about the fields you need.
+  - sectionId: tools-memory
+    title: "Step 4: Add Tools And Memory"
+    blocks:
+      - type: editorStepList
+        listId: tools-and-memory
+        title: Market Data And Follow Ups
+        startAt: 8
+        progressGroup: tools-memory
+        items:
+          - itemId: open-market-tools
+            body: Open `MarketDataTools.java` and change one synthetic market snapshot.
+            action:
+              id: openFile
+              label: Open Tools
+              args:
+                file: MarketDataTools.java
+          - itemId: use-tool
+            body: Find where the tool is attached to the stock analysis prompt.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: SpringAiDemoService.java
+          - itemId: add-advisor
+            body: Find the memory advisor and the conversation id parameter in the service.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: SpringAiFundamentalsAiConfig.java
+          - itemId: recompile-final
+            body: Recompile and test a follow up stock question.
+            action:
+              id: recompileApp
+              label: Recompile App

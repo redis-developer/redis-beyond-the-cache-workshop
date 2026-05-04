@@ -21,6 +21,7 @@ import java.util.EnumSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
@@ -44,20 +45,20 @@ public class PortalSessionService {
     );
 
     private final RedisTemplate<String, PortalSession> redisTemplate;
-    private final RedisTemplate<String, PortalContactPreference> contactPreferenceRedisTemplate;
+    private final RedisTemplate<String, Map<String, PortalMarketingPreference>> marketingPreferencesRedisTemplate;
     private final PlatformSessionRecordRepository sessionRepository;
     private final PortalSessionProperties properties;
     private final SecureRandom secureRandom;
 
     public PortalSessionService(
         @Qualifier("portalSessionRedisTemplate") RedisTemplate<String, PortalSession> redisTemplate,
-        @Qualifier("portalContactPreferenceRedisTemplate")
-        RedisTemplate<String, PortalContactPreference> contactPreferenceRedisTemplate,
+        @Qualifier("portalMarketingPreferencesRedisTemplate")
+        RedisTemplate<String, Map<String, PortalMarketingPreference>> marketingPreferencesRedisTemplate,
         PlatformSessionRecordRepository sessionRepository,
         PortalSessionProperties properties
     ) {
         this.redisTemplate = redisTemplate;
-        this.contactPreferenceRedisTemplate = contactPreferenceRedisTemplate;
+        this.marketingPreferencesRedisTemplate = marketingPreferencesRedisTemplate;
         this.sessionRepository = sessionRepository;
         this.properties = properties;
         this.secureRandom = new SecureRandom();
@@ -67,11 +68,11 @@ public class PortalSessionService {
         return createSession(email, true);
     }
 
-    public PortalLoginResult createSession(String email, boolean allowMarketingContact) {
+    public PortalLoginResult createSession(String email, boolean marketingAllowed) {
         String normalizedEmail = normalizeEmail(email);
         String token = generateToken();
         Instant now = Instant.now();
-        storeContactPreference(normalizedEmail, allowMarketingContact, now);
+        storeMarketingPreference(normalizedEmail, marketingAllowed);
         PortalSession session = new PortalSession(
             normalizedEmail,
             now,
@@ -148,14 +149,13 @@ public class PortalSessionService {
         return session.expiresAt() != null && !session.expiresAt().isAfter(Instant.now());
     }
 
-    private void storeContactPreference(String normalizedEmail, boolean allowMarketingContact, Instant now) {
-        PortalContactPreference preference = new PortalContactPreference(
+    private void storeMarketingPreference(String normalizedEmail, boolean marketingAllowed) {
+        Map<String, PortalMarketingPreference> preference = Map.of(
             normalizedEmail,
-            allowMarketingContact,
-            now
+            new PortalMarketingPreference(marketingAllowed)
         );
-        contactPreferenceRedisTemplate.opsForValue()
-            .set(contactPreferenceRedisKey(normalizedEmail), preference);
+        marketingPreferencesRedisTemplate.opsForValue()
+            .set(marketingPreferenceRedisKey(normalizedEmail), preference);
     }
 
     private String normalizeEmail(String email) {
@@ -183,8 +183,8 @@ public class PortalSessionService {
         return properties.redisKeyPrefix() + sha256Hex(token);
     }
 
-    private String contactPreferenceRedisKey(String normalizedEmail) {
-        return properties.contactPreferenceRedisKeyPrefix() + sha256Hex(normalizedEmail);
+    private String marketingPreferenceRedisKey(String normalizedEmail) {
+        return properties.marketingPreferenceRedisKeyPrefix() + sha256Hex(normalizedEmail);
     }
 
     private String sha256Hex(String value) {

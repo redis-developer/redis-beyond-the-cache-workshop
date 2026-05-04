@@ -327,9 +327,8 @@ class SessionServiceTest {
         when(sessionAccessPolicy.canCreate(any())).thenReturn(PolicyDecision.allow("self_service"));
         when(pilotLaunchRuleService.resolveRequestedReleaseVersion("1_session_management", null, "current"))
             .thenReturn("current");
-        when(sessionRepository.findFirstByOwnerUserIdAndWorkshopIdAndStateInOrderByCreatedAtDesc(
+        when(sessionRepository.findAllByOwnerUserIdAndStateInOrderByCreatedAtDesc(
             "learner-1",
-            "1_session_management",
             java.util.EnumSet.of(
                 PlatformSessionState.REQUESTED,
                 PlatformSessionState.ADMITTED,
@@ -337,9 +336,10 @@ class SessionServiceTest {
                 PlatformSessionState.INITIALIZING,
                 PlatformSessionState.READY,
                 PlatformSessionState.DEGRADED,
-                PlatformSessionState.TERMINATING
+                PlatformSessionState.TERMINATING,
+                PlatformSessionState.CLEANUP_PENDING
             )
-        )).thenReturn(Optional.of(existingSession));
+        )).thenReturn(List.of(existingSession));
 
         assertThatThrownBy(() -> sessionService.createSession(new CreateSessionRequest(
             "1_session_management",
@@ -348,6 +348,48 @@ class SessionServiceTest {
         )))
             .isInstanceOf(org.springframework.web.ErrorResponseException.class)
             .hasMessageContaining("409 CONFLICT");
+
+        verify(sessionRepository, never()).save(any());
+        verify(sessionRuntimeLifecyclePort, never()).requestLaunch(any(SessionLaunchRequest.class));
+    }
+
+    @Test
+    void rejectsCreatingASecondActiveSessionForAnotherWorkshop() {
+        CurrentActor learner = new CurrentActor(
+            "learner-1",
+            CurrentActorType.LEARNER,
+            java.util.Set.of(PlatformAuthorities.LEARNER)
+        );
+        PlatformSessionRecord existingSession = sessionRecord("sess-other-workshop", PlatformSessionState.READY);
+        existingSession.setWorkshopId("2_distributed_locks");
+        when(currentActorProvider.requireCurrentActor()).thenReturn(learner);
+        when(workshopCatalogService.getWorkshopEntry("1_session_management")).thenReturn(new WorkshopCatalogEntry(
+            "1_session_management",
+            "Distributed Session Management",
+            "Learn Redis backed sessions",
+            "Beginner",
+            30,
+            "/workshop/session-management/",
+            "current",
+            SessionMode.LAB,
+            List.of(SessionMode.LAB),
+            List.of("Sessions"),
+            true
+        ));
+        when(sessionAccessPolicy.canCreate(any())).thenReturn(PolicyDecision.allow("self_service"));
+        when(pilotLaunchRuleService.resolveRequestedReleaseVersion("1_session_management", null, "current"))
+            .thenReturn("current");
+        when(sessionRepository.findAllByOwnerUserIdAndStateInOrderByCreatedAtDesc(anyString(), any()))
+            .thenReturn(List.of(existingSession));
+
+        assertThatThrownBy(() -> sessionService.createSession(new CreateSessionRequest(
+            "1_session_management",
+            null,
+            null
+        )))
+            .isInstanceOf(org.springframework.web.ErrorResponseException.class)
+            .hasMessageContaining("409 CONFLICT")
+            .hasMessageContaining("Stop it before deploying another one");
 
         verify(sessionRepository, never()).save(any());
         verify(sessionRuntimeLifecyclePort, never()).requestLaunch(any(SessionLaunchRequest.class));
@@ -364,11 +406,10 @@ class SessionServiceTest {
         when(pilotLaunchRuleService.resolveRequestedReleaseVersion("1_session_management", null, "current"))
             .thenReturn("current");
         when(sessionProvisioningPolicy.resolve(any())).thenReturn(defaultProvisioningProfile());
-        when(sessionRepository.findFirstByOwnerUserIdAndWorkshopIdAndStateInOrderByCreatedAtDesc(
-            anyString(),
+        when(sessionRepository.findAllByOwnerUserIdAndStateInOrderByCreatedAtDesc(
             anyString(),
             any()
-        )).thenReturn(Optional.empty());
+        )).thenReturn(List.of());
         when(sessionRepository.save(any(PlatformSessionRecord.class))).thenAnswer(invocation -> {
             PlatformSessionRecord record = invocation.getArgument(0);
             savedOwnerIds.add(record.getOwnerUserId());

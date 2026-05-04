@@ -1,0 +1,65 @@
+schemaVersion: 1
+viewId: "3"
+route: /3
+pageType: narrative
+title: "Tools"
+slot: instructions
+summary: Let the model call local Java methods for shallow stock data instead of guessing.
+navigation:
+  previousLabel: Structured output
+  nextLabel: Add memory
+sections:
+  - sectionId: goal
+    title: Exercise Goal
+    blocks:
+      - type: markdown
+        body: |
+          A model can explain patterns, but it should not invent current market data. Tools let your app provide facts from Java code.
+
+          In this workshop, the tool can stay fake or static. The important part is the tool boundary.
+      - type: codeSnippet
+        language: java
+        title: Market Data Tool
+        caption: Keep the data shallow so the exercise stays focused on Spring AI mechanics.
+        code: |
+          @Tool(description = "Get a simple market snapshot for a stock symbol")
+          public String marketSnapshot(String symbol) {
+              return symbol.toUpperCase() + " price 185.10, change +0.7%, volume normal";
+          }
+      - type: codeSnippet
+        language: java
+        title: Tool Enabled Prompt
+        caption: Register the tool object when the prompt should be allowed to use it.
+        code: |
+          String answer = chatClient.prompt()
+              .user("Use market data and explain what stands out about NVDA.")
+              .tools(marketDataTools)
+              .call()
+              .content();
+      - type: stepList
+        listId: tool-work
+        variant: ordered
+        items:
+          - itemId: open-tools
+            title: Add One Tool Method
+            body: In `MarketDataTools.java`, expose a method that accepts a ticker symbol and returns a short snapshot.
+            actions:
+              - id: openFile
+                label: Open Tools
+                args:
+                  file: MarketDataTools.java
+          - itemId: register-tool
+            title: Register The Tool
+            body: Inject the tool into `SpringAiDemoService.java` and pass it to the prompt.
+            actions:
+              - id: openFile
+                label: Open Service
+                args:
+                  file: SpringAiDemoService.java
+          - itemId: verify-tool-use
+            title: Verify The Answer Mentions Data
+            body: Ask the helper what changed for one ticker and confirm the response uses the supplied snapshot.
+      - type: callout
+        tone: warning
+        title: Keep Control In Java
+        body: The model decides when a tool is useful, but your code owns what the tool can access and return.

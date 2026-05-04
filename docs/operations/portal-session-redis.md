@@ -21,7 +21,7 @@ Do not use the session runner local Redis process for portal sessions. It is sco
 Local development can use a disposable Redis instance.
 
 1. Run Redis on localhost or through Docker.
-2. Configure the control plane with Spring Data Redis settings such as `SPRING_DATA_REDIS_HOST=localhost` and `SPRING_DATA_REDIS_PORT=6379`.
+2. Configure the control plane with workshop hub Redis settings such as `WORKSHOP_HUB_REDIS_HOST=localhost` and `WORKSHOP_HUB_REDIS_PORT=6379`.
 3. Keep cookie secure mode disabled unless testing through HTTPS.
 4. Use a local key prefix so local browser sessions cannot collide with shared environments.
 
@@ -30,7 +30,7 @@ Local development can use a disposable Redis instance.
 Staging should use a dedicated Redis database or isolated key prefix.
 
 1. Create the Redis service outside `infra/terraform/cloudrun`.
-2. Store the Redis password in Secret Manager, for example `control-plane-portal-redis-password`.
+2. Store the Redis password in Secret Manager, for example `workshop-hub-redis-password`.
 3. Set the Terraform variables `control_plane_redis_host`, `control_plane_redis_port`, `control_plane_redis_database`, `control_plane_redis_username`, `control_plane_redis_ssl_enabled`, and `control_plane_redis_password_secret_id`.
 4. Apply `infra/terraform/cloudrun` so the control plane receives the Redis endpoint and password secret reference.
 5. Smoke test login, refresh, logout, and session launch ownership with one staging learner email.

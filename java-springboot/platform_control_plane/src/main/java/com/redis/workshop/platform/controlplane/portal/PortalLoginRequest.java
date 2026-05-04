@@ -4,10 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 
 public record PortalLoginRequest(
     @NotBlank String email,
-    Boolean allowMarketingContact
+    Boolean marketingAllowed
 ) {
 
-    boolean allowsMarketingContact() {
-        return allowMarketingContact == null || allowMarketingContact;
+    boolean marketingAllowedOrDefault() {
+        return marketingAllowed == null || marketingAllowed;
     }
 }

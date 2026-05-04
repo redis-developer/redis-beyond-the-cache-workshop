@@ -8,6 +8,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.serializer.Jackson2JsonRedisSerializer;
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
+import java.util.Map;
+
 @Configuration
 class PortalSessionRedisConfiguration {
 
@@ -25,14 +27,14 @@ class PortalSessionRedisConfiguration {
     }
 
     @Bean
-    RedisTemplate<String, PortalContactPreference> portalContactPreferenceRedisTemplate(
+    RedisTemplate<String, Map<String, PortalMarketingPreference>> portalMarketingPreferencesRedisTemplate(
         RedisConnectionFactory connectionFactory,
         ObjectMapper objectMapper
     ) {
-        RedisTemplate<String, PortalContactPreference> template = new RedisTemplate<>();
+        RedisTemplate<String, Map<String, PortalMarketingPreference>> template = new RedisTemplate<>();
         template.setConnectionFactory(connectionFactory);
         template.setKeySerializer(StringRedisSerializer.UTF_8);
-        template.setValueSerializer(new Jackson2JsonRedisSerializer<>(objectMapper, PortalContactPreference.class));
+        template.setValueSerializer(new Jackson2JsonRedisSerializer<>(objectMapper, Map.class));
         template.afterPropertiesSet();
         return template;
     }

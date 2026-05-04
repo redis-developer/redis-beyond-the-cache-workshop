@@ -106,6 +106,23 @@
         {{ stopLabel }}
       </button>
     </div>
+
+    <div
+      v-if="showBlockedPopup"
+      class="active-workshop-modal"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="active-workshop-title"
+      @click.self="closeBlockedPopup"
+    >
+      <div class="active-workshop-dialog">
+        <h4 id="active-workshop-title">Workshop already active</h4>
+        <p>{{ blockedMessage }}</p>
+        <button class="modal-close-btn" type="button" @click="closeBlockedPopup">
+          Close
+        </button>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -143,9 +160,18 @@ export default {
       required: true
     }
   },
+  data() {
+    return {
+      showBlockedPopup: false
+    };
+  },
   computed: {
     activeSession() {
       return this.workshop.activeSession;
+    },
+
+    blockingSession() {
+      return this.workshop.blockingSession;
     },
 
     isBusy() {
@@ -209,13 +235,35 @@ export default {
 
     stopLabel() {
       return this.workshop.pendingAction === 'terminating' ? 'Stopping...' : 'Stop';
+    },
+
+    blockedMessage() {
+      if (this.workshop.blockingWorkshopTitle) {
+        return `Stop ${this.workshop.blockingWorkshopTitle} before deploying this workshop.`;
+      }
+      return 'Stop your active workshop before deploying this workshop.';
     }
   },
   methods: {
     ...mapActions(['launchWorkshop', 'terminateWorkshop']),
 
     async handleLaunch() {
-      await this.launchWorkshop(this.workshop);
+      if (this.blockingSession) {
+        this.showBlockedPopup = true;
+        return;
+      }
+
+      try {
+        await this.launchWorkshop(this.workshop);
+      } catch (error) {
+        if (error.code === 'active_session_exists' || error.data?.code === 'active_session_exists') {
+          this.showBlockedPopup = true;
+        }
+      }
+    },
+
+    closeBlockedPopup() {
+      this.showBlockedPopup = false;
     },
 
     async handleTerminate() {
@@ -546,6 +594,58 @@ export default {
 }
 
 .open-btn:hover:not(:disabled) {
+  background-color: rgba(0, 188, 212, 0.3);
+  border-color: rgba(0, 188, 212, 0.6);
+}
+
+.active-workshop-modal {
+  align-items: center;
+  background-color: rgba(2, 6, 23, 0.72);
+  display: flex;
+  inset: 0;
+  justify-content: center;
+  padding: var(--spacing-6);
+  position: fixed;
+  z-index: var(--z-modal);
+}
+
+.active-workshop-dialog {
+  background-color: var(--color-surface-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xl);
+  color: var(--color-text-secondary);
+  max-width: 440px;
+  padding: var(--spacing-6);
+  width: min(100%, 440px);
+}
+
+.active-workshop-dialog h4 {
+  color: var(--color-text);
+  font-size: var(--font-size-lg);
+  margin: 0 0 var(--spacing-3);
+}
+
+.active-workshop-dialog p {
+  line-height: 1.6;
+  margin: 0 0 var(--spacing-5);
+}
+
+.modal-close-btn {
+  background-color: rgba(0, 188, 212, 0.2);
+  border: 1px solid rgba(0, 188, 212, 0.4);
+  border-radius: var(--radius-md);
+  color: var(--color-primary-400);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  min-height: 42px;
+  padding: var(--spacing-3) var(--spacing-5);
+  transition: all var(--transition-base);
+}
+
+.modal-close-btn:hover {
   background-color: rgba(0, 188, 212, 0.3);
   border-color: rgba(0, 188, 212, 0.6);
 }

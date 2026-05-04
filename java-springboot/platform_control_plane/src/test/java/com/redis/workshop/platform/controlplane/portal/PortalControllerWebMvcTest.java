@@ -69,14 +69,14 @@ class PortalControllerWebMvcTest {
     }
 
     @Test
-    void loginPassesDeclinedMarketingContactPreference() throws Exception {
+    void loginPassesDeclinedMarketingPreference() throws Exception {
         given(portalSessionService.createSession("learner@example.com", false)).willReturn(
             new PortalLoginResult("opaque-token", session("learner@example.com"))
         );
 
         mockMvc.perform(post("/api/portal/login")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"learner@example.com\",\"allowMarketingContact\":false}"))
+                .content("{\"email\":\"learner@example.com\",\"marketingAllowed\":false}"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.authenticated").value(true));
 

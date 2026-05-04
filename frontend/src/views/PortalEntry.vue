@@ -19,7 +19,7 @@
         <label class="contact-consent" for="portal-marketing-contact">
           <input
             id="portal-marketing-contact"
-            v-model="allowMarketingContact"
+            v-model="marketingAllowed"
             :disabled="portalLoading"
             type="checkbox"
           >
@@ -45,7 +45,7 @@ export default {
   data() {
     return {
       email: '',
-      allowMarketingContact: true,
+      marketingAllowed: true,
       formError: null
     };
   },
@@ -72,7 +72,7 @@ export default {
       try {
         await this.loginToPortal({
           email,
-          allowMarketingContact: this.allowMarketingContact
+          marketingAllowed: this.marketingAllowed
         });
       } catch (error) {
         this.formError = error.message;

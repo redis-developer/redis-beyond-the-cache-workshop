@@ -66,6 +66,12 @@ function activeSessionFor(workshopId, sessions) {
     .sort((left, right) => sessionSortValue(right) - sessionSortValue(left))[0] || null;
 }
 
+function activeSession(sessions) {
+  return sessions
+    .filter(isActiveSession)
+    .sort((left, right) => sessionSortValue(right) - sessionSortValue(left))[0] || null;
+}
+
 function displayStatus(session) {
   if (!session) {
     return 'stopped';
@@ -99,14 +105,23 @@ export default createStore({
 
   getters: {
     allWorkshops: (state) => {
+      const currentActiveSession = activeSession(state.sessions);
       return state.workshops.map(workshop => {
-        const activeSession = activeSessionFor(workshop.workshopId, state.sessions);
+        const workshopActiveSession = activeSessionFor(workshop.workshopId, state.sessions);
+        const blockingSession = currentActiveSession?.workshopId === workshop.workshopId
+          ? null
+          : currentActiveSession;
+        const blockingWorkshop = blockingSession
+          ? state.workshops.find(candidate => candidate.workshopId === blockingSession.workshopId)
+          : null;
         return {
           ...workshop,
           id: workshop.workshopId,
-          activeSession,
-          status: displayStatus(activeSession),
-          url: activeSession?.publicEntryUrl || workshop.path || '#',
+          activeSession: workshopActiveSession,
+          blockingSession,
+          blockingWorkshopTitle: blockingWorkshop?.title || null,
+          status: displayStatus(workshopActiveSession),
+          url: workshopActiveSession?.publicEntryUrl || workshop.path || '#',
           pendingAction: state.pendingActions[workshop.workshopId] || null
         };
       });
@@ -118,6 +133,10 @@ export default createStore({
 
     activeSessionByWorkshopId: (state) => (workshopId) => {
       return activeSessionFor(workshopId, state.sessions);
+    },
+
+    activeSession: (state) => {
+      return activeSession(state.sessions);
     },
 
     isWorkshopBusy: (state) => (workshopId) => {
@@ -217,10 +236,10 @@ export default createStore({
 
       try {
         const email = typeof credentials === 'string' ? credentials : credentials.email;
-        const allowMarketingContact = typeof credentials === 'string'
+        const marketingAllowed = typeof credentials === 'string'
           ? true
-          : credentials.allowMarketingContact;
-        const user = await PortalService.login(email, allowMarketingContact);
+          : credentials.marketingAllowed;
+        const user = await PortalService.login(email, marketingAllowed);
         if (!user) {
           throw new Error('Portal login did not return an authenticated user');
         }
@@ -276,8 +295,17 @@ export default createStore({
       }
     },
 
-    async launchWorkshop({ commit, dispatch }, workshop) {
+    async launchWorkshop({ commit, dispatch, state }, workshop) {
       const workshopId = workshop.workshopId || workshop.id;
+      const blockingSession = activeSession(state.sessions);
+      if (blockingSession && blockingSession.workshopId !== workshopId) {
+        const message = 'Stop your active workshop before deploying another one.';
+        const error = new Error(message);
+        error.code = 'active_session_exists';
+        error.blockingSession = blockingSession;
+        throw error;
+      }
+
       commit('setPendingAction', { workshopId, action: 'launching' });
 
       try {
@@ -291,6 +319,12 @@ export default createStore({
           sessionId: session.sessionId,
           timeoutMs: DEFAULT_POLL_TIMEOUT_MS
         });
+        commit('setError', null);
+      } catch (error) {
+        if (error.data?.code !== 'active_session_exists') {
+          commit('setError', error.message);
+        }
+        throw error;
       } finally {
         commit('clearPendingAction', workshopId);
       }

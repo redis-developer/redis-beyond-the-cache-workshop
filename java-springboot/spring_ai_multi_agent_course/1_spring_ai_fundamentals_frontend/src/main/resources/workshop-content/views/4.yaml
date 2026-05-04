@@ -1,0 +1,56 @@
+schemaVersion: 1
+viewId: "4"
+route: /4
+pageType: narrative
+title: "Memory And Advisors"
+slot: instructions
+summary: Add conversation context without hiding the prompt flow.
+navigation:
+  previousLabel: Tools
+  nextLabel: Final helper
+sections:
+  - sectionId: goal
+    title: Exercise Goal
+    blocks:
+      - type: markdown
+        body: |
+          Advisors wrap a chat request with reusable behavior. In Part 0, use them for a tiny amount of memory so follow up questions can refer to the previous stock.
+
+          Keep the conversation id explicit. Later modules will use stronger memory and orchestration patterns.
+      - type: codeSnippet
+        language: java
+        title: Memory Advisor Shape
+        caption: The exact repository can vary, but the service should show where the advisor enters the request.
+        code: |
+          String answer = chatClient.prompt()
+              .advisors(advisor -> advisor.param("conversationId", conversationId))
+              .user("Compare that with MSFT in one paragraph.")
+              .call()
+              .content();
+      - type: stepList
+        listId: memory-advisors
+        variant: ordered
+        items:
+          - itemId: configure-advisor
+            title: Configure One Advisor
+            body: Add the simple chat memory advisor in `SpringAiFundamentalsAiConfig.java`.
+            actions:
+              - id: openFile
+                label: Open Config
+                args:
+                  file: SpringAiFundamentalsAiConfig.java
+          - itemId: pass-conversation
+            title: Pass A Conversation Id
+            body: Update `SpringAiDemoService.java` so related prompts share the same conversation id.
+            actions:
+              - id: openFile
+                label: Open Service
+                args:
+                  file: SpringAiDemoService.java
+          - itemId: test-follow-up
+            title: Test A Follow Up
+            body: Ask about AAPL first, then ask "what about MSFT" and check that the second answer understands the comparison.
+      - type: callout
+        tone: info
+        title: What To Notice
+        body: Memory should improve the follow up prompt, but it should not replace clear user intent. Keep important symbols explicit when correctness matters.

@@ -23,10 +23,10 @@ function portalUserFrom(response) {
 }
 
 export default {
-  async login(email, allowMarketingContact = true) {
+  async login(email, marketingAllowed = true) {
     const response = await ApiService.post(`${apiUrl}/api/portal/login`, {
       email,
-      allowMarketingContact
+      marketingAllowed
     });
     return portalUserFrom(response);
   },

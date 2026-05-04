@@ -173,7 +173,7 @@ variable "control_plane_session_default_ttl" {
 }
 
 variable "control_plane_redis_host" {
-  description = "Optional Redis host used by the control plane for browser portal session storage. Leave null to use application local defaults."
+  description = "Optional workshop hub Redis host used by the control plane for browser portal session storage. Leave null to use application local defaults."
   type        = string
   default     = null
 
@@ -184,7 +184,7 @@ variable "control_plane_redis_host" {
 }
 
 variable "control_plane_redis_port" {
-  description = "Redis port used by the control plane for browser portal session storage."
+  description = "Workshop hub Redis port used by the control plane for browser portal session storage."
   type        = number
   default     = 6379
 
@@ -195,7 +195,7 @@ variable "control_plane_redis_port" {
 }
 
 variable "control_plane_redis_database" {
-  description = "Redis logical database index used by the control plane for browser portal session storage."
+  description = "Workshop hub Redis logical database index used by the control plane for browser portal session storage."
   type        = number
   default     = 0
 
@@ -206,7 +206,7 @@ variable "control_plane_redis_database" {
 }
 
 variable "control_plane_redis_username" {
-  description = "Optional Redis ACL username used by the control plane for browser portal session storage."
+  description = "Optional workshop hub Redis ACL username used by the control plane for browser portal session storage."
   type        = string
   default     = null
 
@@ -217,13 +217,13 @@ variable "control_plane_redis_username" {
 }
 
 variable "control_plane_redis_ssl_enabled" {
-  description = "Whether the control plane should use TLS for Redis portal session storage."
+  description = "Whether the control plane should use TLS for workshop hub Redis portal session storage."
   type        = bool
   default     = false
 }
 
 variable "control_plane_redis_password_secret_id" {
-  description = "Optional Secret Manager secret id containing the Redis password for control plane browser portal session storage."
+  description = "Optional Secret Manager secret id containing the workshop hub Redis password for browser portal session storage."
   type        = string
   default     = null
 

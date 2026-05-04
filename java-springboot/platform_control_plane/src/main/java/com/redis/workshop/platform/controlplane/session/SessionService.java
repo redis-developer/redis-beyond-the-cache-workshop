@@ -75,7 +75,8 @@ public class SessionService {
         PlatformSessionState.INITIALIZING,
         PlatformSessionState.READY,
         PlatformSessionState.DEGRADED,
-        PlatformSessionState.TERMINATING
+        PlatformSessionState.TERMINATING,
+        PlatformSessionState.CLEANUP_PENDING
     );
 
     private final PlatformSessionRecordRepository sessionRepository;
@@ -129,7 +130,7 @@ public class SessionService {
             request.workshopId()
         )));
 
-        PlatformSessionRecord existingSession = findActiveSessionConflict(actor.actorId(), workshop.workshopId());
+        PlatformSessionRecord existingSession = findActiveSessionConflict(actor.actorId());
         if (existingSession != null) {
             throw activeSessionConflict(existingSession);
         }
@@ -420,29 +421,27 @@ public class SessionService {
         }
     }
 
-    private PlatformSessionRecord findActiveSessionConflict(String ownerUserId, String workshopId) {
-        PlatformSessionRecord existingSession = sessionRepository
-            .findFirstByOwnerUserIdAndWorkshopIdAndStateInOrderByCreatedAtDesc(
-                ownerUserId,
-                workshopId,
-                ACTIVE_SESSION_CONFLICT_STATES
-            )
-            .orElse(null);
-        if (existingSession == null) {
-            return null;
+    private PlatformSessionRecord findActiveSessionConflict(String ownerUserId) {
+        for (PlatformSessionRecord existingSession : sessionRepository.findAllByOwnerUserIdAndStateInOrderByCreatedAtDesc(
+            ownerUserId,
+            ACTIVE_SESSION_CONFLICT_STATES
+        )) {
+            PlatformSessionRecord alignedSession = alignLifecycleState(existingSession);
+            if (ACTIVE_SESSION_CONFLICT_STATES.contains(alignedSession.getState())) {
+                return alignedSession;
+            }
         }
-        PlatformSessionRecord alignedSession = alignLifecycleState(existingSession);
-        return ACTIVE_SESSION_CONFLICT_STATES.contains(alignedSession.getState()) ? alignedSession : null;
+        return null;
     }
 
     private ErrorResponseException activeSessionConflict(PlatformSessionRecord existingSession) {
         SessionResponse existingSessionResponse = SessionResponse.fromRecord(existingSession);
         ProblemDetail problemDetail = ProblemDetail.forStatusAndDetail(
             CONFLICT,
-            "An active session already exists for this workshop."
+            "You already have an active workshop. Stop it before deploying another one."
         );
         problemDetail.setTitle("Conflict");
-        problemDetail.setProperty("message", "An active session already exists for this workshop.");
+        problemDetail.setProperty("message", "You already have an active workshop. Stop it before deploying another one.");
         problemDetail.setProperty("code", "active_session_exists");
         problemDetail.setProperty("existingSessionId", existingSessionResponse.sessionId());
         problemDetail.setProperty("existingSession", existingSessionResponse);

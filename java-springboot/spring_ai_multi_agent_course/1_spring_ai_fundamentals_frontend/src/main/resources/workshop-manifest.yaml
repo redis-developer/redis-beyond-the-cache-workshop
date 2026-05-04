@@ -1,0 +1,19 @@
+moduleName: 1_spring_ai_fundamentals
+title: "Module 1: Spring AI Fundamentals"
+description: Part 0 Spring AI fundamentals workshop for a small stock analysis helper
+editableFiles:
+  - name: build.gradle.kts
+    path: build.gradle.kts
+    resetContentLocation: workshop-manifest-reset/build.gradle.kts
+  - name: application.properties
+    path: src/main/resources/application.properties
+    resetContentLocation: workshop-manifest-reset/application.properties
+  - name: SpringAiFundamentalsAiConfig.java
+    path: src/main/java/com/redis/workshop/springai/fundamentals/SpringAiFundamentalsAiConfig.java
+    resetContentLocation: workshop-manifest-reset/SpringAiFundamentalsAiConfig.java
+  - name: SpringAiDemoService.java
+    path: src/main/java/com/redis/workshop/springai/fundamentals/SpringAiDemoService.java
+    resetContentLocation: workshop-manifest-reset/SpringAiDemoService.java
+  - name: MarketDataTools.java
+    path: src/main/java/com/redis/workshop/springai/fundamentals/MarketDataTools.java
+    resetContentLocation: workshop-manifest-reset/MarketDataTools.java

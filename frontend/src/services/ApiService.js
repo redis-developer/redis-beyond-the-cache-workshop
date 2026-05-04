@@ -15,14 +15,16 @@ export default {
     if (!response.ok) {
       const contentType = response.headers.get('content-type');
       let errorMessage = `API error: ${response.status}`;
+      let errorData = null;
 
-      if (contentType && contentType.includes('application/json')) {
-        const errorData = await response.json();
+      if (contentType && (contentType.includes('application/json') || contentType.includes('+json'))) {
+        errorData = await response.json();
         errorMessage = errorData.detail || errorData.message || errorData.error || errorMessage;
       }
 
       const error = new Error(errorMessage);
       error.status = response.status;
+      error.data = errorData;
       throw error;
     }
 

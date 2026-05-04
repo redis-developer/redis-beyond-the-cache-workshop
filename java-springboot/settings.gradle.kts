@@ -19,3 +19,9 @@ include("3_distributed_locks")
 include("3_distributed_locks_frontend")
 include("4_agent_memory")
 include("4_agent_memory_frontend")
+
+// Spring AI Multi Agent course modules
+include("1_spring_ai_fundamentals")
+project(":1_spring_ai_fundamentals").projectDir = file("spring_ai_multi_agent_course/1_spring_ai_fundamentals")
+include("1_spring_ai_fundamentals_frontend")
+project(":1_spring_ai_fundamentals_frontend").projectDir = file("spring_ai_multi_agent_course/1_spring_ai_fundamentals_frontend")

@@ -40,7 +40,7 @@ public class PortalController {
     ResponseEntity<PortalUserResponse> login(@Valid @RequestBody PortalLoginRequest request) {
         PortalLoginResult result = portalSessionService.createSession(
             request.email(),
-            request.allowsMarketingContact()
+            request.marketingAllowedOrDefault()
         );
         return ResponseEntity.ok()
             .header(HttpHeaders.SET_COOKIE, sessionCookie(result.token()).toString())

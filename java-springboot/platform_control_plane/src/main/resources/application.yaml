@@ -1,6 +1,15 @@
 spring:
   application:
     name: platform-control-plane
+  data:
+    redis:
+      host: ${WORKSHOP_HUB_REDIS_HOST:${SPRING_DATA_REDIS_HOST:localhost}}
+      port: ${WORKSHOP_HUB_REDIS_PORT:${SPRING_DATA_REDIS_PORT:6379}}
+      database: ${WORKSHOP_HUB_REDIS_DATABASE:${SPRING_DATA_REDIS_DATABASE:0}}
+      username: ${WORKSHOP_HUB_REDIS_USERNAME:${SPRING_DATA_REDIS_USERNAME:}}
+      password: ${WORKSHOP_HUB_REDIS_PASSWORD:${SPRING_DATA_REDIS_PASSWORD:}}
+      ssl:
+        enabled: ${WORKSHOP_HUB_REDIS_SSL_ENABLED:${SPRING_DATA_REDIS_SSL_ENABLED:false}}
 
 platform:
   controlplane:
@@ -15,7 +24,7 @@ platform:
         ttl: ${PLATFORM_CONTROLPLANE_PORTAL_SESSION_TTL:180m}
         secure-cookie: ${PLATFORM_CONTROLPLANE_PORTAL_SESSION_COOKIE_SECURE:false}
         redis-key-prefix: ${PLATFORM_CONTROLPLANE_PORTAL_SESSION_REDIS_KEY_PREFIX:platform:portal:sessions:}
-        contact-preference-redis-key-prefix: ${PLATFORM_CONTROLPLANE_PORTAL_CONTACT_PREFERENCE_REDIS_KEY_PREFIX:platform:portal:contact_preferences:}
+        marketing-preference-redis-key-prefix: ${PLATFORM_CONTROLPLANE_PORTAL_MARKETING_PREFERENCE_REDIS_KEY_PREFIX:platform:portal:marketing_preferences:}
     execution:
       base-url: ${EXECUTION_PLANE_BASE_URL:http://localhost:9001}
       shared-secret: ${EXECUTION_PLANE_SHARED_SECRET:}

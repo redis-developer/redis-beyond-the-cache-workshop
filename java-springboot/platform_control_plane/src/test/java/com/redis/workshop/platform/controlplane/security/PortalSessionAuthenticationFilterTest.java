@@ -29,7 +29,7 @@ class PortalSessionAuthenticationFilterTest {
         Duration.ofHours(8),
         false,
         "test:portal:",
-        "test:portal:contacts:"
+        "test:portal:marketing:"
     );
 
     private final PortalSessionService portalSessionService = mock(PortalSessionService.class);

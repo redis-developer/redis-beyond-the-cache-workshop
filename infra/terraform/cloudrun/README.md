@@ -76,11 +76,11 @@ control_plane_redis_port                       = 6379
 control_plane_redis_database                   = 0
 control_plane_redis_username                   = "default"
 control_plane_redis_ssl_enabled                = true
-control_plane_redis_password_secret_id         = "control-plane-portal-redis-password"
+control_plane_redis_password_secret_id         = "workshop-hub-redis-password"
 control_plane_redis_password_secret_version    = "latest"
 ```
 
-The password secret must already exist in Secret Manager in `project_id`. Terraform grants the control plane service account `roles/secretmanager.secretAccessor` for that secret and injects it as `SPRING_DATA_REDIS_PASSWORD`.
+The password secret must already exist in Secret Manager in `project_id`. Terraform grants the control plane service account `roles/secretmanager.secretAccessor` for that secret and injects it as `WORKSHOP_HUB_REDIS_PASSWORD`.
 
 If you do not have a custom domain yet, set `gateway_host` to a temporary value for the first apply, read `cloud_run_services.control_plane.uri` from the outputs, strip the `https://` prefix, then apply again with `gateway_host` set to that host before launching sessions.
 
@@ -109,15 +109,15 @@ The deployed control plane receives `EXECUTION_PLANE_BASE_URL` from the executio
 When `control_plane_redis_host` is set, the control plane also receives:
 
 ```text
-SPRING_DATA_REDIS_HOST
-SPRING_DATA_REDIS_PORT
-SPRING_DATA_REDIS_DATABASE
-SPRING_DATA_REDIS_SSL_ENABLED
-SPRING_DATA_REDIS_USERNAME
-SPRING_DATA_REDIS_PASSWORD
+WORKSHOP_HUB_REDIS_HOST
+WORKSHOP_HUB_REDIS_PORT
+WORKSHOP_HUB_REDIS_DATABASE
+WORKSHOP_HUB_REDIS_SSL_ENABLED
+WORKSHOP_HUB_REDIS_USERNAME
+WORKSHOP_HUB_REDIS_PASSWORD
 ```
 
-`SPRING_DATA_REDIS_USERNAME` is omitted when `control_plane_redis_username` is null. `SPRING_DATA_REDIS_PASSWORD` is omitted when `control_plane_redis_password_secret_id` is null.
+`WORKSHOP_HUB_REDIS_USERNAME` is omitted when `control_plane_redis_username` is null. `WORKSHOP_HUB_REDIS_PASSWORD` is omitted when `control_plane_redis_password_secret_id` is null.
 
 The `session_runner_defaults` output records the environment defaults used by the execution plane:
 
