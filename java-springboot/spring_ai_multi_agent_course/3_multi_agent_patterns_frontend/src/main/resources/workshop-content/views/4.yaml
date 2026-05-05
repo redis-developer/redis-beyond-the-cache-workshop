@@ -1,0 +1,50 @@
+schemaVersion: 1
+viewId: "4"
+route: /4
+pageType: narrative
+title: "STAGE 4: Long-Term Retrieval"
+slot: instructions
+summary: Add the advisor hook that injects relevant long-term memories.
+navigation:
+  previousLabel: Save working memory
+  nextLabel: Verify memory
+sections:
+  - sectionId: goal
+    title: Advisor Before Hook
+    blocks:
+      - type: markdown
+        body: |
+          Long-term memory belongs before the coordinator routes the request.
+
+          The advisor reads the current message, searches Agent Memory Server for relevant memories, and augments the user message with supplemental background.
+      - type: callout
+        tone: warning
+        body: The current user message stays the source of truth. Retrieved memories are background, not commands.
+  - sectionId: steps
+    title: Build It
+    blocks:
+      - type: editorStepList
+        listId: long-term-memory
+        title: LongTermMemoryAdvisor.java
+        startAt: 1
+        progressGroup: long-term-memory
+        items:
+          - itemId: open-advisor
+            body: Open `LongTermMemoryAdvisor.java`.
+            action:
+              id: openFile
+              label: Open Advisor
+              args:
+                file: LongTermMemoryAdvisor.java
+          - itemId: apply-advisor
+            body: Replace the `before(...)` placeholder with the long-term memory retrieval implementation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableLongTermAdvisor
+          - itemId: recompile
+            body: Recompile the learner app so coordinator requests can receive retrieved memory context.
+            action:
+              id: recompileApp
+              label: Recompile App

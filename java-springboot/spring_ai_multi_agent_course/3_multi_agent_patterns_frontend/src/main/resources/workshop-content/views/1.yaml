@@ -1,0 +1,127 @@
+schemaVersion: 1
+viewId: "1"
+route: /1
+pageType: narrative
+title: "STAGE 1: Redis Agent Memory Server"
+slot: instructions
+summary: Understand the memory service before wiring Spring AI to it.
+navigation:
+  previousLabel: Memory model
+  nextLabel: Load working memory
+sections:
+  - sectionId: server-boundary
+    title: What The Server Is
+    blocks:
+      - type: markdown
+        body: |
+          Redis Agent Memory Server is the memory API layer between the Spring Boot application and Redis.
+
+          It is not the model provider. It is not the Spring AI client. It is a separate service that exposes memory operations over an API and stores memory data in Redis.
+
+          The application talks to it through the Agent Memory Java client.
+      - type: callout
+        tone: info
+        body: The application controls where memory is read and written. The server owns the storage format, indexing, and memory API behavior.
+  - sectionId: runtime-location
+    title: Where It Runs
+    blocks:
+      - type: markdown
+        body: |
+          In this workshop, Redis Agent Memory Server runs beside the learner application.
+
+          The Spring Boot app sends memory requests to the Agent Memory API container. A separate Agent Memory task worker container processes background work such as long term memory extraction and compaction. Both containers use Redis 8 as their storage layer.
+
+          Redis Insight lets you inspect the Redis data while you test.
+      - type: codeSnippet
+        language: text
+        title: Runtime Boundary
+        code: |
+          Spring Boot app
+              |
+              v
+          Agent Memory Java client
+              |
+              v
+          Agent Memory API
+              |
+              v
+          Agent Memory task worker
+              |
+              v
+          Redis 8
+  - sectionId: memory-model
+    title: What It Stores
+    blocks:
+      - type: markdown
+        body: |
+          The server exposes two memory layers.
+
+          **Working memory** stores recent conversation state. The important identifiers are namespace, user ID, session ID, and model name.
+
+          **Long term memory** stores durable records that can be searched later. These records can include text, extracted metadata, embeddings, user ID, session ID, and access metadata.
+      - type: callout
+        tone: warning
+        body: Working memory and long term memory solve different problems. Working memory keeps the current session coherent. Long term memory supports retrieval across sessions.
+  - sectionId: extraction
+    title: Automatic Extraction
+    blocks:
+      - type: markdown
+        body: |
+          The application does not manually create every long term memory record.
+
+          When the application writes conversation messages to working memory, Redis Agent Memory Server processes those messages and extracts durable memory records under the hood.
+
+          This module uses a custom extraction instruction for the stock analysis domain. The instruction tells the server to store explicit user facts, stock mentions, ownership statements, watchlist statements, sold-stock statements, durable investing preferences, and durable investing constraints.
+
+          The extraction step decides which information should become long term memory, prepares it for retrieval, and stores the result in Redis.
+  - sectionId: extraction-strategies
+    title: Extraction Strategies
+    blocks:
+      - type: markdown
+        body: |
+          Redis Agent Memory Server supports different long term memory extraction strategies.
+
+          **Discrete** extraction stores individual facts as separate memory records.
+
+          **Summary** extraction stores compressed conversation summaries.
+
+          **Preferences** extraction focuses on user preferences and stable user characteristics.
+
+          **Custom** extraction uses a domain-specific instruction. This module uses `custom` so the server extracts stock-analysis memory records instead of generic conversation fragments.
+      - type: callout
+        tone: info
+        body: The strategy is application configuration. In this module, the custom prompt is stored in `application.yaml` and passed to Redis Agent Memory Server when working memory is written.
+  - sectionId: extraction-path
+    title: Extraction Path
+    blocks:
+      - type: codeSnippet
+        language: text
+        title: Extraction Path
+        code: |
+          Conversation messages
+              |
+              v
+          Working memory write
+              |
+              v
+          Background worker extraction
+              |
+              v
+          Long term memory records
+              |
+              v
+          Redis indexes and storage
+  - sectionId: spring-ai-boundary
+    title: Spring AI Boundary
+    blocks:
+      - type: markdown
+        body: |
+          Spring AI does not need to know how Redis stores memory records.
+
+          The integration points stay small:
+
+          1. `ChatMemoryRepository` loads and saves working memory.
+          2. `LongTermMemoryAdvisor` searches long term memory before the coordinator runs.
+          3. The coordinator receives retrieved memory as supplemental context.
+
+          The current user message remains the primary input.

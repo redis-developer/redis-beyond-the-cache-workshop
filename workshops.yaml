@@ -214,7 +214,7 @@ workshops:
         images:
           frontend: registry.example.com/workshops/spring-ai-building-multi-agents-frontend@sha256:1111111111111111111111111111111111111111111111111111111111111111
           backend: registry.example.com/workshops/spring-ai-building-multi-agents-backend@sha256:2222222222222222222222222222222222222222222222222222222222222222
-          combined: europe-west4-docker.pkg.dev/personal-rdlts/session-runners/2_building_multi_agents@sha256:bba559a1ab91e21090690fbbcb927b7741e6e48f84c0e41cfb868030c023826f
+          combined: europe-west4-docker.pkg.dev/personal-rdlts/session-runners/2_building_multi_agents@sha256:a12b13b37898fe2eb60080d5fccb5bf07a1593f2d00df5906ad3f74fa78d0b1e
         resourceClass: small
         sessionTtlMinutes: 180
         mutableDependencies:
@@ -251,6 +251,7 @@ workshops:
           LONG_TERM_MEMORY: "True"
           ENABLE_TOPIC_EXTRACTION: "True"
           SUMMARIZATION_THRESHOLD: "0.7"
+          COMPACTION_EVERY_MINUTES: "2"
           DEDUPLICATION_DISTANCE_THRESHOLD: "0.35"
           ENABLE_NER: "True"
           DISABLE_AUTH: "true"
@@ -263,7 +264,8 @@ workshops:
           - 0.0.0.0
           - --port
           - "8000"
-          - --task-backend=asyncio
+          - --task-backend
+          - docket
         healthcheck:
           test:
             - CMD
@@ -274,6 +276,26 @@ workshops:
           timeout: 5s
           retries: 5
           startPeriod: 10s
+      - serviceName: agent-memory-task-worker
+        image: redislabs/agent-memory-server:latest
+        env:
+          REDIS_URL: redis://redis:6379
+          GENERATION_MODEL: ${GENERATION_MODEL:-gpt-4o-mini}
+          EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+          OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+          ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+          LONG_TERM_MEMORY: "True"
+          ENABLE_TOPIC_EXTRACTION: "True"
+          SUMMARIZATION_THRESHOLD: "0.7"
+          COMPACTION_EVERY_MINUTES: "2"
+          DEDUPLICATION_DISTANCE_THRESHOLD: "0.35"
+          ENABLE_NER: "True"
+          DISABLE_AUTH: "true"
+        dependsOn:
+          - redis
+        command:
+          - agent-memory
+          - task-worker
     envOverrides:
       backend:
         AGENT_MEMORY_SERVER_URL: http://agent-memory-server:8000

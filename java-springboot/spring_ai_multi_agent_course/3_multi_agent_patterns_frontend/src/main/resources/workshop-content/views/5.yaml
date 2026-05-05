@@ -1,0 +1,64 @@
+schemaVersion: 1
+viewId: "5"
+route: /5
+pageType: narrative
+title: "STAGE 5: Verify Memory"
+slot: instructions
+summary: Test the memory-aware multi-agent flow.
+navigation:
+  previousLabel: Long-term retrieval
+  nextLabel: Editor
+sections:
+  - sectionId: run-it
+    title: Run It
+    blocks:
+      - type: markdown
+        body: |
+          Open the learner app and ask a current price question.
+
+          Example:
+
+          `What's the current price for Tesla?`
+
+          Then add an ownership fact.
+
+          Example:
+
+          `I own this stock`
+
+          Open Redis Insight from the workshop header and wait for Redis Agent Memory Server to extract long-term memory from the conversation.
+
+          Then start a new learner app session and ask:
+
+          `What stocks do I own?`
+      - type: callout
+        tone: info
+        body: The final request should work because long-term memory can survive beyond the active chat session.
+  - sectionId: inspect
+    title: Inspect Redis
+    blocks:
+      - type: markdown
+        body: |
+          Open Redis Insight from the workshop header.
+
+          Agent Memory Server stores working memory and extracted long-term memories in Redis. You should see memory data appear after the app processes the chat turns.
+      - type: editorStepList
+        listId: verify-files
+        title: Final Files
+        startAt: 1
+        progressGroup: verify
+        items:
+          - itemId: open-repository
+            body: Reopen `AmsChatMemoryRepository.java` and review the load and save paths together.
+            action:
+              id: openFile
+              label: Open Repository
+              args:
+                file: AmsChatMemoryRepository.java
+          - itemId: open-advisor
+            body: Reopen `LongTermMemoryAdvisor.java` and review where long-term memory is added before coordinator routing.
+            action:
+              id: openFile
+              label: Open Advisor
+              args:
+                file: LongTermMemoryAdvisor.java

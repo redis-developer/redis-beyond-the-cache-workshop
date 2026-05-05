@@ -50,16 +50,6 @@
       </div>
     </div>
 
-    <div class="workshop-meta">
-      <span v-if="workshop.difficulty">{{ workshop.difficulty }}</span>
-      <span v-if="workshop.estimatedMinutes">{{ workshop.estimatedMinutes }} min</span>
-      <span v-if="workshop.defaultMode">{{ workshop.defaultMode }}</span>
-    </div>
-
-    <div v-if="workshop.topics && workshop.topics.length" class="topic-list">
-      <span v-for="topic in workshop.topics" :key="topic">{{ topic }}</span>
-    </div>
-
     <div
       v-if="!activeSession && showEnvironmentPanel"
       class="environment-panel"
@@ -559,24 +549,6 @@ export default {
 
 .info-icon:hover::after {
   display: block;
-}
-
-.workshop-meta,
-.topic-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--spacing-2);
-  margin-bottom: var(--spacing-4);
-}
-
-.workshop-meta span,
-.topic-list span {
-  background-color: var(--color-dark-700);
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
-  padding: var(--spacing-1) var(--spacing-3);
 }
 
 .session-panel {

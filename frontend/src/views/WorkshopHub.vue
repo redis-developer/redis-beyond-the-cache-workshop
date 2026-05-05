@@ -41,6 +41,13 @@
 import { mapActions, mapGetters, mapState } from 'vuex';
 import WorkshopGrid from '@/components/workshop/WorkshopGrid.vue';
 
+const HIDDEN_WORKSHOP_IDS = new Set([
+  '1_session_management',
+  '2_full_text_search',
+  '3_distributed_locks',
+  '4_agent_memory'
+]);
+
 export default {
   name: 'WorkshopHub',
   components: {
@@ -55,7 +62,7 @@ export default {
     ...mapState(['error', 'portalUser']),
     ...mapGetters(['allWorkshops']),
     workshops() {
-      return this.allWorkshops;
+      return this.allWorkshops.filter(workshop => !HIDDEN_WORKSHOP_IDS.has(workshop.workshopId));
     }
   },
   async mounted() {

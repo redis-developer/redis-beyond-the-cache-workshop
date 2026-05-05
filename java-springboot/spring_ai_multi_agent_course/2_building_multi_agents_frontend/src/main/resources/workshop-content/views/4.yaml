@@ -143,26 +143,19 @@ sections:
               args:
                 stepId: 4.enableRoutingAgentConstructor
           - itemId: enable-route
-            body: In `route(...)`, comment out the scaffold throw. Then uncomment the Stage 4 route block.
+            body: In `route(...)`, comment out the scaffold throw. Then uncomment the Stage 4 route block. The routing rules stay in the system prompt, so the user message is passed directly to `ChatClient`.
             action:
               id: applyEditorStep
               label: Apply Change
               args:
                 stepId: 4.enableRoutingAgentRoute
-          - itemId: enable-runtime-prompt
-            body: In `buildPrompt(...)`, comment out the empty scaffold return. Then uncomment the runtime prompt.
-            action:
-              id: applyEditorStep
-              label: Apply Change
-              args:
-                stepId: 4.enableRoutingAgentPrompt
   - sectionId: coordinator-agent
     title: Register The Coordinator
     blocks:
       - type: editorStepList
         listId: stage-4-coordinator
         title: "`CoordinatorAgent.java`"
-        startAt: 14
+        startAt: 13
         progressGroup: stage-4
         items:
           - itemId: enable-coordinator

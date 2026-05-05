@@ -1,0 +1,83 @@
+services:
+  redis:
+    image: redis:8
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis-insight:
+    image: redis/redisinsight:latest
+    ports:
+      - "5540:5540"
+    environment:
+      - RI_REDIS_HOST=redis
+      - RI_REDIS_PORT=6379
+      - RI_REDIS_ALIAS=Workshop Redis
+      - RI_REDIS_USERNAME=default
+      - RI_REDIS_PASSWORD=
+      - RI_REDIS_TLS=FALSE
+    volumes:
+      - redis-insight-data:/db
+    depends_on:
+      redis:
+        condition: service_healthy
+
+  agent-memory-server:
+    image: redislabs/agent-memory-server:latest
+    ports:
+      - "8001:8000"
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - PORT=8000
+      - GENERATION_MODEL=${GENERATION_MODEL:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - SUMMARIZATION_THRESHOLD=0.7
+      - COMPACTION_EVERY_MINUTES=2
+      - DEDUPLICATION_DISTANCE_THRESHOLD=0.35
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["agent-memory", "api", "--host", "0.0.0.0", "--port", "8000", "--task-backend", "docket"]
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  agent-memory-task-worker:
+    image: redislabs/agent-memory-server:latest
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - GENERATION_MODEL=${GENERATION_MODEL:-gpt-4o-mini}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-text-embedding-3-small}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - LONG_TERM_MEMORY=True
+      - ENABLE_TOPIC_EXTRACTION=True
+      - SUMMARIZATION_THRESHOLD=0.7
+      - COMPACTION_EVERY_MINUTES=2
+      - DEDUPLICATION_DISTANCE_THRESHOLD=0.35
+      - ENABLE_NER=True
+      - DISABLE_AUTH=true
+    depends_on:
+      redis:
+        condition: service_healthy
+    command: ["agent-memory", "task-worker"]
+    restart: unless-stopped
+
+volumes:
+  redis-data:
+  redis-insight-data:

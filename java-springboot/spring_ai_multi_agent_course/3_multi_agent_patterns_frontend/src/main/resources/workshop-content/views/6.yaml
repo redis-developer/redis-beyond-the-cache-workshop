@@ -1,0 +1,45 @@
+schemaVersion: 1
+viewId: "6"
+route: /6
+pageType: editor
+title: "Redis Agent Memory Editor"
+slot: instructions
+summary: Open the memory integration files.
+navigation:
+  previousLabel: Verify memory
+sections:
+  - sectionId: editor
+    title: Editable Files
+    blocks:
+      - type: editorStepList
+        listId: module-3-editor-files
+        title: Memory Integration
+        startAt: 1
+        progressGroup: editor
+        items:
+          - itemId: open-application
+            body: Open `SpringAiMultiAgentsApplication.java`.
+            action:
+              id: openFile
+              label: Open Application
+              args:
+                file: SpringAiMultiAgentsApplication.java
+          - itemId: open-repository
+            body: Open `AmsChatMemoryRepository.java`.
+            action:
+              id: openFile
+              label: Open Repository
+              args:
+                file: AmsChatMemoryRepository.java
+          - itemId: open-advisor
+            body: Open `LongTermMemoryAdvisor.java`.
+            action:
+              id: openFile
+              label: Open Advisor
+              args:
+                file: LongTermMemoryAdvisor.java
+          - itemId: recompile
+            body: Recompile the learner app after making changes.
+            action:
+              id: recompileApp
+              label: Recompile App

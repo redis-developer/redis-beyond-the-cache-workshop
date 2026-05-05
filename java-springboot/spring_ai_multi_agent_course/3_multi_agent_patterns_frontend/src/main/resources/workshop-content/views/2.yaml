@@ -1,0 +1,49 @@
+schemaVersion: 1
+viewId: "2"
+route: /2
+pageType: narrative
+title: "STAGE 2: Load Working Memory"
+slot: instructions
+summary: Implement the repository read path for recent conversation state.
+navigation:
+  previousLabel: Runtime wiring
+  nextLabel: Save working memory
+sections:
+  - sectionId: goal
+    title: Repository Read Path
+    blocks:
+      - type: markdown
+        body: |
+          Spring AI asks `ChatMemoryRepository` for the current conversation before the coordinator call.
+
+          In this app, the repository loads working memory from Agent Memory Server and converts those messages into Spring AI `Message` objects.
+  - sectionId: steps
+    title: Build It
+    blocks:
+      - type: editorStepList
+        listId: load-working-memory
+        title: AmsChatMemoryRepository.java
+        startAt: 1
+        progressGroup: working-memory-load
+        items:
+          - itemId: open-repository
+            body: Open `AmsChatMemoryRepository.java`.
+            action:
+              id: openFile
+              label: Open Repository
+              args:
+                file: AmsChatMemoryRepository.java
+          - itemId: apply-load
+            body: Replace the `findByConversationId(...)` placeholder with the working-memory load implementation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 2.loadWorkingMemory
+          - itemId: inspect-load
+            body: Notice how Agent Memory Server messages become Spring AI user, assistant, and system messages.
+            action:
+              id: openFile
+              label: Review Repository
+              args:
+                file: AmsChatMemoryRepository.java

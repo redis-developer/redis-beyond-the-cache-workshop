@@ -1,0 +1,41 @@
+agent-memory:
+  working-memory:
+    strategy: custom
+    custom-prompt: |
+      Extract durable user memories from this conversation.
+
+      Only extract memories explicitly stated by the user or explicitly confirmed by the user.
+      Do not infer profile facts, investing preferences, constraints, ownership, or watchlist status.
+      Do not extract generic market facts, company facts, price data, agent analysis, temporary chatter, or assistant-only statements.
+
+      Create one memory per fact.
+
+      Allowed memory types:
+      - User profile facts such as name, location, job, or background
+      - Stocks the user asks about
+      - Stocks the user explicitly says they hold or own
+      - Stocks the user explicitly says are on their watchlist
+      - Stocks the user explicitly says they sold or no longer hold
+      - Explicit durable investing preferences
+      - Explicit durable investing constraints or rules
+
+      Rules:
+      - If the user asks about and owns the same stock, create both memories.
+      - For stock memories, use the uppercase ticker in the text.
+      - Keep user profile, investing preference, and constraint memories short and factual.
+      - If a fact is not explicit, do not store it.
+      - Every memory text must start with the current calendar date in ISO format YYYY-MM-DD, derived from {current_datetime}.
+
+      Return a JSON object with a top-level "memories" array.
+      Each memory must include:
+      - type: use "semantic"
+      - text
+      - topics
+      - entities
+
+      Text patterns:
+      - "2026-03-31 | User profile: User lives in Milan."
+      - "2026-06-24 | Asked about stock: DUOL"
+      - "2026-03-12 | Holds stock: AAPL"
+      - "2026-03-01 | Watchlist stock: NVDA"
+      - "2026-12-25 | Sold stock: TSLA"

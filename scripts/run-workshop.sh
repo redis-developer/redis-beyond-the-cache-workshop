@@ -401,22 +401,34 @@ managed_code_editor_command() {
     return
   fi
 
-  if ! command -v code-server >/dev/null 2>&1; then
+  local quoted_data_dir
+  local quoted_extensions_dir
+  printf -v quoted_data_dir '%q' "${state_dir}/code-server"
+  printf -v quoted_extensions_dir '%q' "${state_dir}/code-server/extensions"
+
+  if command -v code-server >/dev/null 2>&1; then
+    local code_server
+    local quoted_code_server
+    code_server="$(command -v code-server)"
+    printf -v quoted_code_server '%q' "${code_server}"
+    printf 'SHELL=/bin/false exec %s --auth none --bind-addr "127.0.0.1:${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}" --disable-proxy --disable-telemetry --disable-update-check --disable-workspace-trust --user-data-dir %s --extensions-dir %s "${WORKSHOP_SESSION_WORKSPACE_PATH}"' \
+      "${quoted_code_server}" \
+      "${quoted_data_dir}" \
+      "${quoted_extensions_dir}"
     return
   fi
 
-  local code_server
-  local quoted_code_server
-  local quoted_data_dir
-  local quoted_extensions_dir
-  code_server="$(command -v code-server)"
-  printf -v quoted_code_server '%q' "${code_server}"
-  printf -v quoted_data_dir '%q' "${state_dir}/code-server"
-  printf -v quoted_extensions_dir '%q' "${state_dir}/code-server/extensions"
-  printf 'SHELL=/bin/false exec %s --auth none --bind-addr "127.0.0.1:${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}" --disable-proxy --disable-telemetry --disable-update-check --disable-workspace-trust --user-data-dir %s --extensions-dir %s "${WORKSHOP_SESSION_WORKSPACE_PATH}"' \
-    "${quoted_code_server}" \
-    "${quoted_data_dir}" \
-    "${quoted_extensions_dir}"
+  if command -v docker >/dev/null 2>&1 && docker image inspect ghcr.io/coder/code-server:4.103.2 >/dev/null 2>&1; then
+    local container_name
+    local quoted_container_name
+    container_name="${workshop_id}-code-server"
+    printf -v quoted_container_name '%q' "${container_name}"
+    printf 'docker rm -f %s >/dev/null 2>&1 || true; exec docker run --rm --name %s --user "$(id -u):$(id -g)" -e HOME=/tmp -e SHELL=/bin/false -p "127.0.0.1:${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}:39000" -v "${WORKSHOP_SESSION_WORKSPACE_PATH}:${WORKSHOP_SESSION_WORKSPACE_PATH}" -v %s:/tmp/code-server -v %s:/tmp/code-server-extensions -w "${WORKSHOP_SESSION_WORKSPACE_PATH}" ghcr.io/coder/code-server:4.103.2 --auth none --bind-addr "0.0.0.0:39000" --disable-telemetry --disable-update-check --disable-workspace-trust --user-data-dir /tmp/code-server --extensions-dir /tmp/code-server-extensions "${WORKSHOP_SESSION_WORKSPACE_PATH}"' \
+      "${quoted_container_name}" \
+      "${quoted_container_name}" \
+      "${quoted_data_dir}" \
+      "${quoted_extensions_dir}"
+  fi
 }
 
 managed_code_editor_workspace_path() {
@@ -595,7 +607,7 @@ resolve_workshop() {
       legacy_frontend_port="8083"
       legacy_backend_port="18083"
       infra_services=(redis redis-insight agent-memory-server)
-      extra_url="Agent Memory Server: http://localhost:8001/"
+      extra_url="Agent Memory Server: http://localhost:8000/"
       ;;
     5|1_spring_ai_fundamentals|spring-ai-fundamentals)
       workshop_id="1_spring_ai_fundamentals"
@@ -634,8 +646,8 @@ resolve_workshop() {
       frontend_project_dir="${JAVA_DIR}/spring_ai_multi_agent_course/3_multi_agent_patterns_frontend"
       legacy_frontend_port="8086"
       legacy_backend_port="18086"
-      infra_services=(redis redis-insight agent-memory-server)
-      extra_url="Agent Memory Server: http://localhost:8000/"
+      infra_services=(redis redis-insight agent-memory-server agent-memory-task-worker)
+      extra_url="Agent Memory Server: http://localhost:8001/"
       ;;
     *)
       echo "Unknown workshop: ${selection}" >&2

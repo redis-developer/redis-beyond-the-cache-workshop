@@ -1,0 +1,60 @@
+schemaVersion: 1
+viewId: "0"
+route: /0
+pageType: narrative
+title: "STAGE 0: Redis Agent Memory"
+slot: instructions
+summary: Persist memory outside the active chat session and retrieve it for later requests.
+navigation:
+  previousLabel: ""
+  nextLabel: Runtime wiring
+sections:
+  - sectionId: problem
+    title: The Problem
+    blocks:
+      - type: markdown
+        body: |
+          A multi-agent chat can use the messages in the active conversation. That context is temporary.
+
+          If memory only exists in the current prompt or runtime session, the application loses it when the session ends, the process restarts, or the user starts a new conversation.
+
+          In this module, you will store memory in Redis Agent Memory Server and retrieve relevant records before the multi-agent workflow runs.
+      - type: callout
+        tone: info
+        body: Retrieved memory is additional context. The current user message remains the primary input.
+  - sectionId: session-memory
+    title: Why Session Memory Is Not Enough
+    blocks:
+      - type: markdown
+        body: |
+          Session memory gives the model access to recent messages in the active conversation.
+
+          Persistent memory requires an external store. The application writes memory to that store and queries it when a later request needs prior context.
+      - type: codeSnippet
+        language: text
+        title: Memory-Aware Flow
+        code: |
+          User message
+              |
+              v
+          Working memory lookup
+              |
+              v
+          Long-term memory retrieval
+              |
+              v
+          Coordinator
+              |
+              v
+          Specialist agents
+              |
+              v
+          Synthesis
+  - sectionId: memory-types
+    title: Two Kinds Of Memory
+    blocks:
+      - type: markdown
+        body: |
+          **Working memory** stores recent conversation state for the current session.
+
+          **Long-term memory** stores durable records that can be retrieved across sessions.

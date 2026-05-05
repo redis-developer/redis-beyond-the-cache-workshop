@@ -1,0 +1,31 @@
+moduleName: 3_multi_agent_patterns
+title: "Module 3: Redis Agent Memory"
+description: Add Redis Agent Memory Server to the Spring AI multi agent stock analysis app
+editableFiles:
+  - name: build.gradle.kts
+    path: build.gradle.kts
+    resetContentLocation: workshop-manifest-reset/build.gradle.kts
+  - name: application.properties
+    path: src/main/resources/application.properties
+    resetContentLocation: workshop-manifest-reset/application.properties
+  - name: SpringAiMultiAgentsApplication.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/SpringAiMultiAgentsApplication.java
+    resetContentLocation: workshop-manifest-reset/SpringAiMultiAgentsApplication.java
+  - name: MultiAgentsService.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/MultiAgentsService.java
+    resetContentLocation: workshop-manifest-reset/MultiAgentsService.java
+  - name: AgentMemoryConfig.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/memory/AgentMemoryConfig.java
+    resetContentLocation: workshop-manifest-reset/memory/AgentMemoryConfig.java
+  - name: AmsChatMemoryRepository.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/memory/AmsChatMemoryRepository.java
+    resetContentLocation: workshop-manifest-reset/memory/AmsChatMemoryRepository.java
+  - name: LongTermMemoryAdvisor.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/memory/LongTermMemoryAdvisor.java
+    resetContentLocation: workshop-manifest-reset/memory/LongTermMemoryAdvisor.java
+  - name: AgentMemoryService.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/memory/service/AgentMemoryService.java
+    resetContentLocation: workshop-manifest-reset/memory/service/AgentMemoryService.java
+  - name: CoordinatorRoutingAgentConfig.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/coordinatoragent/CoordinatorRoutingAgentConfig.java
+    resetContentLocation: workshop-manifest-reset/agent/coordinatoragent/CoordinatorRoutingAgentConfig.java

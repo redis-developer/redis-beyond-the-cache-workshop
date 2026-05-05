@@ -9,7 +9,7 @@ class SpringAiMultiAgentsApplicationTest {
 
     @Test
     void controllerReturnsPlaceholderData() {
-        MultiAgentsService service = new MultiAgentsService("", "gpt-4o-mini", null, null);
+        MultiAgentsService service = new MultiAgentsService("", "gpt-4o-mini");
         MultiAgentsController controller = new MultiAgentsController(service);
 
         assertEquals("ready", controller.health().get("status"));

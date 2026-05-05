@@ -1,0 +1,49 @@
+schemaVersion: 1
+viewId: "3"
+route: /3
+pageType: narrative
+title: "STAGE 3: Save Working Memory"
+slot: instructions
+summary: Persist new conversation turns back to Agent Memory Server.
+navigation:
+  previousLabel: Load working memory
+  nextLabel: Long-term retrieval
+sections:
+  - sectionId: goal
+    title: Repository Write Path
+    blocks:
+      - type: markdown
+        body: |
+          Working memory is only useful if new turns are written back after the model call.
+
+          `saveAll(...)` receives Spring AI messages. The repository converts them into Agent Memory Server messages, skips duplicates, appends new messages, and applies a short TTL for the session.
+
+          It also normalizes structured assistant payloads from internal routing calls. The JSON object is control data for application code, so working memory stores only the user-facing assistant message.
+  - sectionId: steps
+    title: Build It
+    blocks:
+      - type: editorStepList
+        listId: save-working-memory
+        title: AmsChatMemoryRepository.java
+        startAt: 1
+        progressGroup: working-memory-save
+        items:
+          - itemId: open-repository
+            body: Open `AmsChatMemoryRepository.java`.
+            action:
+              id: openFile
+              label: Open Repository
+              args:
+                file: AmsChatMemoryRepository.java
+          - itemId: apply-save
+            body: Replace the `saveAll(...)` placeholder with the working-memory save implementation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.saveWorkingMemory
+          - itemId: recompile
+            body: Recompile the learner app so Spring AI starts using the repository implementation.
+            action:
+              id: recompileApp
+              label: Recompile App
