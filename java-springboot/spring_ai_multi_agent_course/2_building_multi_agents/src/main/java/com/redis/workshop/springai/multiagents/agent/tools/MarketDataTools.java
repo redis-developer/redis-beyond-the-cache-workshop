@@ -1,8 +1,8 @@
 package com.redis.workshop.springai.multiagents.agent.tools;
 
 // Stage 3 imports to enable:
-import org.springframework.ai.tool.annotation.Tool;
-import org.springframework.ai.tool.annotation.ToolParam;
+// import org.springframework.ai.tool.annotation.Tool;
+// import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
 
 import com.redis.workshop.springai.multiagents.agent.marketdataagent.MarketSnapshot;
@@ -21,7 +21,8 @@ public class MarketDataTools {
         return marketDataProvider.fetchSnapshot(ticker);
     }
 
-    // Stage 3 tool method enabled.
+    /*
+    Stage 3 tool method to enable:
 
     @Tool(description = "Fetch the latest market snapshot for a stock ticker.")
     public MarketSnapshot getMarketSnapshot(
@@ -30,4 +31,5 @@ public class MarketDataTools {
     ) {
         return marketDataProvider.fetchSnapshot(ticker);
     }
+    */
 }

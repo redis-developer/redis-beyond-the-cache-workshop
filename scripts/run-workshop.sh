@@ -28,6 +28,7 @@ Workshops:
   4 | 4_agent_memory       | agent-memory
   5 | 1_spring_ai_fundamentals | spring-ai-fundamentals
   6 | 2_building_multi_agents | spring-ai-building-multi-agents
+  7 | 3_multi_agent_patterns | spring-ai-multi-agent-patterns
 EOF
 }
 
@@ -366,7 +367,7 @@ start_backend() {
 }
 
 managed_runner_enabled() {
-  [[ "${workshop_id}" == "1_session_management" || "${workshop_id}" == "1_spring_ai_fundamentals" || "${workshop_id}" == "2_building_multi_agents" ]]
+  [[ "${workshop_id}" == "1_session_management" || "${workshop_id}" == "1_spring_ai_fundamentals" || "${workshop_id}" == "2_building_multi_agents" || "${workshop_id}" == "3_multi_agent_patterns" ]]
 }
 
 build_backend_for_runner() {
@@ -517,6 +518,9 @@ start_frontend() {
     else
       echo "code editor: code-server not found; embedded VS Code process will not start locally"
     fi
+    if [[ "${workshop_id}" == "3_multi_agent_patterns" ]]; then
+      frontend_env+=(AGENT_MEMORY_SERVER_URL="http://localhost:8001")
+    fi
 
     start_boot_app \
       "frontend" \
@@ -591,7 +595,7 @@ resolve_workshop() {
       legacy_frontend_port="8083"
       legacy_backend_port="18083"
       infra_services=(redis redis-insight agent-memory-server)
-      extra_url="Agent Memory Server: http://localhost:8000/"
+      extra_url="Agent Memory Server: http://localhost:8001/"
       ;;
     5|1_spring_ai_fundamentals|spring-ai-fundamentals)
       workshop_id="1_spring_ai_fundamentals"
@@ -618,6 +622,20 @@ resolve_workshop() {
       legacy_frontend_port="8085"
       legacy_backend_port="18085"
       infra_services=(redis redis-insight)
+      ;;
+    7|3_multi_agent_patterns|spring-ai-multi-agent-patterns)
+      workshop_id="3_multi_agent_patterns"
+      display_name="Spring AI Redis Agent Memory"
+      compose_file="${JAVA_DIR}/spring_ai_multi_agent_course/3_multi_agent_patterns/docker-compose.yml"
+      backend_project="3_multi_agent_patterns"
+      frontend_project="3_multi_agent_patterns_frontend"
+      source_path="${JAVA_DIR}/spring_ai_multi_agent_course/3_multi_agent_patterns"
+      backend_project_dir="${source_path}"
+      frontend_project_dir="${JAVA_DIR}/spring_ai_multi_agent_course/3_multi_agent_patterns_frontend"
+      legacy_frontend_port="8086"
+      legacy_backend_port="18086"
+      infra_services=(redis redis-insight agent-memory-server)
+      extra_url="Agent Memory Server: http://localhost:8000/"
       ;;
     *)
       echo "Unknown workshop: ${selection}" >&2

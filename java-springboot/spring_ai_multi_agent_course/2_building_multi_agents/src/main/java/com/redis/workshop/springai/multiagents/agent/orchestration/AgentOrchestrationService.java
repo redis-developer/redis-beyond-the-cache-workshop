@@ -1,24 +1,28 @@
 package com.redis.workshop.springai.multiagents.agent.orchestration;
 
 // Stage 5 imports to enable:
-import org.springframework.stereotype.Service;
+// import org.springframework.stereotype.Service;
 
-import com.redis.workshop.springai.multiagents.agent.coordinatoragent.CoordinatorAgent;
-import com.redis.workshop.springai.multiagents.agent.coordinatoragent.ExecutionPlan;
-import com.redis.workshop.springai.multiagents.agent.coordinatoragent.RoutingDecision;
-import com.redis.workshop.springai.multiagents.agent.fundamentalsagent.FundamentalsAgent;
-import com.redis.workshop.springai.multiagents.agent.fundamentalsagent.FundamentalsResult;
-import com.redis.workshop.springai.multiagents.agent.marketdataagent.MarketDataAgent;
-import com.redis.workshop.springai.multiagents.agent.marketdataagent.MarketDataResult;
-import com.redis.workshop.springai.multiagents.agent.newsagent.NewsAgent;
-import com.redis.workshop.springai.multiagents.agent.newsagent.NewsResult;
-import com.redis.workshop.springai.multiagents.agent.synthesisagent.SynthesisAgent;
-import com.redis.workshop.springai.multiagents.agent.synthesisagent.SynthesisResult;
+// import com.redis.workshop.springai.multiagents.agent.coordinatoragent.CoordinatorAgent;
+// import com.redis.workshop.springai.multiagents.agent.coordinatoragent.ExecutionPlan;
+// import com.redis.workshop.springai.multiagents.agent.coordinatoragent.RoutingDecision;
+// import com.redis.workshop.springai.multiagents.agent.fundamentalsagent.FundamentalsAgent;
+// import com.redis.workshop.springai.multiagents.agent.fundamentalsagent.FundamentalsResult;
+// import com.redis.workshop.springai.multiagents.agent.marketdataagent.MarketDataAgent;
+// import com.redis.workshop.springai.multiagents.agent.marketdataagent.MarketDataResult;
+// import com.redis.workshop.springai.multiagents.agent.newsagent.NewsAgent;
+// import com.redis.workshop.springai.multiagents.agent.newsagent.NewsResult;
+// import com.redis.workshop.springai.multiagents.agent.synthesisagent.SynthesisAgent;
+// import com.redis.workshop.springai.multiagents.agent.synthesisagent.SynthesisResult;
 
+/*
+Stage 5 annotation to enable:
 @Service
+*/
 public class AgentOrchestrationService {
 
-    // Stage 5 fields and constructor enabled.
+    /*
+    Stage 5 fields and constructor to enable:
 
     private final CoordinatorAgent coordinatorAgent;
     private final MarketDataAgent marketDataAgent;
@@ -39,17 +43,16 @@ public class AgentOrchestrationService {
         this.newsAgent = newsAgent;
         this.synthesisAgent = synthesisAgent;
     }
+    */
 
     public AnalysisResponse analyze(String userMessage) {
-        return analyze(userMessage, "building-multi-agents-demo");
-    }
+        throw new UnsupportedOperationException("Stage 5: implement analyze(...)");
 
-    public AnalysisResponse analyze(String userMessage, String conversationId) {
-        // throw new UnsupportedOperationException("Stage 5: implement analyze(...)");
+        /*
+        Stage 5 orchestration block to enable:
+        Comment out the scaffold throw above, then uncomment this block.
 
-        // Stage 5 orchestration block enabled.
-
-        RoutingDecision decision = coordinatorAgent.execute(userMessage, conversationId);
+        RoutingDecision decision = coordinatorAgent.execute(userMessage);
 
         if (decision.getFinishReason() != RoutingDecision.FinishReason.COMPLETED) {
             String answer = nonBlank(decision.getFinalResponse(), decision.getNextPrompt());
@@ -70,9 +73,14 @@ public class AgentOrchestrationService {
         SynthesisResult synthesis = synthesisAgent.execute(request, marketData, fundamentals, news);
 
         return new AnalysisResponse(synthesis.finalAnswer(), decision, plan, marketData, fundamentals, news, synthesis);
+        */
     }
+
+    /*
+    Stage 5 helper to enable:
 
     private String nonBlank(String preferred, String fallback) {
         return preferred == null || preferred.isBlank() ? fallback : preferred;
     }
+    */
 }

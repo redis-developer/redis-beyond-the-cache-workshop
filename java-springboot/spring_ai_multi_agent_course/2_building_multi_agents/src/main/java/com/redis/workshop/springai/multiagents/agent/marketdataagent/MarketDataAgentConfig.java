@@ -1,37 +1,27 @@
 package com.redis.workshop.springai.multiagents.agent.marketdataagent;
 
 // Stage 3 imports to enable:
-import org.springframework.ai.chat.client.AdvisorParams;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+// import org.springframework.ai.chat.client.AdvisorParams;
+// import org.springframework.ai.chat.client.ChatClient;
+// import org.springframework.ai.chat.model.ChatModel;
+// import org.springframework.context.annotation.Bean;
+// import org.springframework.context.annotation.Configuration;
 
 import com.redis.workshop.springai.multiagents.agent.tools.MarketDataTools;
 
+/*
+Stage 3 annotation to enable:
 @Configuration
+*/
 public class MarketDataAgentConfig {
 
     private static final String DEFAULT_PROMPT = """
-            ROLE
-            You are the Market Data Agent for a stock analysis system.
-
-            RESPONSIBILITY
-            Use the available tools to fetch current market data for the requested ticker and return a grounded result.
-
-            RULES
-            Always use the market data tools before returning a completed result.
-            Never invent prices, percentages, timestamps, or sources.
-            Use the exact tool result to populate finalResponse.
-            Keep message concise and directly useful to the user.
-            Return valid JSON matching the requested schema.
-
-            COMPLETION
-            Return finishReason = COMPLETED when finalResponse is available.
-            Return finishReason = ERROR only when the task cannot be completed.
+            PART 2 TODO:
+            Replace this placeholder with the default prompt snippet from the stage guide.
             """;
 
-    // Stage 3 ChatClient bean enabled.
+    /*
+    Stage 3 ChatClient bean to enable:
 
     @Bean("marketDataChatClient")
     public ChatClient marketDataChatClient(
@@ -44,4 +34,5 @@ public class MarketDataAgentConfig {
                 .defaultSystem(DEFAULT_PROMPT)
                 .build();
     }
+    */
 }

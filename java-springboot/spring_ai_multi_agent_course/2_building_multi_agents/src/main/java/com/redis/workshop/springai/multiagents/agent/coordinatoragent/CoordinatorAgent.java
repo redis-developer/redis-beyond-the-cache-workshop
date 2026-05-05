@@ -9,9 +9,12 @@ import com.redis.workshop.springai.multiagents.agent.orchestration.AgentType;
 import com.redis.workshop.springai.multiagents.agent.orchestration.AnalysisRequest;
 
 // Stage 4 import to enable:
-import org.springframework.stereotype.Service;
+// import org.springframework.stereotype.Service;
 
+/*
+Stage 4 annotation to enable:
 @Service
+*/
 public class CoordinatorAgent {
 
     private final CoordinatorRoutingAgent coordinatorRoutingAgent;
@@ -22,10 +25,6 @@ public class CoordinatorAgent {
 
     public RoutingDecision execute(String userMessage) {
         return coordinatorRoutingAgent.route(userMessage);
-    }
-
-    public RoutingDecision execute(String userMessage, String conversationId) {
-        return coordinatorRoutingAgent.route(userMessage, conversationId);
     }
 
     public ExecutionPlan createPlan(RoutingDecision routingDecision) {

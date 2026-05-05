@@ -15,10 +15,27 @@ java {
 
 repositories {
     mavenCentral()
+    maven { url = uri("https://jitpack.io") }
+    maven { url = uri("https://repo.spring.io/milestone") }
+    maven { url = uri("https://repo.spring.io/snapshot") }
+}
+
+val springBootRuntimeVersion = "4.0.5"
+val springAiVersion = "2.0.0-M5"
+
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.boot:spring-boot-dependencies:$springBootRuntimeVersion")
+    }
 }
 
 dependencies {
+    implementation(project(":workshop-infrastructure"))
+
     implementation("org.springframework.boot:spring-boot-starter-web")
+    implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
+    implementation("org.springframework.ai:spring-ai-starter-model-openai")
+    implementation("org.springframework.ai:spring-ai-model-chat-memory-repository-redis")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

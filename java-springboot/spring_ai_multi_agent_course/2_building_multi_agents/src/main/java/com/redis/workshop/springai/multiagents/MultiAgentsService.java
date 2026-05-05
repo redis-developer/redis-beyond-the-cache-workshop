@@ -1,16 +1,14 @@
 package com.redis.workshop.springai.multiagents;
 
-import java.util.ArrayList;
 import java.util.List;
 
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 // Stage 3 import to enable:
-import com.redis.workshop.springai.multiagents.agent.marketdataagent.MarketDataAgent;
+// import com.redis.workshop.springai.multiagents.agent.marketdataagent.MarketDataAgent;
 // Stage 5 import to enable:
-import com.redis.workshop.springai.multiagents.agent.orchestration.AnalysisResponse;
-import com.redis.workshop.springai.multiagents.agent.orchestration.AgentOrchestrationService;
+// import com.redis.workshop.springai.multiagents.agent.orchestration.AgentOrchestrationService;
 
 @Service
 public class MultiAgentsService {
@@ -25,24 +23,24 @@ public class MultiAgentsService {
     private final String model;
 
     // Stage 3 field to enable:
-    private final MarketDataAgent marketDataAgent;
+    // private final MarketDataAgent marketDataAgent;
     // Stage 5 field to enable:
-    private final AgentOrchestrationService orchestrationService;
+    // private final AgentOrchestrationService orchestrationService;
 
     public MultiAgentsService(
             @Value("${spring.ai.openai.api-key:}") String apiKey,
             @Value("${spring.ai.openai.chat.options.model:gpt-4o-mini}") String model
             // Stage 3 constructor parameter to enable:
-            , MarketDataAgent marketDataAgent
+            // , MarketDataAgent marketDataAgent
             // Stage 5 constructor parameter to enable:
-            , AgentOrchestrationService orchestrationService
+            // , AgentOrchestrationService orchestrationService
     ) {
         this.apiKey = apiKey;
         this.model = model;
         // Stage 3 assignment to enable:
-        this.marketDataAgent = marketDataAgent;
+        // this.marketDataAgent = marketDataAgent;
         // Stage 5 assignment to enable:
-        this.orchestrationService = orchestrationService;
+        // this.orchestrationService = orchestrationService;
     }
 
     public MultiAgentsStatusResponse status() {
@@ -61,30 +59,36 @@ public class MultiAgentsService {
 
     public MultiAgentsRunResponse run(MultiAgentsRunRequest request) {
         String task = nonBlank(request.task(), "What is the current price for Duolingo?");
-        String conversationId = nonBlank(request.conversationId(), "building-multi-agents-demo");
         String userMessage = userMessage(request, task);
-        // return new MultiAgentsRunResponse(true, PLACEHOLDER_ANSWER.trim(), List.of(
-        //         new MultiAgentStep("Coordinator Agent", "Received: " + userMessage),
-        //         new MultiAgentStep("Market Data Agent", "Stage 3 will run this specialist."),
-        //         new MultiAgentStep("Fundamentals Agent", "Stage 5 will run this specialist."),
-        //         new MultiAgentStep("News Agent", "Stage 5 will run this specialist."),
-        //         new MultiAgentStep("Synthesis Agent", "Later stages will combine specialist outputs.")
-        // ), null, null, null, null, null, null);
+        return new MultiAgentsRunResponse(true, PLACEHOLDER_ANSWER.trim(), List.of(
+                new MultiAgentStep("Coordinator Agent", "Received: " + userMessage),
+                new MultiAgentStep("Market Data Agent", "Stage 3 will run this specialist."),
+                new MultiAgentStep("Fundamentals Agent", "Stage 5 will run this specialist."),
+                new MultiAgentStep("News Agent", "Stage 5 will run this specialist."),
+                new MultiAgentStep("Synthesis Agent", "Later stages will combine specialist outputs.")
+        ), null, null, null, null, null, null);
 
-        // Stage 3 run block was used before orchestration was enabled.
-        // var result = marketDataAgent.execute(ticker, task);
+        /*
+        Stage 3 run block to enable:
+        Comment out the placeholder return above, then uncomment this block.
 
-        // return new MultiAgentsRunResponse(true, result.getMessage(), List.of(
-        //         new MultiAgentStep("Coordinator Agent", "Using the requested ticker " + ticker + "."),
-        //         new MultiAgentStep("Market Data Agent", "Fetched a market snapshot with a Spring AI tool."),
-        //         new MultiAgentStep("Fundamentals Agent", "Not implemented yet."),
-        //         new MultiAgentStep("News Agent", "Not implemented yet."),
-        //         new MultiAgentStep("Synthesis Agent", "Not implemented yet.")
-        // ), result, null, null, null, null, null);
+        String ticker = nonBlank(request.ticker(), "NVDA").toUpperCase();
+        var result = marketDataAgent.execute(ticker, task);
 
-        // Stage 5 orchestration run block enabled.
+        return new MultiAgentsRunResponse(true, result.getMessage(), List.of(
+                new MultiAgentStep("Coordinator Agent", "Using the requested ticker " + ticker + "."),
+                new MultiAgentStep("Market Data Agent", "Fetched a market snapshot with a Spring AI tool."),
+                new MultiAgentStep("Fundamentals Agent", "Not implemented yet."),
+                new MultiAgentStep("News Agent", "Not implemented yet."),
+                new MultiAgentStep("Synthesis Agent", "Not implemented yet.")
+        ), result, null, null, null, null, null);
+        */
 
-        var analysis = orchestrationService.analyze(userMessage, conversationId);
+        /*
+        Stage 5 orchestration run block to enable:
+        Comment out the Stage 3 return above, then uncomment this block.
+
+        var analysis = orchestrationService.analyze(userMessage);
 
         return new MultiAgentsRunResponse(
                 true,
@@ -97,6 +101,7 @@ public class MultiAgentsService {
                 analysis,
                 null
         );
+        */
     }
 
     private boolean apiKeyConfigured() {
@@ -115,7 +120,11 @@ public class MultiAgentsService {
         return request.ticker().trim().toUpperCase() + " " + task;
     }
 
-    private List<MultiAgentStep> stepsFor(AnalysisResponse analysis) {
+    /*
+    Stage 5 helper to enable:
+    Add `import java.util.ArrayList;` with the other imports.
+
+    private List<MultiAgentStep> stepsFor(com.redis.workshop.springai.multiagents.agent.orchestration.AnalysisResponse analysis) {
         List<MultiAgentStep> steps = new ArrayList<>();
         steps.add(new MultiAgentStep("Coordinator Agent", "Created a routing decision."));
 
@@ -134,4 +143,5 @@ public class MultiAgentsService {
 
         return List.copyOf(steps);
     }
+    */
 }

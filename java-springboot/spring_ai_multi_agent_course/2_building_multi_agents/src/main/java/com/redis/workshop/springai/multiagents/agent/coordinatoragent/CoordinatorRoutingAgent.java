@@ -1,34 +1,37 @@
 package com.redis.workshop.springai.multiagents.agent.coordinatoragent;
 
 // Stage 4 imports to enable:
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.stereotype.Service;
+// import org.springframework.ai.chat.client.ChatClient;
+// import org.springframework.ai.chat.memory.ChatMemory;
+// import org.springframework.beans.factory.annotation.Qualifier;
+// import org.springframework.stereotype.Service;
 
+/*
+Stage 4 annotation to enable:
 @Service
+*/
 public class CoordinatorRoutingAgent {
 
-    // Stage 4 field and constructor enabled.
+    /*
+    Stage 4 field and constructor to enable:
 
     private final ChatClient coordinatorChatClient;
 
     public CoordinatorRoutingAgent(@Qualifier("coordinatorChatClient") ChatClient coordinatorChatClient) {
         this.coordinatorChatClient = coordinatorChatClient;
     }
+    */
 
     public RoutingDecision route(String userMessage) {
-        return route(userMessage, ChatMemory.DEFAULT_CONVERSATION_ID);
-    }
+        throw new UnsupportedOperationException("Stage 4: implement route(...)");
 
-    public RoutingDecision route(String userMessage, String conversationId) {
-        // throw new UnsupportedOperationException("Stage 4: implement route(...)");
-
-        // Stage 4 route block enabled.
+        /*
+        Stage 4 route block to enable:
+        Comment out the scaffold throw above, then uncomment this block.
 
         RoutingDecision decision = coordinatorChatClient.prompt()
                 .user(buildPrompt(userMessage))
-                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, ChatMemory.DEFAULT_CONVERSATION_ID))
                 .call()
                 .entity(RoutingDecision.class);
 
@@ -37,12 +40,15 @@ public class CoordinatorRoutingAgent {
         }
 
         return decision;
+        */
     }
 
     private String buildPrompt(String userMessage) {
-        // return "";
+        return "";
 
-        // Stage 4 runtime prompt enabled.
+        /*
+        Stage 4 runtime prompt to enable:
+        Comment out the scaffold return above, then uncomment this block.
 
         return """
                 USER_REQUEST
@@ -62,5 +68,6 @@ public class CoordinatorRoutingAgent {
                 If the stock is ambiguous or missing, return NEEDS_MORE_INPUT and set nextPrompt.
                 If the request is not about stocks, return OUT_OF_SCOPE and set finalResponse.
                 """.formatted(userMessage);
+        */
     }
 }

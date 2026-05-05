@@ -1,34 +1,27 @@
 package com.redis.workshop.springai.multiagents.agent.fundamentalsagent;
 
-import org.springframework.ai.chat.client.AdvisorParams;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+// Stage 5 imports to enable:
+// import org.springframework.ai.chat.client.AdvisorParams;
+// import org.springframework.ai.chat.client.ChatClient;
+// import org.springframework.ai.chat.model.ChatModel;
+// import org.springframework.context.annotation.Bean;
+// import org.springframework.context.annotation.Configuration;
 
-import com.redis.workshop.springai.multiagents.agent.tools.FundamentalsTools;
+// import com.redis.workshop.springai.multiagents.agent.tools.FundamentalsTools;
 
+/*
+Stage 5 annotation to enable:
 @Configuration
+*/
 public class FundamentalsAgentConfig {
 
     private static final String DEFAULT_PROMPT = """
-            ROLE
-            You are the Fundamentals Agent for a stock analysis system.
-
-            RESPONSIBILITY
-            Use the available tools to fetch simple company fundamentals for the requested ticker.
-
-            RULES
-            Always use the fundamentals tools before returning a completed result.
-            Never invent margins, growth rates, timestamps, or sources.
-            Use the exact tool result to populate finalResponse.
-            Keep message to one concise sentence.
-            Return valid JSON matching the requested schema.
-
-            COMPLETION
-            Return finishReason = COMPLETED when finalResponse is available.
-            Return finishReason = ERROR only when the task cannot be completed.
+            STAGE 5 TODO:
+            Replace this placeholder with the fundamentals prompt.
             """;
+
+    /*
+    Stage 5 ChatClient bean to enable:
 
     @Bean("fundamentalsChatClient")
     public ChatClient fundamentalsChatClient(
@@ -41,4 +34,5 @@ public class FundamentalsAgentConfig {
                 .defaultSystem(DEFAULT_PROMPT)
                 .build();
     }
+    */
 }

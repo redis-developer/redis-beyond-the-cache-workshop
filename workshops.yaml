@@ -214,7 +214,89 @@ workshops:
         images:
           frontend: registry.example.com/workshops/spring-ai-building-multi-agents-frontend@sha256:1111111111111111111111111111111111111111111111111111111111111111
           backend: registry.example.com/workshops/spring-ai-building-multi-agents-backend@sha256:2222222222222222222222222222222222222222222222222222222222222222
-          combined: registry.example.com/workshops/spring-ai-building-multi-agents-runner@sha256:3333333333333333333333333333333333333333333333333333333333333333
+          combined: europe-west4-docker.pkg.dev/personal-rdlts/session-runners/2_building_multi_agents@sha256:bba559a1ab91e21090690fbbcb927b7741e6e48f84c0e41cfb868030c023826f
+        resourceClass: small
+        sessionTtlMinutes: 180
+        mutableDependencies:
+          - redis
+  - id: 3_multi_agent_patterns
+    title: "Module 3: Redis Agent Memory"
+    description: >-
+      Add Redis Agent Memory Server to the Spring AI multi agent stock analysis
+      app using working memory and long-term memory retrieval.
+    difficulty: Intermediate
+    estimatedMinutes: 45
+    serviceName: spring-ai-multi-agent-patterns
+    url: /workshop/spring-ai-multi-agent-patterns/
+    dockerfile: java-springboot/spring_ai_multi_agent_course/3_multi_agent_patterns_frontend/Dockerfile
+    frontendServiceName: spring-ai-multi-agent-patterns
+    frontendDockerfile: java-springboot/spring_ai_multi_agent_course/3_multi_agent_patterns_frontend/Dockerfile
+    backendServiceName: spring-ai-multi-agent-patterns-api
+    backendDockerfile: java-springboot/spring_ai_multi_agent_course/3_multi_agent_patterns/Dockerfile
+    infrastructureDependencies:
+      - redis
+    sessionScopedInfrastructureDependencies:
+      - redis
+    sidecars:
+      - serviceName: agent-memory-server
+        image: redislabs/agent-memory-server:latest
+        port: 8000
+        env:
+          REDIS_URL: redis://redis:6379
+          PORT: "8000"
+          GENERATION_MODEL: ${GENERATION_MODEL:-gpt-4o-mini}
+          EMBEDDING_MODEL: ${EMBEDDING_MODEL:-text-embedding-3-small}
+          OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+          ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+          LONG_TERM_MEMORY: "True"
+          ENABLE_TOPIC_EXTRACTION: "True"
+          SUMMARIZATION_THRESHOLD: "0.7"
+          DEDUPLICATION_DISTANCE_THRESHOLD: "0.35"
+          ENABLE_NER: "True"
+          DISABLE_AUTH: "true"
+        dependsOn:
+          - redis
+        command:
+          - agent-memory
+          - api
+          - --host
+          - 0.0.0.0
+          - --port
+          - "8000"
+          - --task-backend=asyncio
+        healthcheck:
+          test:
+            - CMD
+            - curl
+            - -f
+            - http://localhost:8000/v1/health
+          interval: 10s
+          timeout: 5s
+          retries: 5
+          startPeriod: 10s
+    envOverrides:
+      backend:
+        AGENT_MEMORY_SERVER_URL: http://agent-memory-server:8000
+    redisFlavor: standard
+    frontendPrebuild: true
+    topics:
+      - Spring AI
+      - Multi Agent
+      - Redis
+      - Agent Memory
+    releases:
+      - releaseId: spring-ai-multi-agent-patterns-2026.05.1
+        releaseVersion: 2026.05.1
+        mode: LAB
+        defaultForWorkshop: true
+        enabled: true
+        environments:
+          - local
+          - cloud-run
+        images:
+          frontend: registry.example.com/workshops/spring-ai-multi-agent-patterns-frontend@sha256:3333333333333333333333333333333333333333333333333333333333333333
+          backend: registry.example.com/workshops/spring-ai-multi-agent-patterns-backend@sha256:4444444444444444444444444444444444444444444444444444444444444444
+          combined: registry.example.com/workshops/spring-ai-multi-agent-patterns-runner@sha256:7777777777777777777777777777777777777777777777777777777777777777
         resourceClass: small
         sessionTtlMinutes: 180
         mutableDependencies:

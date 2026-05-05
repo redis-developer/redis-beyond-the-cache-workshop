@@ -1,28 +1,25 @@
 package com.redis.workshop.springai.multiagents.agent.synthesisagent;
 
-import org.springframework.ai.chat.client.AdvisorParams;
-import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.model.ChatModel;
-import org.springframework.context.annotation.Bean;
-import org.springframework.context.annotation.Configuration;
+// Stage 5 imports to enable:
+// import org.springframework.ai.chat.client.AdvisorParams;
+// import org.springframework.ai.chat.client.ChatClient;
+// import org.springframework.ai.chat.model.ChatModel;
+// import org.springframework.context.annotation.Bean;
+// import org.springframework.context.annotation.Configuration;
 
+/*
+Stage 5 annotation to enable:
 @Configuration
+*/
 public class SynthesisAgentConfig {
 
     private static final String DEFAULT_PROMPT = """
-            ROLE
-            You are the Synthesis Agent for a stock analysis system.
-
-            RESPONSIBILITY
-            Combine specialist agent outputs into one user facing answer.
-
-            RULES
-            Use only the provided specialist outputs.
-            Do not invent prices, metrics, headlines, or sources.
-            Mention uncertainty when data is incomplete.
-            Keep the final answer concise and useful.
-            Return valid JSON matching the requested schema.
+            STAGE 5 TODO:
+            Replace this placeholder with the synthesis prompt.
             """;
+
+    /*
+    Stage 5 ChatClient bean to enable:
 
     @Bean("synthesisChatClient")
     public ChatClient synthesisChatClient(ChatModel chatModel) {
@@ -31,4 +28,5 @@ public class SynthesisAgentConfig {
                 .defaultSystem(DEFAULT_PROMPT)
                 .build();
     }
+    */
 }
