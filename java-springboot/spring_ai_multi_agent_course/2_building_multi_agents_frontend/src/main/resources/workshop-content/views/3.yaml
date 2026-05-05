@@ -1,0 +1,226 @@
+schemaVersion: 1
+viewId: "3"
+route: /3
+pageType: narrative
+title: "STAGE 3: Implement The Market Data Agent"
+slot: instructions
+summary: Wire the first specialist agent with a tool, prompt, and structured output.
+navigation:
+  previousLabel: Agent contracts
+  nextLabel: Coordinator flow
+sections:
+  - sectionId: goal
+    title: Exercise Goal
+    blocks:
+      - type: markdown
+        body: |
+          Build the Market Data Agent, the first specialist in the larger stock analysis flow.
+
+          By the end of this stage, the learner app should send a stock question to the backend, the model should call a Java tool, and Spring AI should map the response into `MarketDataResult`.
+  - sectionId: configure
+    title: Session Environment
+    blocks:
+      - type: editorStepList
+        listId: stage-3-env
+        title: Provider keys
+        startAt: 1
+        progressGroup: stage-3
+        items:
+          - itemId: configure-openai-key
+            body: If `OPENAI_API_KEY` or `TWELVE_DATA_API_KEY` is not already available, use `Env` next to `Logs`, add it, save it, and let the app restart.
+            hint: Keys are session settings. Do not put them in source code.
+            action:
+              id: openRoute
+              label: Open Learner App
+              args:
+                route: /3?tool=learner-app
+  - sectionId: tool
+    title: Implement The Tool
+    blocks:
+      - type: editorStepList
+        listId: stage-3-tool
+        title: "`MarketDataTools.java`"
+        startAt: 2
+        progressGroup: stage-3
+        items:
+          - itemId: open-tools
+            body: Open `MarketDataTools.java`. The Twelve Data provider is already available. You only expose it as a Spring AI tool.
+            action:
+              id: openFile
+              label: Open Tools
+              args:
+                file: MarketDataTools.java
+                line: 1
+          - itemId: enable-tool-imports
+            body: Uncomment the Stage 3 imports for `Tool` and `ToolParam`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableToolImports
+          - itemId: enable-tool-method
+            body: Uncomment the Stage 3 `getMarketSnapshot(...)` method.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableToolMethod
+      - type: codeSnippet
+        language: java
+        title: Tool Shape
+        code: |
+          @Tool(description = "Fetch the latest market snapshot for a stock ticker.")
+          public MarketSnapshot getMarketSnapshot(
+                  @ToolParam(description = "The stock ticker symbol in uppercase, for example AAPL.")
+                  String ticker
+          ) {
+              return marketDataProvider.fetchSnapshot(ticker);
+          }
+  - sectionId: config
+    title: Configure The Agent
+    blocks:
+      - type: editorStepList
+        listId: stage-3-config
+        title: "`MarketDataAgentConfig.java`"
+        startAt: 4
+        progressGroup: stage-3
+        items:
+          - itemId: open-config
+            body: Open `MarketDataAgentConfig.java`. This class defines the stable agent setup.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: MarketDataAgentConfig.java
+                line: 1
+          - itemId: enable-config-imports
+            body: Uncomment the Stage 3 imports for `AdvisorParams`, `ChatClient`, `ChatModel`, `Bean`, and `Configuration`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableConfigImports
+          - itemId: enable-config-annotation
+            body: Uncomment the `@Configuration` annotation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableConfigAnnotation
+          - itemId: enable-default-prompt
+            body: Replace the placeholder prompt with the Market Data Agent role, rules, and completion contract.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableDefaultPrompt
+          - itemId: enable-chat-client
+            body: Uncomment the `marketDataChatClient(...)` bean.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableChatClientBean
+  - sectionId: execution
+    title: Execute The Agent
+    blocks:
+      - type: editorStepList
+        listId: stage-3-agent
+        title: "`MarketDataAgent.java`"
+        startAt: 9
+        progressGroup: stage-3
+        items:
+          - itemId: open-agent
+            body: Open `MarketDataAgent.java`. This class sends the runtime prompt and reads the structured result.
+            action:
+              id: openFile
+              label: Open Agent
+              args:
+                file: MarketDataAgent.java
+                line: 1
+          - itemId: enable-agent-imports
+            body: Uncomment the Stage 3 imports and the `TokenUsageSummary` import.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableAgentImports
+          - itemId: enable-agent-annotation
+            body: Uncomment the `@Service` annotation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableAgentAnnotation
+          - itemId: enable-agent-constructor
+            body: Uncomment the `ChatClient` field and constructor.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableAgentConstructor
+          - itemId: enable-execute
+            body: In `execute(...)`, comment out the scaffold return. Then uncomment the Stage 3 execute block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableAgentExecute
+          - itemId: enable-runtime-prompt
+            body: In `buildPrompt(...)`, comment out the empty scaffold return. Then uncomment the runtime prompt.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableRuntimePrompt
+  - sectionId: service
+    title: Connect The Learner App
+    blocks:
+      - type: editorStepList
+        listId: stage-3-service
+        title: "`MultiAgentsService.java`"
+        startAt: 15
+        progressGroup: stage-3
+        items:
+          - itemId: open-service
+            body: Open `MultiAgentsService.java`. This connects the learner chat to the first specialist for now.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: MultiAgentsService.java
+                line: 1
+          - itemId: enable-service-dependency
+            body: Uncomment the Stage 3 import, field, constructor parameter, and assignment for `MarketDataAgent`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableServiceDependency
+          - itemId: enable-service-run
+            body: In `run(...)`, comment out the placeholder return. Then uncomment the Stage 3 run block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableServiceRun
+  - sectionId: run
+    title: Run It
+    blocks:
+      - type: stepList
+        listId: stage-3-run
+        variant: checklist
+        items:
+          - itemId: recompile
+            title: Recompile
+            body: Click `Recompile App` in the header so the backend restarts with your edits.
+          - itemId: test
+            title: Test
+            body: Return to the learner app and send a chat message asking for a quick market data read on `NVDA`.
+          - itemId: verify
+            title: Verify
+            body: The response should include a `marketData` object with `finishReason`, `message`, `finalResponse`, and `tokenUsage`.
+      - type: callout
+        tone: warning
+        title: Checkpoint
+        body: If the response reports a model error, check `OPENAI_API_KEY` in `Env`, save it, and recompile again.

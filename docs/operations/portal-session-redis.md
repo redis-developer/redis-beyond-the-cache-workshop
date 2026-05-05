@@ -1,18 +1,19 @@
-# Portal Session Redis Operations
+# Control Plane Redis Operations
 
 Browser portal sessions are separate from workshop runtime Redis.
 
-The portal login flow stores an opaque browser session token in Redis through the control plane. Workshop deployment records, launch state, ownership, audit rows, and cleanup state remain in the control plane database.
+The portal login flow stores an opaque browser session token in Redis through the control plane. In Cloud Run, workshop deployment records also use Redis so a restarted control plane can map active sessions back to users.
 
 ## Runtime Boundary
 
-Use Redis only for short lived browser portal sessions.
+Use the shared control plane Redis only for control plane state.
 
 1. Portal session keys map opaque token hashes to JSON session documents with the normalized learner email, expiry, and active workshop session ids.
 2. The browser receives only an HttpOnly cookie.
 3. `/api/sessions` uses the authenticated portal actor when a valid cookie is present.
-4. Workshop deployment records remain keyed by `PlatformSessionRecord.ownerUserId` in the control plane database. Redis mirrors active session ids for the current portal session, but the database remains the source of truth after logout or Redis expiry.
-5. Per workshop Redis still runs inside each session runner container in `local-process` mode.
+4. Cloud Run workshop deployment records are stored as serialized `PlatformSessionRecord` documents in Redis and remain keyed by `ownerUserId` inside the record.
+5. Redis mirrors active session ids for the current portal browser session, and the session record repository remains the source of truth after logout or portal token expiry.
+6. Per workshop Redis still runs inside each session runner container in `local-process` mode.
 
 Do not use the session runner local Redis process for portal sessions. It is scoped to one learner workshop runtime and is deleted with that runtime.
 
@@ -35,7 +36,7 @@ Staging should use a dedicated Redis database or isolated key prefix.
 4. Apply `infra/terraform/cloudrun` so the control plane receives the Redis endpoint and password secret reference.
 5. Smoke test login, refresh, logout, and session launch ownership with one staging learner email.
 
-## Portal Ownership Smoke
+## Ownership Smoke
 
 Use the browser flow for launch smoke checks where practical. Header based actor auth remains available for legacy operations scripts, but public learner validation should prove the Redis backed portal cookie path.
 
@@ -77,7 +78,7 @@ Expected result:
 1. Each email can create one active session for `1_session_management`.
 2. The `learner-b@example.com` session list does not include the `learner-a@example.com` session id.
 3. Browser refresh keeps the portal user authenticated until logout.
-4. Logging out and logging back in with the same email restores visible workshop sessions from the control plane database and writes those session ids into the new Redis portal session document.
+4. Logging out and logging back in with the same email restores visible workshop sessions from the Redis backed session record repository and writes those session ids into the new Redis portal session document.
 
 ## Production
 
@@ -88,6 +89,6 @@ Production should use a managed Redis endpoint with access restricted to the con
 3. Store passwords or tokens only in Secret Manager.
 4. Rotate credentials by updating the Secret Manager secret version and reapplying Terraform if a pinned version is used.
 5. Keep portal session TTL short enough for browser session risk and long enough for the workshop event.
-6. Confirm database backups and retention policy cover the control plane database, not Redis portal session keys.
+6. Enable the Redis durability and backup options needed for the event recovery target.
 
-The Redis data is intentionally disposable. If Redis is flushed or unavailable, learners may need to log in again, but existing workshop deployment records remain in the control plane database and are reattached to the next portal session for the same email.
+Portal token keys are disposable. Session record keys are not disposable during an event because they are the Cloud Run restart recovery source for active workshop ownership and routing.

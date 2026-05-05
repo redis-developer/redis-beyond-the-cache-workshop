@@ -1,0 +1,230 @@
+schemaVersion: 1
+viewId: "5"
+route: /5
+pageType: narrative
+title: "STAGE 5: Orchestrate The Agents"
+slot: instructions
+summary: Connect the coordinator decision to application owned execution.
+navigation:
+  previousLabel: Build the coordinator
+  nextLabel: ""
+sections:
+  - sectionId: goal
+    title: Exercise Goal
+    blocks:
+      - type: markdown
+        body: |
+          The coordinator can now return a routing decision.
+
+          In this stage, connect that decision to application code. The orchestration service will ask the coordinator what should run, execute the selected specialist agents, and return one user facing answer to the learner app chat.
+      - type: callout
+        tone: info
+        body: The model suggests. The application decides.
+  - sectionId: remaining-agents
+    title: Enable The Remaining Agents
+    blocks:
+      - type: markdown
+        body: |
+          The Market Data Agent already showed the specialist pattern. Now enable the two remaining specialists and the Synthesis Agent so the final flow has all the parts it needs.
+
+          The Fundamentals Agent uses SEC company facts. The News Agent uses Tavily, so add `TAVILY_API_KEY` in `Env` before testing news or broad analysis requests.
+      - type: editorStepList
+        listId: stage-5-specialists
+        title: "Specialist and synthesis files"
+        startAt: 1
+        progressGroup: stage-5
+        items:
+          - itemId: open-fundamentals-config
+            body: Open `FundamentalsAgentConfig.java`.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: FundamentalsAgentConfig.java
+          - itemId: enable-fundamentals-config
+            body: Uncomment the Stage 5 configuration for the Fundamentals Agent.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableFundamentalsConfig
+          - itemId: open-fundamentals-agent
+            body: Open `FundamentalsAgent.java`.
+            action:
+              id: openFile
+              label: Open Agent
+              args:
+                file: FundamentalsAgent.java
+          - itemId: enable-fundamentals-agent
+            body: Uncomment the Stage 5 agent code for the Fundamentals Agent.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableFundamentalsAgent
+          - itemId: open-news-config
+            body: Open `NewsAgentConfig.java`.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: NewsAgentConfig.java
+          - itemId: enable-news-config
+            body: Uncomment the Stage 5 configuration for the News Agent.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableNewsConfig
+          - itemId: open-news-agent
+            body: Open `NewsAgent.java`.
+            action:
+              id: openFile
+              label: Open Agent
+              args:
+                file: NewsAgent.java
+          - itemId: enable-news-agent
+            body: Uncomment the Stage 5 agent code for the News Agent.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableNewsAgent
+          - itemId: open-synthesis-config
+            body: Open `SynthesisAgentConfig.java`.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: SynthesisAgentConfig.java
+          - itemId: enable-synthesis-config
+            body: Uncomment the Stage 5 configuration for the Synthesis Agent.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableSynthesisConfig
+          - itemId: open-synthesis-agent
+            body: Open `SynthesisAgent.java`.
+            action:
+              id: openFile
+              label: Open Agent
+              args:
+                file: SynthesisAgent.java
+          - itemId: enable-synthesis-agent
+            body: Uncomment the Stage 5 agent code for the Synthesis Agent.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableSynthesisAgent
+  - sectionId: orchestration
+    title: Implement The Orchestrator
+    blocks:
+      - type: editorStepList
+        listId: stage-5-orchestration
+        title: "`AgentOrchestrationService.java`"
+        startAt: 13
+        progressGroup: stage-5
+        items:
+          - itemId: open-service
+            body: Open `AgentOrchestrationService.java`.
+            action:
+              id: openFile
+              label: Open Orchestrator
+              args:
+                file: AgentOrchestrationService.java
+          - itemId: enable-imports
+            body: Uncomment the Stage 5 imports.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableOrchestrationImports
+          - itemId: enable-annotation
+            body: Uncomment the `@Service` annotation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableOrchestrationAnnotation
+          - itemId: enable-constructor
+            body: Uncomment the coordinator and specialist agent fields and constructor.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableOrchestrationConstructor
+          - itemId: enable-analyze
+            body: In `analyze(...)`, comment out the scaffold throw. Then uncomment the orchestration block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableOrchestrationAnalyze
+  - sectionId: connect-api
+    title: Connect The Learner App
+    blocks:
+      - type: editorStepList
+        listId: stage-5-api
+        title: "`MultiAgentsService.java`"
+        startAt: 18
+        progressGroup: stage-5
+        items:
+          - itemId: open-api-service
+            body: Open `MultiAgentsService.java`.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: MultiAgentsService.java
+          - itemId: enable-dependency
+            body: Uncomment the Stage 5 import, field, constructor parameter, and assignment for `AgentOrchestrationService`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableServiceOrchestrationDependency
+          - itemId: enable-run
+            body: In `run(...)`, comment out the Stage 3 direct return. Then uncomment the Stage 5 orchestration run block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableServiceOrchestrationRun
+  - sectionId: run
+    title: Run It
+    blocks:
+      - type: stepList
+        listId: stage-5-run
+        variant: checklist
+        items:
+          - itemId: recompile
+            title: Recompile
+            body: Click `Recompile App`.
+          - itemId: test
+            title: Test
+            body: Return to the learner app chat and ask `NVDA` for a quick stock analysis.
+          - itemId: verify
+            title: Verify
+            body: The assistant should answer like a chat response while the backend still keeps `analysis.routingDecision`, `analysis.executionPlan`, and specialist results as structured data.
+      - type: codeSnippet
+        language: text
+        title: Final Flow
+        code: |
+          Learner chat
+              |
+              v
+          MultiAgentsService
+              |
+              v
+          AgentOrchestrationService
+              |
+              +--> CoordinatorAgent
+              +--> MarketDataAgent
+              +--> FundamentalsAgent
+              +--> NewsAgent
+              +--> SynthesisAgent
+              |
+              v
+          Chat answer

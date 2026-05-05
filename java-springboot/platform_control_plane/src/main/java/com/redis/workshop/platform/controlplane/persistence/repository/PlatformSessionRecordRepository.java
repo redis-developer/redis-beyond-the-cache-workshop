@@ -4,14 +4,21 @@ import com.redis.workshop.platform.controlplane.persistence.model.PlatformSessio
 import com.redis.workshop.platform.controlplane.persistence.model.PlatformSessionRecord;
 import com.redis.workshop.platform.controlplane.persistence.model.PlatformSessionState;
 import com.redis.workshop.platform.controlplane.persistence.model.WorkspaceCleanupState;
-import org.springframework.data.jpa.repository.JpaRepository;
 
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 
-public interface PlatformSessionRecordRepository extends JpaRepository<PlatformSessionRecord, String> {
+public interface PlatformSessionRecordRepository {
+
+    <S extends PlatformSessionRecord> S save(S record);
+
+    Optional<PlatformSessionRecord> findById(String sessionId);
+
+    List<PlatformSessionRecord> findAll();
+
+    void deleteAll();
 
     Optional<PlatformSessionRecord> findBySessionIdAndOwnerUserId(String sessionId, String ownerUserId);
 

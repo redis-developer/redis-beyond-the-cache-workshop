@@ -1,0 +1,106 @@
+schemaVersion: 1
+viewId: "1"
+route: /1
+pageType: narrative
+title: "STAGE 1: Agent Structure"
+slot: instructions
+summary: See the class pattern every Spring AI agent follows in this module.
+navigation:
+  previousLabel: Designing systems
+  nextLabel: Agent contracts
+sections:
+  - sectionId: two-classes
+    title: Two Classes Per Agent
+    blocks:
+      - type: markdown
+        body: |
+          Most agents in this module use the same shape.
+
+          `*AgentConfig` creates the `ChatClient` for one agent. It holds the stable setup: system prompt, tools, advisors, and structured output behavior.
+
+          `*Agent` is the service that runs one request. It builds the runtime user prompt, calls the configured `ChatClient`, and returns a typed result.
+      - type: codeSnippet
+        language: text
+        title: Agent Shape
+        code: |
+          MarketDataAgentConfig
+              |
+              +--> ChatClient bean
+                       |
+                       v
+          MarketDataAgent
+              |
+              +--> execute(...)
+              +--> buildPrompt(...)
+              +--> structured result
+  - sectionId: config-class
+    title: The Config Class
+    blocks:
+      - type: markdown
+        body: |
+          The config class is where the agent gets its stable identity.
+
+          The important detail is that the application plugs the shared `ChatModel` into a dedicated `ChatClient` for this agent.
+      - type: codeSnippet
+        language: java
+        title: "`*AgentConfig`"
+        code: |
+          @Configuration
+          public class MarketDataAgentConfig {
+
+              @Bean("marketDataChatClient")
+              ChatClient marketDataChatClient(ChatModel chatModel, MarketDataTools tools) {
+                  return ChatClient.builder(chatModel)
+                          .defaultSystem(DEFAULT_PROMPT)
+                          .defaultTools(tools)
+                          .defaultAdvisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
+                          .build();
+              }
+          }
+  - sectionId: agent-class
+    title: The Agent Class
+    blocks:
+      - type: markdown
+        body: |
+          The agent class owns the runtime call.
+
+          It should stay small: accept input, build the prompt, call the client, and return the typed result.
+      - type: codeSnippet
+        language: java
+        title: "`*Agent`"
+        code: |
+          @Service
+          public class MarketDataAgent {
+
+              private final ChatClient marketDataChatClient;
+
+              public MarketDataResult execute(String ticker, String question) {
+                  return marketDataChatClient.prompt()
+                          .user(buildPrompt(ticker, question))
+                          .call()
+                          .entity(MarketDataResult.class);
+              }
+          }
+  - sectionId: files
+    title: Files To Open
+    blocks:
+      - type: editorStepList
+        listId: stage-1-files
+        title: First Agent Pair
+        startAt: 1
+        progressGroup: stage-1
+        items:
+          - itemId: open-market-data-config
+            body: Open `MarketDataAgentConfig.java` and look for the dedicated `ChatClient` bean.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: MarketDataAgentConfig.java
+          - itemId: open-market-data-agent
+            body: Open `MarketDataAgent.java` and look for the runtime `execute(...)` method.
+            action:
+              id: openFile
+              label: Open Agent
+              args:
+                file: MarketDataAgent.java

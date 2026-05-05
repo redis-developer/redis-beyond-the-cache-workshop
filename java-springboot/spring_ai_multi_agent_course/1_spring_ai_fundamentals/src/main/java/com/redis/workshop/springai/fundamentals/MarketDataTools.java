@@ -3,16 +3,11 @@ package com.redis.workshop.springai.fundamentals;
 import java.math.BigDecimal;
 import java.time.Instant;
 
-/*
-Stage 3 imports to enable later:
-
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
-*/
 
 import org.springframework.stereotype.Component;
 
@@ -28,10 +23,9 @@ public class MarketDataTools {
         }
     }
 
-    /*
-    Stage 3 will turn this scaffold into a Spring AI tool.
+    // Stage 3 tool implementation enabled.
 
-    private final AtomicBoolean invoked = new AtomicBoolean(false);
+    private boolean invoked;
 
     private static final Map<String, StockSnapshot> SNAPSHOTS = Map.of(
             "AAPL", new StockSnapshot("AAPL", "Apple Inc.", new BigDecimal("187.42"), new BigDecimal("1.18"),
@@ -44,11 +38,11 @@ public class MarketDataTools {
                     "Synthetic workshop ticker showing healthy application performance demand."));
 
     public void resetInvocation() {
-        invoked.set(false);
+        invoked = false;
     }
 
     public boolean wasInvoked() {
-        return invoked.get();
+        return invoked;
     }
 
     public StockSnapshot snapshotFor(String ticker) {
@@ -61,7 +55,7 @@ public class MarketDataTools {
     @Tool(name = "stock_snapshot", description = "Return a synthetic stock snapshot for a ticker symbol.")
     public StockSnapshot stockSnapshot(
             @ToolParam(description = "Ticker symbol, for example AAPL or MSFT.") String ticker) {
-        invoked.set(true);
+        invoked = true;
         return snapshotFor(ticker);
     }
 
@@ -71,5 +65,4 @@ public class MarketDataTools {
         }
         return ticker.trim().toUpperCase(Locale.ROOT);
     }
-    */
 }

@@ -1,0 +1,67 @@
+schemaVersion: 1
+viewId: "0"
+route: /0
+pageType: narrative
+title: "STAGE 0: Designing Multi Agent Systems"
+slot: instructions
+summary: Start with the architecture before writing Spring AI code.
+navigation:
+  previousLabel: ""
+  nextLabel: Agent structure
+sections:
+  - sectionId: goal
+    title: Design Goal
+    blocks:
+      - type: markdown
+        body: |
+          A single agent can handle a small task. It reads the request, chooses tools, interprets data, and writes the answer.
+
+          That gets harder as the task grows. One prompt gets too broad. One tool set gets too large. One response shape becomes harder to trust.
+
+          A multi agent system splits the work into focused agents with clear responsibilities.
+      - type: callout
+        tone: info
+        body: Design the responsibilities first. Then create the Spring AI classes that match those responsibilities.
+  - sectionId: flow
+    title: System Shape
+    blocks:
+      - type: markdown
+        body: |
+          This is the multi agent system you will build in this module. A coordinator will turn the user request into a routing decision, application code will run the selected specialist agents, and a synthesis step will turn their structured results into a user facing chat answer.
+      - type: codeSnippet
+        language: text
+        title: Stock Analysis Flow
+        code: |
+          User request
+              |
+              v
+          Coordinator Agent
+              |
+              v
+          Routing Decision and Execution Plan
+              |
+              v
+          Agent Orchestration Service
+              |
+              +--> Market Data Agent
+              +--> Fundamentals Agent
+              +--> News Agent
+              |
+              v
+          Synthesis Agent
+              |
+              v
+          Chat answer
+      - type: markdown
+        body: |
+          The Coordinator Agent decides what should run. It does not run the specialist agents directly.
+
+          The orchestration service owns the application flow. It runs selected agents, passes structured results forward, and returns the answer the learner sees in chat.
+  - sectionId: design-rule
+    title: Design Rule
+    blocks:
+      - type: markdown
+        body: |
+          Create a separate agent when the work has a different purpose, prompt, tool set, or output shape.
+
+          In this module, the first specialist you will build is the Market Data Agent. The final system shape also includes Fundamentals, News, and Synthesis.

@@ -150,6 +150,29 @@ variable "control_plane_max_instances" {
   default     = 10
 }
 
+variable "control_plane_concurrency" {
+  description = "Maximum simultaneous requests handled by each control plane instance."
+  type        = number
+  default     = 1000
+
+  validation {
+    condition     = var.control_plane_concurrency >= 1 && var.control_plane_concurrency <= 1000
+    error_message = "control_plane_concurrency must be between 1 and 1000."
+  }
+}
+
+variable "control_plane_cpu" {
+  description = "CPU limit for each control plane instance."
+  type        = string
+  default     = "2"
+}
+
+variable "control_plane_memory" {
+  description = "Memory limit for each control plane instance."
+  type        = string
+  default     = "2Gi"
+}
+
 variable "control_plane_readiness_poll_interval" {
   description = "Interval used by the control plane when checking a deployed session runner for readiness."
   type        = string

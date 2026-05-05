@@ -1,0 +1,27 @@
+schemaVersion: 1
+workshopId: 2_building_multi_agents
+views:
+  - viewId: "0"
+    route: /0
+    pageType: narrative
+    file: views/0.yaml
+  - viewId: "1"
+    route: /1
+    pageType: narrative
+    file: views/1.yaml
+  - viewId: "2"
+    route: /2
+    pageType: narrative
+    file: views/2.yaml
+  - viewId: "3"
+    route: /3
+    pageType: narrative
+    file: views/3.yaml
+  - viewId: "4"
+    route: /4
+    pageType: narrative
+    file: views/4.yaml
+  - viewId: "5"
+    route: /5
+    pageType: narrative
+    file: views/5.yaml

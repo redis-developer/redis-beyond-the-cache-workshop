@@ -30,20 +30,19 @@ public class SpringAiFundamentalsAiConfig {
 
     @Bean
     public ChatMemoryRepository chatMemoryRepository(JedisPooled jedisPooled) {
-        RedisChatMemoryRepository redisRepository = RedisChatMemoryRepository.builder()
+        return RedisChatMemoryRepository.builder()
                 .jedisClient(jedisPooled)
                 .keyPrefix("spring-ai-fundamentals:")
                 .maxMessagesPerConversation(12)
                 .build();
-        return new JsonSafeChatMemoryRepository(redisRepository);
     }
 
     @Bean
     public ChatMemory chatMemory(ChatMemoryRepository repository) {
-        return MessageWindowChatMemory.builder()
+        return new RedisSafeChatMemory(MessageWindowChatMemory.builder()
                 .chatMemoryRepository(repository)
                 .maxMessages(12)
-                .build();
+                .build());
     }
     */
 }

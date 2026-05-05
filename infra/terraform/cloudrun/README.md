@@ -68,7 +68,7 @@ event_id                      = "personal-rdlts-smoke"
 
 Set `workspace_bucket_name` only when the generated bucket name is unavailable. Set `billing_account_id`, `budget_amount_units`, and `budget_notification_channels` only when budget alerts should be created.
 
-To store browser portal sessions in Redis, provision Redis outside this Terraform root and pass the endpoint to the control plane:
+To store browser portal sessions and Cloud Run session records in Redis, provision Redis outside this Terraform root and pass the endpoint to the control plane:
 
 ```hcl
 control_plane_redis_host                       = "redis.example.internal"
@@ -81,6 +81,8 @@ control_plane_redis_password_secret_version    = "latest"
 ```
 
 The password secret must already exist in Secret Manager in `project_id`. Terraform grants the control plane service account `roles/secretmanager.secretAccessor` for that secret and injects it as `WORKSHOP_HUB_REDIS_PASSWORD`.
+
+The Cloud Run profile uses this Redis connection for durable `PlatformSessionRecord` storage. That lets a restarted control plane recover session ownership, route metadata, runtime refs, expiry, and cleanup state from Redis.
 
 If you do not have a custom domain yet, set `gateway_host` to a temporary value for the first apply, read `cloud_run_services.control_plane.uri` from the outputs, strip the `https://` prefix, then apply again with `gateway_host` set to that host before launching sessions.
 

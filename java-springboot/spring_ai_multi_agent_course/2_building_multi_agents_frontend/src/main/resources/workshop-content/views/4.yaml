@@ -1,0 +1,190 @@
+schemaVersion: 1
+viewId: "4"
+route: /4
+pageType: narrative
+title: "STAGE 4: Build The Coordinator"
+slot: instructions
+summary: Add the routing agent that turns a user request into a typed decision.
+navigation:
+  previousLabel: Build market data
+  nextLabel: Orchestrate the plan
+sections:
+  - sectionId: goal
+    title: Exercise Goal
+    blocks:
+      - type: markdown
+        body: |
+          The Market Data Agent can do the first specialist job.
+
+          Now add the Coordinator. Its job is not to run the workflow. Its job is to return a structured routing decision that application code can inspect.
+      - type: codeSnippet
+        language: text
+        title: Coordinator Boundary
+        code: |
+          User request
+              |
+              v
+          CoordinatorRoutingAgent
+              |
+              v
+          RoutingDecision
+              |
+              v
+          CoordinatorAgent
+              |
+              +--> AnalysisRequest
+              +--> ExecutionPlan
+      - type: callout
+        tone: info
+        body: |
+          `MultiAgentMemoryConfig.java` provides an in-memory `ChatMemoryRepository` for this workshop. The Coordinator uses that memory to understand follow-up questions in the same learner session.
+  - sectionId: contracts
+    title: Review The Contracts
+    blocks:
+      - type: editorStepList
+        listId: stage-4-contracts
+        title: Typed Routing Output
+        startAt: 1
+        progressGroup: stage-4
+        items:
+          - itemId: open-routing-decision
+            body: Open `RoutingDecision.java`. This is the model output contract.
+            action:
+              id: openFile
+              label: Open Decision
+              args:
+                file: RoutingDecision.java
+          - itemId: open-coordinator
+            body: Open `CoordinatorAgent.java`. This class converts the routing decision into application objects.
+            action:
+              id: openFile
+              label: Open Coordinator
+              args:
+                file: CoordinatorAgent.java
+  - sectionId: config
+    title: Configure The Router
+    blocks:
+      - type: editorStepList
+        listId: stage-4-config
+        title: "`CoordinatorRoutingAgentConfig.java`"
+        startAt: 3
+        progressGroup: stage-4
+        items:
+          - itemId: open-config
+            body: Open `CoordinatorRoutingAgentConfig.java`.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: CoordinatorRoutingAgentConfig.java
+          - itemId: enable-imports
+            body: Uncomment the Stage 4 imports for `AdvisorParams`, `ChatClient`, `MessageChatMemoryAdvisor`, `ChatMemory`, `ChatModel`, `Bean`, and `Configuration`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingConfigImports
+          - itemId: enable-annotation
+            body: Uncomment the `@Configuration` annotation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingConfigAnnotation
+          - itemId: enable-prompt
+            body: Replace the placeholder prompt with the coordinator routing prompt.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingPrompt
+          - itemId: enable-bean
+            body: Uncomment the `coordinatorChatClient(...)` bean.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingConfigBean
+  - sectionId: routing-agent
+    title: Execute The Routing Call
+    blocks:
+      - type: editorStepList
+        listId: stage-4-routing-agent
+        title: "`CoordinatorRoutingAgent.java`"
+        startAt: 8
+        progressGroup: stage-4
+        items:
+          - itemId: open-agent
+            body: Open `CoordinatorRoutingAgent.java`.
+            action:
+              id: openFile
+              label: Open Routing Agent
+              args:
+                file: CoordinatorRoutingAgent.java
+          - itemId: enable-imports
+            body: Uncomment the Stage 4 imports for `ChatClient`, `ChatMemory`, `Qualifier`, and `Service`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingAgentImports
+          - itemId: enable-annotation
+            body: Uncomment the `@Service` annotation.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingAgentAnnotation
+          - itemId: enable-constructor
+            body: Uncomment the `ChatClient` field and constructor.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingAgentConstructor
+          - itemId: enable-route
+            body: In `route(...)`, comment out the scaffold throw. Then uncomment the Stage 4 route block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingAgentRoute
+          - itemId: enable-runtime-prompt
+            body: In `buildPrompt(...)`, comment out the empty scaffold return. Then uncomment the runtime prompt.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRoutingAgentPrompt
+  - sectionId: coordinator-agent
+    title: Register The Coordinator
+    blocks:
+      - type: editorStepList
+        listId: stage-4-coordinator
+        title: "`CoordinatorAgent.java`"
+        startAt: 14
+        progressGroup: stage-4
+        items:
+          - itemId: enable-coordinator
+            body: Enable the `@Service` import and annotation on `CoordinatorAgent`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableCoordinatorAgentService
+  - sectionId: run
+    title: Run It
+    blocks:
+      - type: stepList
+        listId: stage-4-run
+        variant: checklist
+        items:
+          - itemId: recompile
+            title: Recompile
+            body: Click `Recompile App`.
+          - itemId: status
+            title: Check Startup
+            body: The app should start. The learner app still uses the Stage 3 direct Market Data Agent path until Stage 5 connects orchestration.
+      - type: callout
+        tone: info
+        body: The coordinator is now available as Spring beans, but application flow still has to call it. That is the next stage.

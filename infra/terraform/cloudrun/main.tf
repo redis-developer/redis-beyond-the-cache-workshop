@@ -175,6 +175,8 @@ resource "google_cloud_run_v2_service" "control_plane" {
   template {
     service_account = google_service_account.platform["control_plane"].email
 
+    max_instance_request_concurrency = var.control_plane_concurrency
+
     scaling {
       min_instance_count = var.control_plane_min_instances
       max_instance_count = var.control_plane_max_instances
@@ -184,6 +186,11 @@ resource "google_cloud_run_v2_service" "control_plane" {
       image = var.control_plane_image
 
       resources {
+        limits = {
+          cpu    = var.control_plane_cpu
+          memory = var.control_plane_memory
+        }
+
         cpu_idle = false
       }
 

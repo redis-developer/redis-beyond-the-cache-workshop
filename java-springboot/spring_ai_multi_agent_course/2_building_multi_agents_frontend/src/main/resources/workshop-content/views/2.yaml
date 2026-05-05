@@ -1,0 +1,74 @@
+schemaVersion: 1
+viewId: "2"
+route: /2
+pageType: narrative
+title: "STAGE 2: Agent Contracts"
+slot: instructions
+summary: Make each agent boundary explicit before implementing it.
+navigation:
+  previousLabel: Agent structure
+  nextLabel: Build market data
+sections:
+  - sectionId: roles
+    title: Role Boundaries
+    blocks:
+      - type: markdown
+        body: |
+          Each agent gets one job.
+
+          The **Coordinator Agent** reads the user request and returns a structured routing decision.
+
+          The **Market Data Agent** fetches current price context and returns a structured market snapshot.
+
+          The **Fundamentals Agent** evaluates company fundamentals such as revenue, margins, and valuation context.
+
+          The **News Agent** checks recent company context that may affect the answer.
+
+          The **Synthesis Agent** combines selected specialist outputs into one user facing chat answer.
+      - type: callout
+        tone: info
+        body: The model proposes structured decisions and structured results. Application code decides what happens next.
+  - sectionId: contracts
+    title: Structured Contracts
+    blocks:
+      - type: markdown
+        body: |
+          Agents should not pass raw prompts or large text blobs to each other.
+
+          They should return typed results that the application can inspect, test, and pass forward.
+      - type: codeSnippet
+        language: java
+        title: Market Data Contract
+        code: |
+          public class MarketDataResult {
+              private FinishReason finishReason;
+              private String message;
+              private MarketSnapshot finalResponse;
+              private TokenUsageSummary tokenUsage;
+          }
+      - type: markdown
+        body: |
+          This is the pattern you will use for each specialist: one config class, one execution class, one result type, and one tool boundary. The next stage starts with Market Data because it is the smallest specialist to implement first.
+  - sectionId: files
+    title: Files To Know
+    blocks:
+      - type: editorStepList
+        listId: stage-2-files
+        title: Market Data Files
+        startAt: 1
+        progressGroup: stage-2
+        items:
+          - itemId: open-result
+            body: Open `MarketDataResult.java` and notice the structured response fields.
+            action:
+              id: openFile
+              label: Open Result
+              args:
+                file: MarketDataResult.java
+          - itemId: open-snapshot
+            body: Open `MarketSnapshot.java` and notice the typed data the tool returns.
+            action:
+              id: openFile
+              label: Open Snapshot
+              args:
+                file: MarketSnapshot.java

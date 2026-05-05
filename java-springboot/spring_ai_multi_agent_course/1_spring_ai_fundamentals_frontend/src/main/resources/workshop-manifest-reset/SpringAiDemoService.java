@@ -33,17 +33,15 @@ public class SpringAiDemoService {
     private final String apiKey;
     private final String model;
 
-    // Stage 1 fields to enable:
-    // private final ChatModel chatModel;
-    // private volatile ChatClient chatClient;
+    // Stage 1 field to enable:
+    // private final ChatClient chatClient;
 
     // Stage 3 field to enable:
     // private final MarketDataTools marketDataTools;
 
     // Stage 4 fields to enable:
-    // private final ChatMemory chatMemory;
     // private final ChatMemoryRepository chatMemoryRepository;
-    // private volatile ChatClient memoryChatClient;
+    // private final ChatClient memoryChatClient;
 
     public SpringAiDemoService(
             @Value("${spring.ai.openai.api-key:}") String apiKey,
@@ -59,12 +57,14 @@ public class SpringAiDemoService {
         this.apiKey = apiKey;
         this.model = model;
         // Stage 1 assignment to enable:
-        // this.chatModel = chatModel;
+        // this.chatClient = ChatClient.builder(chatModel).build();
         // Stage 3 assignment to enable:
         // this.marketDataTools = marketDataTools;
         // Stage 4 assignments to enable:
-        // this.chatMemory = chatMemory;
         // this.chatMemoryRepository = chatMemoryRepository;
+        // this.memoryChatClient = ChatClient.builder(chatModel)
+        //         .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+        //         .build();
     }
 
     public StatusResponse status() {
@@ -78,17 +78,13 @@ public class SpringAiDemoService {
         Stage 1 prompt block to enable:
         Comment out the hardcoded return above, then uncomment this block.
 
-        try {
-            String answer = client().prompt()
-                    .system("You are a concise stock analysis assistant.")
-                    .user(nonBlank(request.message(), "Explain what Spring AI ChatClient does."))
-                    .call()
-                    .content();
+        String answer = chatClient.prompt()
+                .system("You are a concise stock analysis assistant.")
+                .user(nonBlank(request.message(), "Explain what Spring AI ChatClient does."))
+                .call()
+                .content();
 
-            return new PromptResponse(true, answer, null);
-        } catch (Exception ex) {
-            return new PromptResponse(false, null, ex.getMessage());
-        }
+        return new PromptResponse(true, answer, null);
         */
     }
 
@@ -99,28 +95,24 @@ public class SpringAiDemoService {
         Stage 2 structured output block to enable:
         Comment out the scaffold return above, then uncomment this block.
 
-        try {
-            ResponseEntity<ChatResponse, StockDecision> response = client().prompt()
-                    .system("""
-                            Extract a stock ticker and the user's main question.
-                            Return concise reasoning for why those values were selected.
-                            If no ticker is present, use RDIS.
-                            """)
-                    .user(nonBlank(request.message(), "Should I look at MSFT for an AI portfolio?"))
-                    .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
-                    .call()
-                    .responseEntity(StockDecision.class);
+        ResponseEntity<ChatResponse, StockDecision> response = chatClient.prompt()
+                .system("""
+                        Extract a stock ticker and the user's main question.
+                        Return concise reasoning for why those values were selected.
+                        If no ticker is present, use RDIS.
+                        """)
+                .user(nonBlank(request.message(), "Should I look at MSFT for an AI portfolio?"))
+                .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
+                .call()
+                .responseEntity(StockDecision.class);
 
-            StockDecision parsed = response.entity();
-            String finishReason = response.response().getResult().getMetadata().getFinishReason();
+        StockDecision parsed = response.entity();
+        String finishReason = response.response().getResult().getMetadata().getFinishReason();
 
-            return new StructuredResponse(true,
-                    new StockDecision(finishReason, parsed.resolvedTicker(), parsed.resolvedQuestion(),
-                            parsed.reasoning()),
-                    null);
-        } catch (Exception ex) {
-            return new StructuredResponse(false, null, ex.getMessage());
-        }
+        return new StructuredResponse(true,
+                new StockDecision(finishReason, parsed.resolvedTicker(), parsed.resolvedQuestion(),
+                        parsed.reasoning()),
+                null);
         */
     }
 
@@ -131,22 +123,17 @@ public class SpringAiDemoService {
         Stage 3 tools block to enable:
         Comment out the scaffold return above, then uncomment this block.
 
-        try {
-            marketDataTools.resetInvocation();
-            String answer = client().prompt()
-                    .system("Answer stock questions by using the stock_snapshot tool before responding.")
-                    .user("Ticker: " + nonBlank(request.ticker(), "RDIS") + "\\nQuestion: "
-                            + nonBlank(request.question(), "What does the synthetic snapshot say?"))
-                    .tools(marketDataTools)
-                    .call()
-                    .content();
+        marketDataTools.resetInvocation();
+        String answer = chatClient.prompt()
+                .system("Answer stock questions by using the stock_snapshot tool before responding.")
+                .user("Ticker: " + nonBlank(request.ticker(), "RDIS") + "\\nQuestion: "
+                        + nonBlank(request.question(), "What does the synthetic snapshot say?"))
+                .tools(marketDataTools)
+                .call()
+                .content();
 
-            return new ToolsResponse(true, answer, marketDataTools.snapshotFor(request.ticker()),
-                    marketDataTools.wasInvoked(), null);
-        } catch (Exception ex) {
-            return new ToolsResponse(false, null, marketDataTools.snapshotFor(request.ticker()),
-                    marketDataTools.wasInvoked(), ex.getMessage());
-        }
+        return new ToolsResponse(true, answer, marketDataTools.snapshotFor(request.ticker()),
+                marketDataTools.wasInvoked(), null);
         */
     }
 
@@ -158,18 +145,14 @@ public class SpringAiDemoService {
         Stage 4 memory block to enable:
         Comment out the scaffold return above, then uncomment this block.
 
-        try {
-            String answer = memoryClient().prompt()
-                    .system("You are a helpful assistant. Use the conversation history when it is relevant.")
-                    .user(nonBlank(request.message(), "Remember that I am learning Spring AI."))
-                    .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
-                    .call()
-                    .content();
+        String answer = memoryChatClient.prompt()
+                .system("You are a helpful assistant. Use the conversation history when it is relevant.")
+                .user(nonBlank(request.message(), "Remember that I am learning Spring AI."))
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .call()
+                .content();
 
-            return new MemoryResponse(true, conversationId, answer, messageCount(conversationId), null);
-        } catch (Exception ex) {
-            return new MemoryResponse(false, conversationId, null, messageCount(conversationId), ex.getMessage());
-        }
+        return new MemoryResponse(true, conversationId, answer, messageCount(conversationId), null);
         */
     }
 
@@ -180,69 +163,30 @@ public class SpringAiDemoService {
         Stage 5 final helper block to enable:
         Comment out the scaffold return above, then uncomment this block.
 
-        try {
-            String conversationId = nonBlank(request.conversationId(), UUID.randomUUID().toString());
-            marketDataTools.resetInvocation();
-            StockHelperResult result = memoryClient().prompt()
-                    .system("""
-                            You are a single stock helper.
-                            Use the stock_snapshot tool first, then return the structured helper result.
-                            action must be one of WATCH, REVIEW, or AVOID.
-                            riskLevel must be LOW, MEDIUM, or HIGH.
-                            """)
-                    .user("Ticker: " + nonBlank(request.ticker(), "RDIS") + "\\nQuestion: "
-                            + nonBlank(request.question(), "What should I notice in this snapshot?"))
-                    .tools(marketDataTools)
-                    .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
-                    .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
-                    .call()
-                    .entity(StockHelperResult.class);
+        String conversationId = nonBlank(request.conversationId(), UUID.randomUUID().toString());
+        marketDataTools.resetInvocation();
+        StockHelperResult result = memoryChatClient.prompt()
+                .system("""
+                        You are a single stock helper.
+                        Use the stock_snapshot tool first, then return the structured helper result.
+                        action must be one of WATCH, REVIEW, or AVOID.
+                        riskLevel must be LOW, MEDIUM, or HIGH.
+                        """)
+                .user("Ticker: " + nonBlank(request.ticker(), "RDIS") + "\\nQuestion: "
+                        + nonBlank(request.question(), "What should I notice in this snapshot?"))
+                .tools(marketDataTools)
+                .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
+                .call()
+                .entity(StockHelperResult.class);
 
-            return new HelperResponse(true, result, marketDataTools.snapshotFor(request.ticker()),
-                    marketDataTools.wasInvoked(), null);
-        } catch (Exception ex) {
-            return new HelperResponse(false, null, marketDataTools.snapshotFor(request.ticker()),
-                    marketDataTools.wasInvoked(), ex.getMessage());
-        }
+        return new HelperResponse(true, result, marketDataTools.snapshotFor(request.ticker()),
+                marketDataTools.wasInvoked(), null);
         */
     }
 
     /*
-    Stage 1 client helper to enable:
-    Uncomment this method after enabling the Stage 1 imports, fields, constructor parameter, and assignment.
-
-    private ChatClient client() {
-        ChatClient current = chatClient;
-        if (current == null) {
-            synchronized (this) {
-                if (chatClient == null) {
-                    chatClient = ChatClient.builder(chatModel).build();
-                }
-                current = chatClient;
-            }
-        }
-        return current;
-    }
-    */
-
-    /*
-    Stage 4 memory client helper to enable:
-
-    private ChatClient memoryClient() {
-        ChatClient current = memoryChatClient;
-        if (current == null) {
-            synchronized (this) {
-                if (memoryChatClient == null) {
-                    memoryChatClient = ChatClient.builder(chatModel)
-                            .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
-                            .build();
-                }
-                current = memoryChatClient;
-            }
-        }
-        return current;
-    }
-
+    Stage 4 message count helper to enable:
     private int messageCount(String conversationId) {
         return chatMemoryRepository.findByConversationId(conversationId).size();
     }

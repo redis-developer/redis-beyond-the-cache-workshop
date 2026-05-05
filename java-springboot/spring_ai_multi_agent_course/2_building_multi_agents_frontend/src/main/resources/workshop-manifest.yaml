@@ -1,0 +1,106 @@
+moduleName: 2_building_multi_agents
+title: "Module 2: Building Multi Agents"
+description: Spring AI course skeleton for composing a multi agent workflow
+editableFiles:
+  - name: build.gradle.kts
+    path: build.gradle.kts
+    resetContentLocation: workshop-manifest-reset/build.gradle.kts
+  - name: application.properties
+    path: src/main/resources/application.properties
+    resetContentLocation: workshop-manifest-reset/application.properties
+  - name: SpringAiMultiAgentsApplication.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/SpringAiMultiAgentsApplication.java
+    resetContentLocation: workshop-manifest-reset/SpringAiMultiAgentsApplication.java
+  - name: MultiAgentMemoryConfig.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/MultiAgentMemoryConfig.java
+    resetContentLocation: workshop-manifest-reset/MultiAgentMemoryConfig.java
+  - name: MultiAgentsService.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/MultiAgentsService.java
+    resetContentLocation: workshop-manifest-reset/MultiAgentsService.java
+  - name: MarketDataTools.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/tools/MarketDataTools.java
+    resetContentLocation: workshop-manifest-reset/agent/tools/MarketDataTools.java
+  - name: FundamentalsTools.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/tools/FundamentalsTools.java
+    resetContentLocation: workshop-manifest-reset/agent/tools/FundamentalsTools.java
+  - name: NewsTools.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/tools/NewsTools.java
+    resetContentLocation: workshop-manifest-reset/agent/tools/NewsTools.java
+  - name: FundamentalsProvider.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/providers/FundamentalsProvider.java
+    resetContentLocation: workshop-manifest-reset/providers/FundamentalsProvider.java
+  - name: NewsProvider.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/providers/NewsProvider.java
+    resetContentLocation: workshop-manifest-reset/providers/NewsProvider.java
+  - name: MarketDataAgentConfig.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/marketdataagent/MarketDataAgentConfig.java
+    resetContentLocation: workshop-manifest-reset/agent/marketdataagent/MarketDataAgentConfig.java
+  - name: MarketDataAgent.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/marketdataagent/MarketDataAgent.java
+    resetContentLocation: workshop-manifest-reset/agent/marketdataagent/MarketDataAgent.java
+  - name: MarketDataResult.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/marketdataagent/MarketDataResult.java
+    resetContentLocation: workshop-manifest-reset/agent/marketdataagent/MarketDataResult.java
+  - name: MarketSnapshot.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/marketdataagent/MarketSnapshot.java
+    resetContentLocation: workshop-manifest-reset/agent/marketdataagent/MarketSnapshot.java
+  - name: FundamentalsAgentConfig.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/fundamentalsagent/FundamentalsAgentConfig.java
+    resetContentLocation: workshop-manifest-reset/agent/fundamentalsagent/FundamentalsAgentConfig.java
+  - name: FundamentalsAgent.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/fundamentalsagent/FundamentalsAgent.java
+    resetContentLocation: workshop-manifest-reset/agent/fundamentalsagent/FundamentalsAgent.java
+  - name: FundamentalsResult.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/fundamentalsagent/FundamentalsResult.java
+    resetContentLocation: workshop-manifest-reset/agent/fundamentalsagent/FundamentalsResult.java
+  - name: FundamentalsSnapshot.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/fundamentalsagent/FundamentalsSnapshot.java
+    resetContentLocation: workshop-manifest-reset/agent/fundamentalsagent/FundamentalsSnapshot.java
+  - name: NewsAgentConfig.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/newsagent/NewsAgentConfig.java
+    resetContentLocation: workshop-manifest-reset/agent/newsagent/NewsAgentConfig.java
+  - name: NewsAgent.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/newsagent/NewsAgent.java
+    resetContentLocation: workshop-manifest-reset/agent/newsagent/NewsAgent.java
+  - name: NewsResult.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/newsagent/NewsResult.java
+    resetContentLocation: workshop-manifest-reset/agent/newsagent/NewsResult.java
+  - name: NewsSnapshot.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/newsagent/NewsSnapshot.java
+    resetContentLocation: workshop-manifest-reset/agent/newsagent/NewsSnapshot.java
+  - name: SynthesisAgentConfig.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/synthesisagent/SynthesisAgentConfig.java
+    resetContentLocation: workshop-manifest-reset/agent/synthesisagent/SynthesisAgentConfig.java
+  - name: SynthesisAgent.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/synthesisagent/SynthesisAgent.java
+    resetContentLocation: workshop-manifest-reset/agent/synthesisagent/SynthesisAgent.java
+  - name: SynthesisResponse.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/synthesisagent/SynthesisResponse.java
+    resetContentLocation: workshop-manifest-reset/agent/synthesisagent/SynthesisResponse.java
+  - name: SynthesisResult.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/synthesisagent/SynthesisResult.java
+    resetContentLocation: workshop-manifest-reset/agent/synthesisagent/SynthesisResult.java
+  - name: RoutingDecision.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/coordinatoragent/RoutingDecision.java
+    resetContentLocation: workshop-manifest-reset/agent/coordinatoragent/RoutingDecision.java
+  - name: CoordinatorRoutingAgentConfig.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/coordinatoragent/CoordinatorRoutingAgentConfig.java
+    resetContentLocation: workshop-manifest-reset/agent/coordinatoragent/CoordinatorRoutingAgentConfig.java
+  - name: CoordinatorRoutingAgent.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/coordinatoragent/CoordinatorRoutingAgent.java
+    resetContentLocation: workshop-manifest-reset/agent/coordinatoragent/CoordinatorRoutingAgent.java
+  - name: CoordinatorAgent.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/coordinatoragent/CoordinatorAgent.java
+    resetContentLocation: workshop-manifest-reset/agent/coordinatoragent/CoordinatorAgent.java
+  - name: AgentOrchestrationService.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/orchestration/AgentOrchestrationService.java
+    resetContentLocation: workshop-manifest-reset/agent/orchestration/AgentOrchestrationService.java
+  - name: AgentType.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/orchestration/AgentType.java
+    resetContentLocation: workshop-manifest-reset/agent/orchestration/AgentType.java
+  - name: AnalysisRequest.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/orchestration/AnalysisRequest.java
+    resetContentLocation: workshop-manifest-reset/agent/orchestration/AnalysisRequest.java
+  - name: AnalysisResponse.java
+    path: src/main/java/com/redis/workshop/springai/multiagents/agent/orchestration/AnalysisResponse.java
+    resetContentLocation: workshop-manifest-reset/agent/orchestration/AnalysisResponse.java

@@ -27,6 +27,7 @@ Workshops:
   3 | 3_distributed_locks  | distributed-locks
   4 | 4_agent_memory       | agent-memory
   5 | 1_spring_ai_fundamentals | spring-ai-fundamentals
+  6 | 2_building_multi_agents | spring-ai-building-multi-agents
 EOF
 }
 
@@ -365,7 +366,7 @@ start_backend() {
 }
 
 managed_runner_enabled() {
-  [[ "${workshop_id}" == "1_session_management" || "${workshop_id}" == "1_spring_ai_fundamentals" ]]
+  [[ "${workshop_id}" == "1_session_management" || "${workshop_id}" == "1_spring_ai_fundamentals" || "${workshop_id}" == "2_building_multi_agents" ]]
 }
 
 build_backend_for_runner() {
@@ -429,7 +430,7 @@ managed_code_editor_workspace_path() {
   fi
 
   if [[ -z "${code_editor_command:-}" ]] && port_in_use "${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}"; then
-    printf '/home/coder/project'
+    printf '%s' "${source_path}"
     return
   fi
 
@@ -603,6 +604,19 @@ resolve_workshop() {
       frontend_project_dir="${JAVA_DIR}/spring_ai_multi_agent_course/1_spring_ai_fundamentals_frontend"
       legacy_frontend_port="8084"
       legacy_backend_port="18084"
+      infra_services=(redis redis-insight)
+      ;;
+    6|2_building_multi_agents|spring-ai-building-multi-agents)
+      workshop_id="2_building_multi_agents"
+      display_name="Spring AI Building Multi Agents"
+      compose_file="${JAVA_DIR}/spring_ai_multi_agent_course/2_building_multi_agents/docker-compose.yml"
+      backend_project="2_building_multi_agents"
+      frontend_project="2_building_multi_agents_frontend"
+      source_path="${JAVA_DIR}/spring_ai_multi_agent_course/2_building_multi_agents"
+      backend_project_dir="${source_path}"
+      frontend_project_dir="${JAVA_DIR}/spring_ai_multi_agent_course/2_building_multi_agents_frontend"
+      legacy_frontend_port="8085"
+      legacy_backend_port="18085"
       infra_services=(redis redis-insight)
       ;;
     *)

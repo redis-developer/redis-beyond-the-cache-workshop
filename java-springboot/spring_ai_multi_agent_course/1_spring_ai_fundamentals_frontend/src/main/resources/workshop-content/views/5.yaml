@@ -44,7 +44,7 @@ sections:
         title: Target Helper Shape
         caption: One call combines memory, tools, and structured output.
         code: |
-          StockHelperResult result = memoryClient().prompt()
+          StockHelperResult result = memoryChatClient.prompt()
                   .system("Use the stock_snapshot tool first, then return the structured helper result.")
                   .user("Ticker: " + ticker + "\nQuestion: " + question)
                   .tools(marketDataTools)
@@ -103,35 +103,12 @@ sections:
         items:
           - itemId: recompile
             body: Click `Recompile App` so the backend restarts with the final helper enabled.
-            action:
-              id: recompileApp
-              label: Recompile App
           - itemId: open-app
             body: Return to the learner app. Stage 5 sends requests to the final helper endpoint.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /5?tool=learner-app
           - itemId: ask-stock
             body: Keep `fundamentals-demo` as the conversation id and send `What should I notice about NVDA right now?`
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /5?tool=learner-app
           - itemId: ask-follow-up
             body: With the same conversation id, send `For that same stock, what risk level did you choose?`
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /5?tool=learner-app
           - itemId: verify-helper
             body: |
               The response should show typed result fields, `toolInvoked: true`, a stock snapshot, and no error.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /5?tool=learner-app

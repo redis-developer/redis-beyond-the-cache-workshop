@@ -81,7 +81,8 @@ class PersistenceRepositoriesIntegrationTest {
         ready.setWorkspaceCleanupState(WorkspaceCleanupState.PENDING);
         ready.setTerminationRequestedAt(Instant.parse("2026-04-21T10:50:00Z"));
 
-        sessionRepository.saveAll(List.of(requested, ready));
+        sessionRepository.save(requested);
+        sessionRepository.save(ready);
 
         List<PlatformSessionRecord> sessions =
             sessionRepository.findAllByOwnerUserIdOrderByCreatedAtDesc("learner-1");

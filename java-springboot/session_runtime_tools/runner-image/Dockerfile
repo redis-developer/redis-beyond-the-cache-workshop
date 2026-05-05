@@ -1,5 +1,6 @@
 ARG BUILDER_BASE_IMAGE=eclipse-temurin:21-jdk-jammy
 ARG RUNNER_BASE_IMAGE=redis/redisinsight:latest
+ARG REDIS_BASE_IMAGE=redis:8.6.2-alpine
 
 FROM ${BUILDER_BASE_IMAGE} AS builder
 
@@ -49,6 +50,8 @@ RUN set -eux; \
       /root/.gradle/caches/*/generated-gradle-jars; \
     cp -a /root/.gradle/caches /root/.gradle/wrapper /image/gradle-cache/
 
+FROM ${REDIS_BASE_IMAGE} AS redis_runtime
+
 FROM ${RUNNER_BASE_IMAGE} AS runner
 
 ARG MANAGER_MODULE
@@ -74,7 +77,7 @@ LABEL com.redis.workshop.runner.child-auto-start="true"
 # Keep this fully musl based. libc compatibility packages make Gradle select
 # linux-gnu native file event libraries, which fail inside Alpine at rebuild time.
 RUN set -eux; \
-    apk add --no-cache bash build-base ca-certificates curl gradle krb5-dev libstdc++ nodejs npm openjdk21-jdk procps python3 redis; \
+    apk add --no-cache bash build-base ca-certificates curl gradle krb5-dev libstdc++ nodejs npm openjdk21-jdk openssl procps python3; \
     PYTHON=/usr/bin/python3 npm_config_python=/usr/bin/python3 npm install --global "code-server@${CODE_SERVER_VERSION}" --unsafe-perm --ignore-scripts; \
     code_server_module="$(npm root --global)/code-server"; \
     cd "${code_server_module}"; \
@@ -147,6 +150,9 @@ RUN set -eux; \
 
 WORKDIR /opt/runner
 COPY --from=builder /image /opt/runner
+COPY --from=redis_runtime /usr/local/bin/redis-server /usr/local/bin/redis-server
+COPY --from=redis_runtime /usr/local/bin/redis-cli /usr/local/bin/redis-cli
+COPY --from=redis_runtime /usr/local/lib/redis/modules /usr/local/lib/redis/modules
 
 RUN set -eux; \
     mkdir -p /opt/runner/bin /opt/runner/workspace; \
@@ -336,7 +342,7 @@ RUN set -eux; \
       'export WORKSHOP_BACKEND_URL="${WORKSHOP_BACKEND_URL:-http://127.0.0.1:${WORKSHOP_CHILD_PORT}}"' \
       'export WORKSHOP_REDIS_MODE="local-process"' \
       'export WORKSHOP_LOCAL_REDIS_PORT="${WORKSHOP_LOCAL_REDIS_PORT:-6379}"' \
-      'export WORKSHOP_LOCAL_REDIS_COMMAND="${WORKSHOP_LOCAL_REDIS_COMMAND:-redis-server --bind 127.0.0.1 --port ${WORKSHOP_LOCAL_REDIS_PORT} --save \"\" --appendonly no}"' \
+      'export WORKSHOP_LOCAL_REDIS_COMMAND="${WORKSHOP_LOCAL_REDIS_COMMAND:-redis-server --loadmodule /usr/local/lib/redis/modules/redisbloom.so --loadmodule /usr/local/lib/redis/modules/redisearch.so --loadmodule /usr/local/lib/redis/modules/rejson.so --loadmodule /usr/local/lib/redis/modules/redistimeseries.so --bind 127.0.0.1 --port ${WORKSHOP_LOCAL_REDIS_PORT} --save \"\" --appendonly no}"' \
       'export WORKSHOP_LOCAL_REDIS_HEALTH_COMMAND="${WORKSHOP_LOCAL_REDIS_HEALTH_COMMAND:-redis-cli -h 127.0.0.1 -p ${WORKSHOP_LOCAL_REDIS_PORT} ping}"' \
       'export WORKSHOP_LOCAL_REDIS_INSIGHT_PORT="${WORKSHOP_LOCAL_REDIS_INSIGHT_PORT:-5540}"' \
       'export WORKSHOP_LOCAL_REDIS_INSIGHT_HEALTH_PATH="${WORKSHOP_LOCAL_REDIS_INSIGHT_HEALTH_PATH:-/redis-insight/api/settings}"' \

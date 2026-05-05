@@ -21,6 +21,14 @@
           </header>
 
           <div class="fundamentals-instructions__body">
+            <p
+              v-if="editorStepStatusMessage"
+              class="editor-step-status"
+              :class="editorStepStatusClass"
+              aria-live="polite"
+            >
+              {{ editorStepStatusMessage }}
+            </p>
             <div v-if="contentError" class="content-state content-state--error">
               {{ contentError }}
             </div>
@@ -132,15 +140,14 @@ const EDITOR_STEP_CONFIG = {
     fileName: 'SpringAiDemoService.java',
     line: 34,
     transform: content => content
-      .replace('// private final ChatModel chatModel;', 'private final ChatModel chatModel;')
-      .replace('// private volatile ChatClient chatClient;', 'private volatile ChatClient chatClient;')
+      .replace('// private final ChatClient chatClient;', 'private final ChatClient chatClient;')
   },
   '1.enableConstructor': {
     fileName: 'SpringAiDemoService.java',
     line: 49,
     transform: content => content
       .replace('// , ChatModel chatModel', ', ChatModel chatModel')
-      .replace('// this.chatModel = chatModel;', 'this.chatModel = chatModel;')
+      .replace('// this.chatClient = ChatClient.builder(chatModel).build();', 'this.chatClient = ChatClient.builder(chatModel).build();')
   },
   '1.enablePrompt': {
     fileName: 'SpringAiDemoService.java',
@@ -155,47 +162,21 @@ const EDITOR_STEP_CONFIG = {
         Stage 1 prompt block to enable:
         Comment out the hardcoded return above, then uncomment this block.
 
-        try {`,
+        String answer = chatClient.prompt()`,
         `        // Stage 1 prompt block enabled.
 
-        try {`
+        String answer = chatClient.prompt()`
       )
       .replace(
-        `        }
+        `        return new PromptResponse(true, answer, null);
         */
     }
 
     public StructuredResponse`,
-        `        }
+        `        return new PromptResponse(true, answer, null);
     }
 
     public StructuredResponse`
-      )
-  },
-  '1.enableClientHelper': {
-    fileName: 'SpringAiDemoService.java',
-    line: 209,
-    transform: content => content
-      .replace(
-        `    /*
-    Stage 1 client helper to enable:
-    Uncomment this method after enabling the Stage 1 imports, fields, constructor parameter, and assignment.
-
-    private ChatClient client() {`,
-        `    // Stage 1 client helper enabled.
-
-    private ChatClient client() {`
-      )
-      .replace(
-        `    }
-    */
-
-    /*
-    Stage 4 memory client helper to enable:`,
-        `    }
-
-    /*
-    Stage 4 memory client helper to enable:`
       )
   },
   '2.enableImports': {
@@ -228,18 +209,18 @@ const EDITOR_STEP_CONFIG = {
         Stage 2 structured output block to enable:
         Comment out the scaffold return above, then uncomment this block.
 
-        try {`,
+        ResponseEntity<ChatResponse, StockDecision> response = chatClient.prompt()`,
         `        // Stage 2 structured output block enabled.
 
-        try {`
+        ResponseEntity<ChatResponse, StockDecision> response = chatClient.prompt()`
       )
       .replace(
-        `        }
+        `                null);
         */
     }
 
     public ToolsResponse`,
-        `        }
+        `                null);
     }
 
     public ToolsResponse`
@@ -255,14 +236,12 @@ Stage 3 imports to enable later:
 
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 */`,
         `import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;`
@@ -276,10 +255,10 @@ import org.springframework.ai.tool.annotation.ToolParam;`
         `    /*
     Stage 3 will turn this scaffold into a Spring AI tool.
 
-    private final AtomicBoolean invoked = new AtomicBoolean(false);`,
+    private boolean invoked;`,
         `    // Stage 3 tool implementation enabled.
 
-    private final AtomicBoolean invoked = new AtomicBoolean(false);`
+    private boolean invoked;`
       )
       .replace(
         `    }
@@ -313,18 +292,18 @@ import org.springframework.ai.tool.annotation.ToolParam;`
         Stage 3 tools block to enable:
         Comment out the scaffold return above, then uncomment this block.
 
-        try {`,
+        marketDataTools.resetInvocation();`,
         `        // Stage 3 tools block enabled.
 
-        try {`
+        marketDataTools.resetInvocation();`
       )
       .replace(
-        `        }
+        `                marketDataTools.wasInvoked(), null);
         */
     }
 
     public MemoryResponse`,
-        `        }
+        `                marketDataTools.wasInvoked(), null);
     }
 
     public MemoryResponse`
@@ -389,13 +368,19 @@ import redis.clients.jedis.JedisPooled;`
     fileName: 'SpringAiDemoService.java',
     line: 41,
     transform: content => content
-      .replace('// private final ChatMemory chatMemory;', 'private final ChatMemory chatMemory;')
       .replace('// private final ChatMemoryRepository chatMemoryRepository;', 'private final ChatMemoryRepository chatMemoryRepository;')
-      .replace('// private volatile ChatClient memoryChatClient;', 'private volatile ChatClient memoryChatClient;')
+      .replace('// private final ChatClient memoryChatClient;', 'private final ChatClient memoryChatClient;')
       .replace('// , ChatMemory chatMemory', ', ChatMemory chatMemory')
       .replace('// , ChatMemoryRepository chatMemoryRepository', ', ChatMemoryRepository chatMemoryRepository')
-      .replace('// this.chatMemory = chatMemory;', 'this.chatMemory = chatMemory;')
       .replace('// this.chatMemoryRepository = chatMemoryRepository;', 'this.chatMemoryRepository = chatMemoryRepository;')
+      .replace(
+        `        // this.memoryChatClient = ChatClient.builder(chatModel)
+        //         .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+        //         .build();`,
+        `        this.memoryChatClient = ChatClient.builder(chatModel)
+                .defaultAdvisors(MessageChatMemoryAdvisor.builder(chatMemory).build())
+                .build();`
+      )
   },
   '4.enableMemoryBlock': {
     fileName: 'SpringAiDemoService.java',
@@ -410,35 +395,34 @@ import redis.clients.jedis.JedisPooled;`
         Stage 4 memory block to enable:
         Comment out the scaffold return above, then uncomment this block.
 
-        try {`,
+        String answer = memoryChatClient.prompt()`,
         `        // Stage 4 memory block enabled.
 
-        try {`
+        String answer = memoryChatClient.prompt()`
       )
       .replace(
-        `        }
+        `        return new MemoryResponse(true, conversationId, answer, messageCount(conversationId), null);
         */
     }
 
     public HelperResponse`,
-        `        }
+        `        return new MemoryResponse(true, conversationId, answer, messageCount(conversationId), null);
     }
 
     public HelperResponse`
       )
   },
-  '4.enableMemoryClientHelper': {
+  '4.enableMessageCountHelper': {
     fileName: 'SpringAiDemoService.java',
     line: 215,
     transform: content => content
       .replace(
         `    /*
-    Stage 4 memory client helper to enable:
+    Stage 4 message count helper to enable:
+    private int messageCount(String conversationId) {`,
+        `    // Stage 4 message count helper enabled.
 
-    private ChatClient memoryClient() {`,
-        `    // Stage 4 memory client helper enabled.
-
-    private ChatClient memoryClient() {`
+    private int messageCount(String conversationId) {`
       )
       .replace(
         `    }
@@ -469,34 +453,34 @@ import redis.clients.jedis.JedisPooled;`
         Stage 5 final helper block to enable:
         Comment out the scaffold return above, then uncomment this block.
 
-        try {`,
+        String conversationId = nonBlank(request.conversationId(), UUID.randomUUID().toString());`,
         `        // Stage 5 final helper block enabled.
 
-        try {`
+        String conversationId = nonBlank(request.conversationId(), UUID.randomUUID().toString());`
       )
       .replace(
-        `        }
+        `                marketDataTools.wasInvoked(), null);
         */
     }
 
-    // Stage 1 client helper enabled.`,
-        `        }
+    // Stage 4 message count helper enabled.`,
+        `                marketDataTools.wasInvoked(), null);
     }
 
-    // Stage 1 client helper enabled.`
+    // Stage 4 message count helper enabled.`
       )
       .replace(
-        `        }
+        `                marketDataTools.wasInvoked(), null);
         */
     }
 
     /*
-    Stage 1 client helper to enable:`,
-        `        }
+    Stage 4 message count helper to enable:`,
+        `                marketDataTools.wasInvoked(), null);
     }
 
     /*
-    Stage 1 client helper to enable:`
+    Stage 4 message count helper to enable:`
       )
   }
 }
@@ -521,6 +505,9 @@ export default {
       codeEditorWorkspaceRoot: '',
       content: null,
       contentError: '',
+      editorStepStatusMessage: '',
+      editorStepStatusTimer: null,
+      editorStepStatusType: '',
       navigationPageTitles: {},
       runtimeBusy: false,
       runtimeLogs: [],
@@ -580,6 +567,12 @@ export default {
           status: this.springAiStatus,
           error: this.springAiStatusError
         }
+      }
+    },
+    editorStepStatusClass() {
+      return {
+        'editor-step-status--error': this.editorStepStatusType === 'error',
+        'editor-step-status--success': this.editorStepStatusType === 'success'
       }
     },
     codeEditorUrl() {
@@ -716,22 +709,36 @@ export default {
       this.refreshRuntimeState()
     ])
   },
+  beforeUnmount() {
+    this.clearEditorStepStatusTimer()
+  },
   methods: {
     async applyEditorStep(stepId) {
       const config = EDITOR_STEP_CONFIG[stepId]
       if (!config) {
+        this.showEditorStepStatus('No editor step is configured for this button.', 'error')
         return
       }
 
       try {
+        this.showEditorStepStatus(`Applying change to ${config.fileName}...`, 'success', 15000)
         const currentContent = await this.loadEditableFile(config.fileName)
         const nextContent = config.transform(currentContent)
+        const changed = nextContent !== currentContent
         if (nextContent !== currentContent) {
           await this.saveEditableFile(config.fileName, nextContent)
         }
-        await this.openFile(config.fileName, { line: config.line })
+        await this.openFile(config.fileName, { line: config.line, forceReload: true })
+        this.showEditorStepStatus(
+          changed
+            ? `Applied change to ${config.fileName}.`
+            : `${config.fileName} already has this change.`,
+          'success',
+          15000
+        )
       } catch (error) {
         console.error('Failed to apply editor step:', error)
+        this.showEditorStepStatus(error.message || 'Failed to apply editor step.', 'error')
       }
     },
     applyRuntimeLogs(status) {
@@ -835,6 +842,14 @@ export default {
         return
       }
 
+      if (options.forceReload) {
+        this.activeCodeEditorFilePath = ''
+        this.activeCodeEditorLine = 0
+        this.activeCodeEditorColumn = 1
+        this.codeEditorOpenRequest += 1
+        await this.$nextTick()
+      }
+
       this.codeEditorOpenRequest += 1
       this.activeCodeEditorFilePath = workspacePath
       this.activeCodeEditorLine = this.normalizeEditorLine(options.line)
@@ -904,6 +919,7 @@ export default {
       this.activeCodeEditorLine = 0
       this.activeCodeEditorColumn = 1
       this.codeEditorOpenRequest += 1
+      this.showEditorStepStatus('Code reset. Recompile App when you are ready.', 'success')
     },
     async refreshRuntimeState() {
       try {
@@ -1245,6 +1261,27 @@ export default {
       }
 
       return fallbackMessage
+    },
+    showEditorStepStatus(message, type = 'success', durationMs = 15000) {
+      this.editorStepStatusMessage = message
+      this.editorStepStatusType = type
+      this.clearEditorStepStatusTimer()
+      if (durationMs <= 0) {
+        return
+      }
+      this.editorStepStatusTimer = window.setTimeout(() => {
+        this.editorStepStatusMessage = ''
+        this.editorStepStatusType = ''
+        this.editorStepStatusTimer = null
+      }, durationMs)
+    },
+    clearEditorStepStatusTimer() {
+      if (!this.editorStepStatusTimer) {
+        return
+      }
+
+      window.clearTimeout(this.editorStepStatusTimer)
+      this.editorStepStatusTimer = null
     }
   }
 }
@@ -1305,6 +1342,30 @@ export default {
 
 .content-state--error {
   color: #fca5a5;
+}
+
+.editor-step-status {
+  margin: 0 0 var(--spacing-3);
+  padding: 0.75rem 0.9rem;
+  border: 1px solid rgba(59, 130, 246, 0.45);
+  border-radius: var(--radius-md);
+  background: rgba(30, 64, 175, 0.18);
+  color: #bfdbfe;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.4;
+}
+
+.editor-step-status--error {
+  border-color: rgba(248, 113, 113, 0.55);
+  background: rgba(127, 29, 29, 0.25);
+  color: #fecaca;
+}
+
+.editor-step-status--success {
+  border-color: rgba(34, 197, 94, 0.45);
+  background: rgba(20, 83, 45, 0.2);
+  color: #bbf7d0;
 }
 
 :deep(.content-step-item),

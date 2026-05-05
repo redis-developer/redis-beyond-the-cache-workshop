@@ -173,7 +173,48 @@ workshops:
         images:
           frontend: registry.example.com/workshops/spring-ai-fundamentals-frontend@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
           backend: registry.example.com/workshops/spring-ai-fundamentals-backend@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
-          combined: registry.example.com/workshops/spring-ai-fundamentals-runner@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+          combined: europe-west4-docker.pkg.dev/personal-rdlts/session-runners/1_spring_ai_fundamentals@sha256:24428c0366a544d0a237f9e3b6ac30a2efe9fd1f738f860cf636a05acb93144e
+        resourceClass: small
+        sessionTtlMinutes: 180
+        mutableDependencies:
+          - redis
+  - id: 2_building_multi_agents
+    title: "Module 2: Building Multi Agents"
+    description: >-
+      Build multi agent Spring AI workflows that coordinate specialized agents,
+      shared state, and Redis backed infrastructure.
+    difficulty: Intermediate
+    estimatedMinutes: 45
+    serviceName: spring-ai-building-multi-agents
+    url: /workshop/spring-ai-building-multi-agents/
+    dockerfile: java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/Dockerfile
+    frontendServiceName: spring-ai-building-multi-agents
+    frontendDockerfile: java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/Dockerfile
+    backendServiceName: spring-ai-building-multi-agents-api
+    backendDockerfile: java-springboot/spring_ai_multi_agent_course/2_building_multi_agents/Dockerfile
+    infrastructureDependencies:
+      - redis
+    sessionScopedInfrastructureDependencies:
+      - redis
+    redisFlavor: standard
+    frontendPrebuild: true
+    topics:
+      - Spring AI
+      - Multi Agent
+      - Redis
+    releases:
+      - releaseId: spring-ai-building-multi-agents-2026.05.1
+        releaseVersion: 2026.05.1
+        mode: LAB
+        defaultForWorkshop: true
+        enabled: true
+        environments:
+          - local
+          - cloud-run
+        images:
+          frontend: registry.example.com/workshops/spring-ai-building-multi-agents-frontend@sha256:1111111111111111111111111111111111111111111111111111111111111111
+          backend: registry.example.com/workshops/spring-ai-building-multi-agents-backend@sha256:2222222222222222222222222222222222222222222222222222222222222222
+          combined: registry.example.com/workshops/spring-ai-building-multi-agents-runner@sha256:3333333333333333333333333333333333333333333333333333333333333333
         resourceClass: small
         sessionTtlMinutes: 180
         mutableDependencies:

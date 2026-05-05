@@ -1,0 +1,68 @@
+# syntax=docker/dockerfile:1.4
+
+FROM eclipse-temurin:21-jdk AS builder
+
+ARG SKIP_FRONTEND_BUILD=false
+
+RUN if [ "$SKIP_FRONTEND_BUILD" != "true" ]; then \
+        apt-get update \
+        && apt-get install -y nodejs npm \
+        && rm -rf /var/lib/apt/lists/*; \
+    fi
+
+WORKDIR /workspace/java-springboot
+
+COPY java-springboot/gradlew .
+COPY java-springboot/gradle gradle
+COPY java-springboot/build.gradle.kts .
+COPY java-springboot/settings.gradle.kts .
+COPY java-springboot/buildSrc buildSrc
+COPY java-springboot/workshop-infrastructure/build.gradle.kts workshop-infrastructure/
+COPY java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/build.gradle.kts spring_ai_multi_agent_course/2_building_multi_agents_frontend/
+
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew :2_building_multi_agents_frontend:dependencies --no-daemon || true
+
+COPY workshop-frontend-shared /workshop-frontend-shared
+RUN ln -s /workshop-frontend-shared /workspace/workshop-frontend-shared
+
+COPY java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/package*.json spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/
+COPY java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/babel.config.js spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/
+
+RUN --mount=type=cache,target=/root/.npm \
+    if [ "$SKIP_FRONTEND_BUILD" != "true" ]; then \
+        cd spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend && npm install; \
+    fi
+
+COPY java-springboot/workshop-infrastructure/src workshop-infrastructure/src
+COPY java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/src spring_ai_multi_agent_course/2_building_multi_agents_frontend/src
+COPY java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/src spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/src
+COPY java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/public spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/public
+COPY java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/vue.config.js spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend/
+
+RUN if [ "$SKIP_FRONTEND_BUILD" = "true" ]; then \
+        test -f spring_ai_multi_agent_course/2_building_multi_agents_frontend/src/main/resources/static/index.html; \
+    fi
+
+ARG VUE_APP_BASE_PATH=/
+ENV VUE_APP_BASE_PATH=${VUE_APP_BASE_PATH}
+RUN --mount=type=cache,target=/root/.npm \
+    if [ "$SKIP_FRONTEND_BUILD" != "true" ]; then \
+        cd spring_ai_multi_agent_course/2_building_multi_agents_frontend/frontend && npm run build; \
+    fi
+
+RUN --mount=type=cache,target=/root/.gradle \
+    ./gradlew :2_building_multi_agents_frontend:bootJar -x test --no-daemon
+
+FROM eclipse-temurin:21-jre
+
+WORKDIR /app
+
+COPY --from=builder /workspace/java-springboot/spring_ai_multi_agent_course/2_building_multi_agents_frontend/build/libs/2_building_multi_agents_frontend-0.0.1-SNAPSHOT.jar app.jar
+
+ENV WORKSHOP_SOURCE_PATH=/workshop-sources
+ENV WORKSHOP_BASE_PATH=/workshop-sources
+
+EXPOSE 8085
+
+ENTRYPOINT ["java", "-jar", "app.jar"]

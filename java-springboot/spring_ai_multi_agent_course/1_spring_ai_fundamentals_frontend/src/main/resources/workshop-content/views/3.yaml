@@ -27,7 +27,7 @@ sections:
           @Tool(name = "stock_snapshot", description = "Return a synthetic stock snapshot for a ticker symbol.")
           public StockSnapshot stockSnapshot(
                   @ToolParam(description = "Ticker symbol, for example AAPL or MSFT.") String ticker) {
-              invoked.set(true);
+              invoked = true;
               return snapshotFor(ticker);
           }
       - type: codeSnippet
@@ -35,7 +35,7 @@ sections:
         title: Target ChatClient Shape
         caption: The prompt allows the model to call the Java tool during this request.
         code: |
-          String answer = client().prompt()
+          String answer = chatClient.prompt()
               .system("Answer stock questions by using the stock_snapshot tool before responding.")
               .user("Ticker: NVDA\nQuestion: What stands out in this snapshot?")
               .tools(marketDataTools)
@@ -59,7 +59,7 @@ sections:
                 file: MarketDataTools.java
                 line: 5
           - itemId: enable-tool-imports
-            body: Uncomment the Stage 3 imports for `Locale`, `Map`, `AtomicBoolean`, `Tool`, and `ToolParam`.
+            body: Uncomment the Stage 3 imports for `Locale`, `Map`, `Tool`, and `ToolParam`.
             action:
               id: applyEditorStep
               label: Apply Change
@@ -115,27 +115,9 @@ sections:
         items:
           - itemId: recompile
             body: Click `Recompile App` so the backend restarts with the tool enabled.
-            action:
-              id: recompileApp
-              label: Recompile App
           - itemId: open-app
             body: Return to the learner app. Stage 3 sends chat messages to the tool calling endpoint.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /3?tool=learner-app
           - itemId: ask-question
             body: Send `What stands out about NVDA right now?`
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /3?tool=learner-app
           - itemId: verify-tool
-            body: The assistant response should show that the tool was invoked and include a collapsible JSON area for the stock snapshot.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /3?tool=learner-app
+            body: The assistant response should show that the tool was invoked and include the stock snapshot data.

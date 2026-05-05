@@ -61,14 +61,14 @@ sections:
               args:
                 stepId: 1.enableImports
           - itemId: enable-fields
-            body: Uncomment the Stage 1 fields for `chatModel` and `chatClient`.
+            body: Uncomment the Stage 1 `chatClient` field.
             action:
               id: applyEditorStep
               label: Apply Change
               args:
                 stepId: 1.enableFields
           - itemId: enable-constructor
-            body: Uncomment the Stage 1 `ChatModel chatModel` constructor parameter and the `this.chatModel = chatModel;` assignment.
+            body: Uncomment the Stage 1 `ChatModel chatModel` constructor parameter and the `this.chatClient = ChatClient.builder(chatModel).build();` assignment.
             action:
               id: applyEditorStep
               label: Apply Change
@@ -81,19 +81,12 @@ sections:
               label: Apply Change
               args:
                 stepId: 1.enablePrompt
-          - itemId: enable-client-helper
-            body: Uncomment the Stage 1 `client()` helper method. It plugs the injected `ChatModel` into `ChatClient.builder(chatModel).build()`.
-            action:
-              id: applyEditorStep
-              label: Apply Change
-              args:
-                stepId: 1.enableClientHelper
       - type: codeSnippet
         language: java
         title: Target Prompt Shape
         caption: Keep this first call plain so you can see raw generated text.
         code: |
-          String answer = client().prompt()
+          String answer = chatClient.prompt()
               .system("You are a concise stock analysis assistant.")
               .user(nonBlank(request.message(), "Explain what Spring AI ChatClient does."))
               .call()
@@ -104,28 +97,15 @@ sections:
       - type: editorStepList
         listId: run-chat
         title: Recompile And Test
-        startAt: 7
+        startAt: 6
         progressGroup: stage-1
         items:
           - itemId: recompile
             body: Click `Recompile App` so the backend restarts with your edits.
-            action:
-              id: recompileApp
-              label: Recompile App
           - itemId: ask-question
             body: Return to the learner app and send a stock question, such as `Explain MSFT for a beginner in three short bullets.`
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /1?tool=learner-app
           - itemId: verify-response
             body: The answer should no longer say `Spring AI is not wired yet`. It should be generated text from the model.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /1?tool=learner-app
       - type: callout
         tone: warning
         title: Checkpoint

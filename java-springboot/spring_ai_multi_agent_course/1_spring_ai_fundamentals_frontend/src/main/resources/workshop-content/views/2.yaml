@@ -36,7 +36,7 @@ sections:
         title: Target ChatClient Shape
         caption: Native structured output tells Spring AI to request data that can map cleanly into the Java type.
         code: |
-          ResponseEntity<ChatResponse, StockDecision> response = client().prompt()
+          ResponseEntity<ChatResponse, StockDecision> response = chatClient.prompt()
               .user("Should I look at MSFT for an AI portfolio?")
               .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
               .call()
@@ -87,27 +87,9 @@ sections:
         items:
           - itemId: recompile
             body: Click `Recompile App` so the backend restarts with your structured output edits.
-            action:
-              id: recompileApp
-              label: Recompile App
           - itemId: open-app
             body: Return to the learner app. Stage 2 sends chat messages to the structured output endpoint.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /2?tool=learner-app
           - itemId: ask-question
             body: Send `Should I look at MSFT for an AI portfolio?`
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /2?tool=learner-app
           - itemId: verify-fields
             body: The assistant response should show `finishReason`, `resolvedTicker`, `resolvedQuestion`, and `reasoning` as separate values.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /2?tool=learner-app

@@ -19,6 +19,8 @@ sections:
           In this stage, give the chat flow short conversation memory. LLMs are stateless by default, so your application has to store previous messages and decide which ones go back into the prompt.
 
           This workshop uses Spring AI's official Redis `ChatMemoryRepository`. The local workshop runs on `redis:latest`, so Redis 8 provides JSON and Query Engine support. The repository stores messages in Redis. `MessageWindowChatMemory` keeps the prompt window small. `MessageChatMemoryAdvisor` attaches that memory to `ChatClient`.
+
+          The code also uses a small `RedisSafeChatMemory` helper so Redis stores conversation messages without provider response metadata. The memory concepts stay the same: repository for storage, memory for the window, advisor for loading history into the request.
       - type: codeSnippet
         language: java
         title: Target Redis Repository Shape
@@ -26,19 +28,18 @@ sections:
         code: |
           @Bean
           public ChatMemoryRepository chatMemoryRepository(JedisPooled jedisPooled) {
-              RedisChatMemoryRepository redisRepository = RedisChatMemoryRepository.builder()
+              return RedisChatMemoryRepository.builder()
                       .jedisClient(jedisPooled)
                       .keyPrefix("spring-ai-fundamentals:")
                       .maxMessagesPerConversation(12)
                       .build();
-              return new JsonSafeChatMemoryRepository(redisRepository);
           }
       - type: codeSnippet
         language: java
         title: Target Advisor Shape
         caption: The conversation id tells the advisor which history to load.
         code: |
-          String answer = memoryClient().prompt()
+          String answer = memoryChatClient.prompt()
                   .user("What stock am I reviewing?")
                   .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
                   .call()
@@ -81,7 +82,7 @@ sections:
         progressGroup: stage-4
         items:
           - itemId: open-service
-            body: Open `SpringAiDemoService.java`. The Stage 4 service wiring, advisor call, and helper are already present.
+            body: Open `SpringAiDemoService.java`. The Stage 4 service wiring, advisor call, and message count helper are already present.
             action:
               id: openFile
               label: Open Service
@@ -96,7 +97,7 @@ sections:
               args:
                 stepId: 4.enableMemoryImports
           - itemId: enable-memory-dependency
-            body: Uncomment the `ChatMemory`, `ChatMemoryRepository`, and `memoryChatClient` fields, then uncomment the matching constructor parameters and assignments.
+            body: Uncomment the `ChatMemoryRepository` and `memoryChatClient` fields, then uncomment the `ChatMemory` and `ChatMemoryRepository` constructor parameters and assignments.
             action:
               id: applyEditorStep
               label: Apply Change
@@ -110,12 +111,12 @@ sections:
               args:
                 stepId: 4.enableMemoryBlock
           - itemId: enable-memory-helper
-            body: Uncomment the Stage 4 `memoryClient()` helper and `messageCount(...)`. The helper attaches `MessageChatMemoryAdvisor` to the client.
+            body: Uncomment the Stage 4 `messageCount(...)` helper.
             action:
               id: applyEditorStep
               label: Apply Change
               args:
-                stepId: 4.enableMemoryClientHelper
+                stepId: 4.enableMessageCountHelper
       - type: callout
         tone: info
         title: Checkpoint
@@ -131,34 +132,11 @@ sections:
         items:
           - itemId: recompile
             body: Click `Recompile App` so the backend restarts with Redis memory enabled.
-            action:
-              id: recompileApp
-              label: Recompile App
           - itemId: open-app
             body: Return to the learner app. Stage 4 sends chat messages to the memory endpoint and shows the conversation id.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /4?tool=learner-app
           - itemId: remember-stock
             body: Keep `fundamentals-demo` as the conversation id and send `Remember that I am reviewing NVDA.`
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /4?tool=learner-app
           - itemId: ask-follow-up
             body: With the same conversation id, send `What stock am I reviewing?`
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /4?tool=learner-app
           - itemId: verify-memory
             body: The assistant response should use the earlier message, and `messageCount` should increase as the conversation continues.
-            action:
-              id: openRoute
-              label: Return To App
-              args:
-                route: /4?tool=learner-app

@@ -18,6 +18,10 @@ platform:
     session:
       defaults:
         ttl: ${PLATFORM_CONTROLPLANE_SESSION_DEFAULTS_TTL:180m}
+      records:
+        redis:
+          key-prefix: ${PLATFORM_CONTROLPLANE_SESSION_RECORD_REDIS_KEY_PREFIX:platform:sessions:records:}
+          index-key: ${PLATFORM_CONTROLPLANE_SESSION_RECORD_REDIS_INDEX_KEY:platform:sessions:index}
     portal:
       session:
         cookie-name: ${PLATFORM_CONTROLPLANE_PORTAL_SESSION_COOKIE_NAME:portal_session}

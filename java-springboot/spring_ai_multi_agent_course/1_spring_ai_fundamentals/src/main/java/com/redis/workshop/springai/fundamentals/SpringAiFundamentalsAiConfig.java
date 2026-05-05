@@ -1,8 +1,5 @@
 package com.redis.workshop.springai.fundamentals;
 
-/*
-Stage 4 imports to enable later:
-
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.memory.MessageWindowChatMemory;
@@ -10,15 +7,13 @@ import org.springframework.ai.chat.memory.repository.redis.RedisChatMemoryReposi
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import redis.clients.jedis.JedisPooled;
-*/
 
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class SpringAiFundamentalsAiConfig {
 
-    /*
-    Stage 4 will enable Redis chat memory.
+    // Stage 4 Redis chat memory enabled.
 
     @Bean
     public JedisPooled jedisPooled(
@@ -30,20 +25,18 @@ public class SpringAiFundamentalsAiConfig {
 
     @Bean
     public ChatMemoryRepository chatMemoryRepository(JedisPooled jedisPooled) {
-        RedisChatMemoryRepository redisRepository = RedisChatMemoryRepository.builder()
+        return RedisChatMemoryRepository.builder()
                 .jedisClient(jedisPooled)
                 .keyPrefix("spring-ai-fundamentals:")
                 .maxMessagesPerConversation(12)
                 .build();
-        return new JsonSafeChatMemoryRepository(redisRepository);
     }
 
     @Bean
     public ChatMemory chatMemory(ChatMemoryRepository repository) {
-        return MessageWindowChatMemory.builder()
+        return new RedisSafeChatMemory(MessageWindowChatMemory.builder()
                 .chatMemoryRepository(repository)
                 .maxMessages(12)
-                .build();
+                .build());
     }
-    */
 }
