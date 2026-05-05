@@ -2,9 +2,9 @@ schemaVersion: 1
 viewId: "4"
 route: /4
 pageType: narrative
-title: "Memory And Advisors"
+title: "STAGE 4: Memory And Advisors"
 slot: instructions
-summary: Add conversation context without hiding the prompt flow.
+summary: Store chat history in Redis and load it through an advisor.
 navigation:
   previousLabel: Tools
   nextLabel: Final helper
@@ -14,43 +14,151 @@ sections:
     blocks:
       - type: markdown
         body: |
-          Advisors wrap a chat request with reusable behavior. In Part 0, use them for a tiny amount of memory so follow up questions can refer to the previous stock.
+          Stage 3 gave the model a Java tool.
 
-          Keep the conversation id explicit. Later modules will use stronger memory and orchestration patterns.
+          In this stage, give the chat flow short conversation memory. LLMs are stateless by default, so your application has to store previous messages and decide which ones go back into the prompt.
+
+          This workshop uses Spring AI's official Redis `ChatMemoryRepository`. The local workshop runs on `redis:latest`, so Redis 8 provides JSON and Query Engine support. The repository stores messages in Redis. `MessageWindowChatMemory` keeps the prompt window small. `MessageChatMemoryAdvisor` attaches that memory to `ChatClient`.
       - type: codeSnippet
         language: java
-        title: Memory Advisor Shape
-        caption: The exact repository can vary, but the service should show where the advisor enters the request.
+        title: Target Redis Repository Shape
+        caption: Redis stores the chat messages. The repository is the persistence layer.
         code: |
-          String answer = chatClient.prompt()
-              .advisors(advisor -> advisor.param("conversationId", conversationId))
-              .user("Compare that with MSFT in one paragraph.")
-              .call()
-              .content();
-      - type: stepList
-        listId: memory-advisors
-        variant: ordered
+          @Bean
+          public ChatMemoryRepository chatMemoryRepository(JedisPooled jedisPooled) {
+              RedisChatMemoryRepository redisRepository = RedisChatMemoryRepository.builder()
+                      .jedisClient(jedisPooled)
+                      .keyPrefix("spring-ai-fundamentals:")
+                      .maxMessagesPerConversation(12)
+                      .build();
+              return new JsonSafeChatMemoryRepository(redisRepository);
+          }
+      - type: codeSnippet
+        language: java
+        title: Target Advisor Shape
+        caption: The conversation id tells the advisor which history to load.
+        code: |
+          String answer = memoryClient().prompt()
+                  .user("What stock am I reviewing?")
+                  .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                  .call()
+                  .content();
+  - sectionId: code-edits
+    title: Enable Memory
+    blocks:
+      - type: editorStepList
+        listId: redis-memory-config
+        title: "`SpringAiFundamentalsAiConfig.java`"
+        startAt: 1
+        progressGroup: stage-4
         items:
-          - itemId: configure-advisor
-            title: Configure One Advisor
-            body: Add the simple chat memory advisor in `SpringAiFundamentalsAiConfig.java`.
-            actions:
-              - id: openFile
-                label: Open Config
-                args:
-                  file: SpringAiFundamentalsAiConfig.java
-          - itemId: pass-conversation
-            title: Pass A Conversation Id
-            body: Update `SpringAiDemoService.java` so related prompts share the same conversation id.
-            actions:
-              - id: openFile
-                label: Open Service
-                args:
-                  file: SpringAiDemoService.java
-          - itemId: test-follow-up
-            title: Test A Follow Up
-            body: Ask about AAPL first, then ask "what about MSFT" and check that the second answer understands the comparison.
+          - itemId: open-config
+            body: Open `SpringAiFundamentalsAiConfig.java`. The Stage 4 Redis memory configuration is already present and marked with `Stage 4` comments.
+            action:
+              id: openFile
+              label: Open Config
+              args:
+                file: SpringAiFundamentalsAiConfig.java
+                line: 4
+          - itemId: enable-config-imports
+            body: Uncomment the Stage 4 imports for `ChatMemory`, `ChatMemoryRepository`, `MessageWindowChatMemory`, `RedisChatMemoryRepository`, `Value`, `Bean`, and `JedisPooled`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableConfigImports
+          - itemId: enable-redis-memory-beans
+            body: Uncomment the Stage 4 beans for `JedisPooled`, `ChatMemoryRepository`, and `ChatMemory`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableRedisMemoryBeans
+      - type: editorStepList
+        listId: memory-service-wiring
+        title: "`SpringAiDemoService.java`"
+        startAt: 4
+        progressGroup: stage-4
+        items:
+          - itemId: open-service
+            body: Open `SpringAiDemoService.java`. The Stage 4 service wiring, advisor call, and helper are already present.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: SpringAiDemoService.java
+                line: 16
+          - itemId: enable-memory-imports
+            body: Uncomment the Stage 4 imports for `MessageChatMemoryAdvisor`, `ChatMemory`, and `ChatMemoryRepository`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableMemoryImports
+          - itemId: enable-memory-dependency
+            body: Uncomment the `ChatMemory`, `ChatMemoryRepository`, and `memoryChatClient` fields, then uncomment the matching constructor parameters and assignments.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableMemoryDependency
+          - itemId: enable-memory-block
+            body: In `memory(...)`, comment out the scaffold `NOT_IMPLEMENTED` return. Then uncomment the Stage 4 memory block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableMemoryBlock
+          - itemId: enable-memory-helper
+            body: Uncomment the Stage 4 `memoryClient()` helper and `messageCount(...)`. The helper attaches `MessageChatMemoryAdvisor` to the client.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 4.enableMemoryClientHelper
       - type: callout
         tone: info
-        title: What To Notice
-        body: Memory should improve the follow up prompt, but it should not replace clear user intent. Keep important symbols explicit when correctness matters.
+        title: Checkpoint
+        body: The model still receives one request at a time. Memory works because the advisor loads earlier messages for the same conversation id.
+  - sectionId: run
+    title: Run It
+    blocks:
+      - type: editorStepList
+        listId: run-memory
+        title: Recompile And Test
+        startAt: 9
+        progressGroup: stage-4
+        items:
+          - itemId: recompile
+            body: Click `Recompile App` so the backend restarts with Redis memory enabled.
+            action:
+              id: recompileApp
+              label: Recompile App
+          - itemId: open-app
+            body: Return to the learner app. Stage 4 sends chat messages to the memory endpoint and shows the conversation id.
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /4?tool=learner-app
+          - itemId: remember-stock
+            body: Keep `fundamentals-demo` as the conversation id and send `Remember that I am reviewing NVDA.`
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /4?tool=learner-app
+          - itemId: ask-follow-up
+            body: With the same conversation id, send `What stock am I reviewing?`
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /4?tool=learner-app
+          - itemId: verify-memory
+            body: The assistant response should use the earlier message, and `messageCount` should increase as the conversation continues.
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /4?tool=learner-app

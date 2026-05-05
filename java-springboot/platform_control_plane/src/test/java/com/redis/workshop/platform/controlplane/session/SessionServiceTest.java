@@ -25,8 +25,8 @@ import com.redis.workshop.platform.controlplane.security.PlatformAuthorities;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.Mock;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.web.server.ResponseStatusException;
 
@@ -34,6 +34,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -184,6 +185,80 @@ class SessionServiceTest {
                 && request.workspacePolicy().mountPath().equals("/workshop-sources")
                 && request.workspacePolicy().writable()
         ));
+    }
+
+    @Test
+    void launchRequestCarriesNormalizedSessionEnvironment() {
+        stubCreateSessionLaunchPrerequisites();
+        when(sessionRepository.save(any())).thenAnswer(invocation -> invocation.getArgument(0));
+
+        sessionService.createSession(new CreateSessionRequest(
+            "1_session_management",
+            null,
+            null,
+            Map.of(" OPENAI_API_KEY ", " sk-test ")
+        ));
+
+        ArgumentCaptor<SessionLaunchRequest> launchRequest = ArgumentCaptor.forClass(SessionLaunchRequest.class);
+        verify(sessionRuntimeLifecyclePort).requestLaunch(launchRequest.capture());
+        assertThat(launchRequest.getValue().runtimeConfig())
+            .containsEntry("OPENAI_API_KEY", "sk-test")
+            .containsEntry("WORKSHOP_SESSION_ENVIRONMENT_KEYS", "OPENAI_API_KEY")
+            .containsEntry("releaseId", "1_session_management-current")
+            .containsEntry("mutableDependencies", "redis");
+    }
+
+    @Test
+    void rejectsReservedSessionEnvironmentKeys() {
+        stubCreateSessionValidationPrerequisites();
+
+        for (String key : List.of("PORT", "WORKSHOP_ID")) {
+            assertThatThrownBy(() -> sessionService.createSession(new CreateSessionRequest(
+                "1_session_management",
+                null,
+                null,
+                Map.of(key, "value")
+            )))
+                .isInstanceOf(ResponseStatusException.class)
+                .hasMessageContaining("400 BAD_REQUEST");
+        }
+
+        verify(sessionRepository, never()).save(any());
+        verify(sessionRuntimeLifecyclePort, never()).requestLaunch(any());
+    }
+
+    @Test
+    void rejectsInvalidSessionEnvironmentKeys() {
+        stubCreateSessionValidationPrerequisites();
+
+        assertThatThrownBy(() -> sessionService.createSession(new CreateSessionRequest(
+            "1_session_management",
+            null,
+            null,
+            Map.of("openai-api-key", "value")
+        )))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST");
+
+        verify(sessionRepository, never()).save(any());
+        verify(sessionRuntimeLifecyclePort, never()).requestLaunch(any());
+    }
+
+    @Test
+    void rejectsSessionEnvironmentKeysThatOverrideRuntimeConfig() {
+        stubCreateSessionLaunchPrerequisites();
+
+        assertThatThrownBy(() -> sessionService.createSession(new CreateSessionRequest(
+            "1_session_management",
+            null,
+            null,
+            Map.of("mutableDependencies", "none")
+        )))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST");
+
+        verify(sessionRepository, never()).save(any());
+        verify(sessionRuntimeLifecyclePort, never()).requestLaunch(any());
     }
 
     @Test
@@ -824,6 +899,20 @@ class SessionServiceTest {
             List.of("Sessions"),
             true
         );
+    }
+
+    private void stubCreateSessionValidationPrerequisites() {
+        CurrentActor learner = learnerActor("learner-1");
+        when(currentActorProvider.requireCurrentActor()).thenReturn(learner);
+        when(workshopCatalogService.getWorkshopEntry("1_session_management")).thenReturn(workshopEntry());
+        when(sessionAccessPolicy.canCreate(any())).thenReturn(PolicyDecision.allow("self_service"));
+        when(pilotLaunchRuleService.resolveRequestedReleaseVersion("1_session_management", null, "current"))
+            .thenReturn("current");
+    }
+
+    private void stubCreateSessionLaunchPrerequisites() {
+        stubCreateSessionValidationPrerequisites();
+        when(sessionProvisioningPolicy.resolve(any())).thenReturn(defaultProvisioningProfile());
     }
 
     private SessionProvisioningProfile defaultProvisioningProfile() {

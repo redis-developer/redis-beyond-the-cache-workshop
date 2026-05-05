@@ -2,9 +2,9 @@ schemaVersion: 1
 viewId: "2"
 route: /2
 pageType: narrative
-title: "Structured Output"
+title: "STAGE 2: Structured Output"
 slot: instructions
-summary: Convert free text into a typed stock summary that application code can trust.
+summary: Map the model response into a Java record.
 navigation:
   previousLabel: Minimum prompt
   nextLabel: Add tools
@@ -14,15 +14,17 @@ sections:
     blocks:
       - type: markdown
         body: |
-          Free text is useful for people. Application code needs predictable fields.
+          Stage 1 returns generated text.
 
-          In this exercise, ask the model for a compact stock summary and map the response into a Java record.
+          In this stage, ask Spring AI to map the model response into a `StockDecision` record. The learner app can then display fields instead of trying to parse natural language.
+
+          Natural language is useful for people. Application code is easier to write when values arrive as structured data.
       - type: codeSnippet
         language: java
-        title: Typed Response Shape
-        caption: A small record is enough for the first structured output pass.
+        title: Target Structured Shape
+        caption: The model response is mapped into this record.
         code: |
-          public record StockDecision(
+          record StockDecision(
               String finishReason,
               String resolvedTicker,
               String resolvedQuestion,
@@ -31,33 +33,81 @@ sections:
           }
       - type: codeSnippet
         language: java
-        title: Entity Call
-        caption: Use `entity(...)` when you want Spring AI to map the answer into your type.
+        title: Target ChatClient Shape
+        caption: Native structured output tells Spring AI to request data that can map cleanly into the Java type.
         code: |
-          StockDecision decision = chatClient.prompt()
-              .user("Analyze Apple stock")
+          ResponseEntity<ChatResponse, StockDecision> response = client().prompt()
+              .user("Should I look at MSFT for an AI portfolio?")
+              .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
               .call()
-              .responseEntity(StockDecision.class)
-              .entity();
-      - type: stepList
+              .responseEntity(StockDecision.class);
+  - sectionId: code-edits
+    title: Enable Structured Output
+    blocks:
+      - type: editorStepList
         listId: structured-output
-        variant: ordered
+        title: "`SpringAiDemoService.java`"
+        startAt: 1
+        progressGroup: stage-2
         items:
-          - itemId: define-record
-            title: Inspect The Output Type
-            body: Find the `StockDecision` record and note how the fields become UI fields.
-          - itemId: replace-content
-            title: Change The Structured Prompt
-            body: Change the structured prompt in `SpringAiDemoService.java` so it resolves a different stock question.
-            actions:
-              - id: openFile
-                label: Open Service
-                args:
-                  file: SpringAiDemoService.java
-          - itemId: tighten-prompt
-            title: Make The Prompt Specific
-            body: Ask for a ticker, a resolved question, and concise reasoning. Keep the wording short.
+          - itemId: open-service
+            body: Open `SpringAiDemoService.java`. The Stage 2 code is already present and marked with `Stage 2` comments.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: SpringAiDemoService.java
+                line: 10
+          - itemId: enable-imports
+            body: Uncomment the Stage 2 imports for `AdvisorParams`, `ResponseEntity`, and `ChatResponse`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 2.enableImports
+          - itemId: enable-structured-block
+            body: In `structured(...)`, comment out the scaffold `NOT_IMPLEMENTED` return. Then uncomment the Stage 2 structured output block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 2.enableStructuredBlock
       - type: callout
         tone: info
-        title: Prompt Discipline
-        body: Structured output works best when the Java type is simple and the prompt names the fields the user expects.
+        title: Checkpoint
+        body: The important difference is the return contract. Stage 1 returns text. Stage 2 returns a typed `StockDecision`.
+  - sectionId: run
+    title: Run It
+    blocks:
+      - type: editorStepList
+        listId: run-structured-output
+        title: Recompile And Test
+        startAt: 4
+        progressGroup: stage-2
+        items:
+          - itemId: recompile
+            body: Click `Recompile App` so the backend restarts with your structured output edits.
+            action:
+              id: recompileApp
+              label: Recompile App
+          - itemId: open-app
+            body: Return to the learner app. Stage 2 sends chat messages to the structured output endpoint.
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /2?tool=learner-app
+          - itemId: ask-question
+            body: Send `Should I look at MSFT for an AI portfolio?`
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /2?tool=learner-app
+          - itemId: verify-fields
+            body: The assistant response should show `finishReason`, `resolvedTicker`, `resolvedQuestion`, and `reasoning` as separate values.
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /2?tool=learner-app

@@ -2,139 +2,73 @@
   <div class="fundamentals-home">
     <WorkshopShell
       title="Module 1: Spring AI Fundamentals"
-      eyebrow="Spring AI Multi Agent Course"
-      :summary="activePage.summary"
-      :content="content"
-      :context="contentContext"
+      eyebrow=""
+      summary=""
+      :runtime="shellRuntime"
       :links="shellLinks"
-      :learner-app="learnerApp"
-      :runtime="runtime"
       :actions="shellActions"
-      :action-handlers="actionHandlers"
-      :show-content-title="true"
-      :show-content-summary="true"
-      :show-stage-title="false"
+      :learner-app="learnerApp"
+      :runtime-logs="runtimeLogs"
+      :runtime-actions-disabled="runtimeInteractionBusy"
+      :default-side-panel="defaultSidePanel"
+      @runtime-action="handleRuntimeAction"
+      @logs-toggle="handleRuntimeLogsToggle"
     >
-      <template #app-frame>
-        <section class="try-panel" :aria-label="`${activePage.title} try panel`">
-          <header class="try-panel__header">
-            <div>
-              <p class="try-panel__eyebrow">Try it</p>
-              <h2>{{ activePage.title }}</h2>
-            </div>
-            <span class="try-panel__step">Page {{ pageId }}</span>
+      <template #instructions>
+        <div class="fundamentals-instructions">
+          <header class="fundamentals-instructions__header">
+            <p class="fundamentals-instructions__title">{{ instructionsHeaderTitle }}</p>
           </header>
 
-          <div
-            v-if="statusMessage"
-            class="status-banner"
-            :class="statusClass"
-          >
-            {{ statusMessage }}
-          </div>
+          <div class="fundamentals-instructions__body">
+            <div v-if="contentError" class="content-state content-state--error">
+              {{ contentError }}
+            </div>
+            <div v-else-if="!content" class="content-state">
+              Loading workshop instructions...
+            </div>
+            <template v-else>
+              <WorkshopContentRenderer
+                :content="content"
+                :context="contentContext"
+                :show-title="false"
+                :show-summary="false"
+                :show-stage-title="false"
+                @action="handleContentAction"
+              />
 
-          <div v-if="panelKind === 'intro'" class="try-panel__empty">
-            <p>Use the pages to test each Spring AI concept against the running backend.</p>
-            <button type="button" @click="goToPage('1')">Start with prompts</button>
-          </div>
+              <nav
+                v-if="hasStageNavigation"
+                class="stage-navigation"
+                aria-label="Stage navigation"
+              >
+                <button
+                  v-if="previousStage"
+                  class="stage-navigation__button stage-navigation__button--previous"
+                  type="button"
+                  :aria-label="`Go to ${previousStageAriaLabel}`"
+                  @click="goToPage(previousStage)"
+                >
+                  <span aria-hidden="true">&larr;</span>
+                  <span class="stage-navigation__label">{{ previousStageLabel }}</span>
+                </button>
 
-          <form v-else class="try-panel__form" @submit.prevent="runActivePanel">
-            <label v-if="needsConversationId">
-              Conversation ID
-              <input v-model="form.conversationId" type="text" autocomplete="off" />
-            </label>
-
-            <label v-if="needsTicker">
-              Ticker
-              <input v-model="form.ticker" type="text" autocomplete="off" />
-            </label>
-
-            <label v-if="needsQuestion">
-              Question
-              <textarea v-model="form.question" rows="3"></textarea>
-            </label>
-
-            <label v-if="needsMessage">
-              Message
-              <textarea v-model="form.message" rows="4"></textarea>
-            </label>
-
-            <button type="submit" :disabled="busy">
-              {{ busy ? 'Running...' : activePage.button }}
-            </button>
-          </form>
-
-          <div v-if="error" class="result result--error">
-            <p class="result__label">Error</p>
-            <p>{{ error }}</p>
-          </div>
-
-          <div v-if="hasResult" class="result">
-            <p class="result__label">Response</p>
-
-            <template v-if="panelKind === 'prompt'">
-              <p>{{ displayValue(result.response || result.message || result.content || result.answer) }}</p>
-            </template>
-
-            <template v-else-if="panelKind === 'structured'">
-              <dl>
-                <dt>Finish reason</dt>
-                <dd>{{ displayValue(structuredResult.finishReason) }}</dd>
-                <dt>Resolved ticker</dt>
-                <dd>{{ displayValue(structuredResult.resolvedTicker) }}</dd>
-                <dt>Resolved question</dt>
-                <dd>{{ displayValue(structuredResult.resolvedQuestion) }}</dd>
-                <dt>Reasoning</dt>
-                <dd>{{ displayValue(structuredResult.reasoning) }}</dd>
-              </dl>
-            </template>
-
-            <template v-else-if="panelKind === 'tools'">
-              <dl>
-                <dt>Tool invoked</dt>
-                <dd>{{ toolInvokedLabel(result) }}</dd>
-                <dt>Snapshot</dt>
-                <dd><pre>{{ formatValue(result.snapshot || result.toolSnapshot || result) }}</pre></dd>
-              </dl>
-            </template>
-
-            <template v-else-if="panelKind === 'memory'">
-              <dl>
-                <dt>Conversation ID</dt>
-                <dd>{{ displayValue(result.conversationId || form.conversationId) }}</dd>
-                <dt>Message count</dt>
-                <dd>{{ displayValue(result.messageCount) }}</dd>
-                <dt>Reply</dt>
-                <dd>{{ displayValue(result.response || result.message || result.answer) }}</dd>
-              </dl>
-            </template>
-
-            <template v-else-if="panelKind === 'helper'">
-              <dl>
-                <dt>Structured result</dt>
-                <dd><pre>{{ formatValue(result.structuredResult || result.structured || result.result) }}</pre></dd>
-                <dt>Snapshot</dt>
-                <dd><pre>{{ formatValue(result.snapshot || result.toolSnapshot) }}</pre></dd>
-                <dt>Answer</dt>
-                <dd>{{ displayValue(result.response || result.answer || result.message) }}</dd>
-              </dl>
+                <button
+                  v-if="nextStage"
+                  class="stage-navigation__button stage-navigation__button--next"
+                  type="button"
+                  :aria-label="`Go to ${nextStageAriaLabel}`"
+                  @click="goToPage(nextStage)"
+                >
+                  <span class="stage-navigation__label">{{ nextStageLabel }}</span>
+                  <span aria-hidden="true">&rarr;</span>
+                </button>
+              </nav>
             </template>
           </div>
-
-          <nav class="page-nav" aria-label="Module pages">
-            <button
-              v-for="page in pages"
-              :key="page.id"
-              type="button"
-              :class="{ 'page-nav__button--active': page.id === pageId }"
-              @click="goToPage(page.id)"
-            >
-              {{ page.id }}
-            </button>
-            <button type="button" @click="goToEditor">Editor</button>
-          </nav>
-        </section>
+        </div>
       </template>
+
     </WorkshopShell>
   </div>
 </template>
@@ -142,25 +76,435 @@
 <script>
 import {
   getApiUrl,
-  getRedisInsightUrl,
+  getBasePath,
+  getCodeEditorFileUrl,
+  getCodeEditorUrl,
   getWorkshopHubUrl,
+  loadEditorWorkspaceMetadata,
+  WorkshopContentRenderer,
   WorkshopShell
 } from '../../../../../../workshop-frontend-shared/src/index.js'
-import { springAiGet, springAiPost } from '../utils/springAiApi'
 import { fetchWorkshopContent } from '../utils/workshopContent'
 
+const READY_STATES = new Set(['CHILD_READY', 'READY', 'RUNNING'])
+const FAILED_STATES = new Set(['CHILD_FAILED', 'DISABLED', 'FAILED'])
+const BUSY_STATES = new Set(['CHILD_STARTING', 'REBUILDING', 'RESTARTING', 'STARTING'])
+const POLL_INTERVAL_MS = 2000
+const POLL_TIMEOUT_MS = 480000
+const MIN_RUNTIME_BUSY_MS = 2000
+
 const PAGES = [
-  { id: '0', title: 'Introduction', summary: 'Start with the Spring AI client and the concepts used throughout the module.', kind: 'intro', button: '' },
-  { id: '1', title: 'Prompt', summary: 'Send a message through the Spring AI prompt endpoint.', kind: 'prompt', button: 'Send prompt' },
-  { id: '2', title: 'Structured output', summary: 'Ask the model to resolve a ticker and question into a structured result.', kind: 'structured', button: 'Create structure' },
-  { id: '3', title: 'Tools', summary: 'Let the model answer a market question with a backend tool.', kind: 'tools', button: 'Run tool request' },
-  { id: '4', title: 'Memory and advisors', summary: 'Reuse a conversation ID and observe message history behavior.', kind: 'memory', button: 'Send memory message' },
-  { id: '5', title: 'Final helper', summary: 'Combine structured output, tool calling, and memory in one helper flow.', kind: 'helper', button: 'Ask helper' }
+  { id: '0', title: 'Introduction' },
+  { id: '1', title: 'Prompt' },
+  { id: '2', title: 'Structured output' },
+  { id: '3', title: 'Tools' },
+  { id: '4', title: 'Memory and advisors' },
+  { id: '5', title: 'Final helper' }
 ]
+
+function normalizeRunnerState(state) {
+  return String(state || '').trim().toUpperCase()
+}
+
+function isBusyRunnerState(state) {
+  return BUSY_STATES.has(normalizeRunnerState(state))
+}
+
+function isRebuildRunnerState(state) {
+  return normalizeRunnerState(state) === 'REBUILDING'
+}
+
+const EDITOR_STEP_CONFIG = {
+  '1.enableImports': {
+    fileName: 'SpringAiDemoService.java',
+    line: 6,
+    transform: content => content
+      .replace(
+        '// import org.springframework.ai.chat.client.ChatClient;',
+        'import org.springframework.ai.chat.client.ChatClient;'
+      )
+      .replace(
+        '// import org.springframework.ai.chat.model.ChatModel;',
+        'import org.springframework.ai.chat.model.ChatModel;'
+      )
+  },
+  '1.enableFields': {
+    fileName: 'SpringAiDemoService.java',
+    line: 34,
+    transform: content => content
+      .replace('// private final ChatModel chatModel;', 'private final ChatModel chatModel;')
+      .replace('// private volatile ChatClient chatClient;', 'private volatile ChatClient chatClient;')
+  },
+  '1.enableConstructor': {
+    fileName: 'SpringAiDemoService.java',
+    line: 49,
+    transform: content => content
+      .replace('// , ChatModel chatModel', ', ChatModel chatModel')
+      .replace('// this.chatModel = chatModel;', 'this.chatModel = chatModel;')
+  },
+  '1.enablePrompt': {
+    fileName: 'SpringAiDemoService.java',
+    line: 72,
+    transform: content => content
+      .replace(
+        '        return new PromptResponse(true, PLACEHOLDER_ANSWER.trim(), null);',
+        '        // return new PromptResponse(true, PLACEHOLDER_ANSWER.trim(), null);'
+      )
+      .replace(
+        `        /*
+        Stage 1 prompt block to enable:
+        Comment out the hardcoded return above, then uncomment this block.
+
+        try {`,
+        `        // Stage 1 prompt block enabled.
+
+        try {`
+      )
+      .replace(
+        `        }
+        */
+    }
+
+    public StructuredResponse`,
+        `        }
+    }
+
+    public StructuredResponse`
+      )
+  },
+  '1.enableClientHelper': {
+    fileName: 'SpringAiDemoService.java',
+    line: 209,
+    transform: content => content
+      .replace(
+        `    /*
+    Stage 1 client helper to enable:
+    Uncomment this method after enabling the Stage 1 imports, fields, constructor parameter, and assignment.
+
+    private ChatClient client() {`,
+        `    // Stage 1 client helper enabled.
+
+    private ChatClient client() {`
+      )
+      .replace(
+        `    }
+    */
+
+    /*
+    Stage 4 memory client helper to enable:`,
+        `    }
+
+    /*
+    Stage 4 memory client helper to enable:`
+      )
+  },
+  '2.enableImports': {
+    fileName: 'SpringAiDemoService.java',
+    line: 10,
+    transform: content => content
+      .replace(
+        '// import org.springframework.ai.chat.client.AdvisorParams;',
+        'import org.springframework.ai.chat.client.AdvisorParams;'
+      )
+      .replace(
+        '// import org.springframework.ai.chat.client.ResponseEntity;',
+        'import org.springframework.ai.chat.client.ResponseEntity;'
+      )
+      .replace(
+        '// import org.springframework.ai.chat.model.ChatResponse;',
+        'import org.springframework.ai.chat.model.ChatResponse;'
+      )
+  },
+  '2.enableStructuredBlock': {
+    fileName: 'SpringAiDemoService.java',
+    line: 91,
+    transform: content => content
+      .replace(
+        /^        return new StructuredResponse\(false, null, NOT_IMPLEMENTED\);$/m,
+        '        // return new StructuredResponse(false, null, NOT_IMPLEMENTED);'
+      )
+      .replace(
+        `        /*
+        Stage 2 structured output block to enable:
+        Comment out the scaffold return above, then uncomment this block.
+
+        try {`,
+        `        // Stage 2 structured output block enabled.
+
+        try {`
+      )
+      .replace(
+        `        }
+        */
+    }
+
+    public ToolsResponse`,
+        `        }
+    }
+
+    public ToolsResponse`
+      )
+  },
+  '3.enableToolImports': {
+    fileName: 'MarketDataTools.java',
+    line: 5,
+    transform: content => content
+      .replace(
+        `/*
+Stage 3 imports to enable later:
+
+import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;
+*/`,
+        `import java.util.Locale;
+import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
+
+import org.springframework.ai.tool.annotation.Tool;
+import org.springframework.ai.tool.annotation.ToolParam;`
+      )
+  },
+  '3.enableToolImplementation': {
+    fileName: 'MarketDataTools.java',
+    line: 28,
+    transform: content => content
+      .replace(
+        `    /*
+    Stage 3 will turn this scaffold into a Spring AI tool.
+
+    private final AtomicBoolean invoked = new AtomicBoolean(false);`,
+        `    // Stage 3 tool implementation enabled.
+
+    private final AtomicBoolean invoked = new AtomicBoolean(false);`
+      )
+      .replace(
+        `    }
+    */
+}`,
+        `    }
+}`
+      )
+  },
+  '3.enableToolDependency': {
+    fileName: 'SpringAiDemoService.java',
+    line: 37,
+    transform: content => content
+      .replace(
+        '// private final MarketDataTools marketDataTools;',
+        'private final MarketDataTools marketDataTools;'
+      )
+      .replace('// , MarketDataTools marketDataTools', ', MarketDataTools marketDataTools')
+      .replace('// this.marketDataTools = marketDataTools;', 'this.marketDataTools = marketDataTools;')
+  },
+  '3.enableToolsBlock': {
+    fileName: 'SpringAiDemoService.java',
+    line: 119,
+    transform: content => content
+      .replace(
+        /^        return new ToolsResponse\(false, null, null, false, NOT_IMPLEMENTED\);$/m,
+        '        // return new ToolsResponse(false, null, null, false, NOT_IMPLEMENTED);'
+      )
+      .replace(
+        `        /*
+        Stage 3 tools block to enable:
+        Comment out the scaffold return above, then uncomment this block.
+
+        try {`,
+        `        // Stage 3 tools block enabled.
+
+        try {`
+      )
+      .replace(
+        `        }
+        */
+    }
+
+    public MemoryResponse`,
+        `        }
+    }
+
+    public MemoryResponse`
+      )
+  },
+  '4.enableConfigImports': {
+    fileName: 'SpringAiFundamentalsAiConfig.java',
+    line: 4,
+    transform: content => content
+      .replace(
+        /\/\*\nStage 4 imports to enable later:\n\nimport org\.springframework\.ai\.chat\.memory\.ChatMemory;\nimport org\.springframework\.ai\.chat\.memory\.ChatMemoryRepository;\nimport org\.springframework\.ai\.chat\.memory\.MessageWindowChatMemory;\nimport org\.springframework\.ai\.chat\.memory\.repository\.redis\.RedisChatMemoryRepository;\nimport org\.springframework\.beans\.factory\.annotation\.Value;\n(?:import org\.springframework\.context\.annotation\.Bean;\n)?import redis\.clients\.jedis\.JedisPooled;\n\*\//,
+        `import org.springframework.ai.chat.memory.ChatMemory;
+import org.springframework.ai.chat.memory.ChatMemoryRepository;
+import org.springframework.ai.chat.memory.MessageWindowChatMemory;
+import org.springframework.ai.chat.memory.repository.redis.RedisChatMemoryRepository;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import redis.clients.jedis.JedisPooled;`
+      )
+  },
+  '4.enableRedisMemoryBeans': {
+    fileName: 'SpringAiFundamentalsAiConfig.java',
+    line: 19,
+    transform: content => content
+      .replace(
+        `    /*
+    Stage 4 will enable Redis chat memory.
+
+    @Bean
+    public JedisPooled jedisPooled(`,
+        `    // Stage 4 Redis chat memory enabled.
+
+    @Bean
+    public JedisPooled jedisPooled(`
+      )
+      .replace(
+        `    }
+    */
+}`,
+        `    }
+}`
+      )
+  },
+  '4.enableMemoryImports': {
+    fileName: 'SpringAiDemoService.java',
+    line: 16,
+    transform: content => content
+      .replace(
+        '// import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;',
+        'import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;'
+      )
+      .replace(
+        '// import org.springframework.ai.chat.memory.ChatMemory;',
+        'import org.springframework.ai.chat.memory.ChatMemory;'
+      )
+      .replace(
+        '// import org.springframework.ai.chat.memory.ChatMemoryRepository;',
+        'import org.springframework.ai.chat.memory.ChatMemoryRepository;'
+      )
+  },
+  '4.enableMemoryDependency': {
+    fileName: 'SpringAiDemoService.java',
+    line: 41,
+    transform: content => content
+      .replace('// private final ChatMemory chatMemory;', 'private final ChatMemory chatMemory;')
+      .replace('// private final ChatMemoryRepository chatMemoryRepository;', 'private final ChatMemoryRepository chatMemoryRepository;')
+      .replace('// private volatile ChatClient memoryChatClient;', 'private volatile ChatClient memoryChatClient;')
+      .replace('// , ChatMemory chatMemory', ', ChatMemory chatMemory')
+      .replace('// , ChatMemoryRepository chatMemoryRepository', ', ChatMemoryRepository chatMemoryRepository')
+      .replace('// this.chatMemory = chatMemory;', 'this.chatMemory = chatMemory;')
+      .replace('// this.chatMemoryRepository = chatMemoryRepository;', 'this.chatMemoryRepository = chatMemoryRepository;')
+  },
+  '4.enableMemoryBlock': {
+    fileName: 'SpringAiDemoService.java',
+    line: 142,
+    transform: content => content
+      .replace(
+        /^        return new MemoryResponse\(false, conversationId, null, 0, NOT_IMPLEMENTED\);$/m,
+        '        // return new MemoryResponse(false, conversationId, null, 0, NOT_IMPLEMENTED);'
+      )
+      .replace(
+        `        /*
+        Stage 4 memory block to enable:
+        Comment out the scaffold return above, then uncomment this block.
+
+        try {`,
+        `        // Stage 4 memory block enabled.
+
+        try {`
+      )
+      .replace(
+        `        }
+        */
+    }
+
+    public HelperResponse`,
+        `        }
+    }
+
+    public HelperResponse`
+      )
+  },
+  '4.enableMemoryClientHelper': {
+    fileName: 'SpringAiDemoService.java',
+    line: 215,
+    transform: content => content
+      .replace(
+        `    /*
+    Stage 4 memory client helper to enable:
+
+    private ChatClient memoryClient() {`,
+        `    // Stage 4 memory client helper enabled.
+
+    private ChatClient memoryClient() {`
+      )
+      .replace(
+        `    }
+    */
+
+    private boolean apiKeyConfigured()`,
+        `    }
+
+    private boolean apiKeyConfigured()`
+      )
+  },
+  '5.enableUuidImport': {
+    fileName: 'SpringAiDemoService.java',
+    line: 14,
+    transform: content => content
+      .replace('// import java.util.UUID;', 'import java.util.UUID;')
+  },
+  '5.enableHelperBlock': {
+    fileName: 'SpringAiDemoService.java',
+    line: 163,
+    transform: content => content
+      .replace(
+        /^        return new HelperResponse\(false, null, null, false, NOT_IMPLEMENTED\);$/m,
+        '        // return new HelperResponse(false, null, null, false, NOT_IMPLEMENTED);'
+      )
+      .replace(
+        `        /*
+        Stage 5 final helper block to enable:
+        Comment out the scaffold return above, then uncomment this block.
+
+        try {`,
+        `        // Stage 5 final helper block enabled.
+
+        try {`
+      )
+      .replace(
+        `        }
+        */
+    }
+
+    // Stage 1 client helper enabled.`,
+        `        }
+    }
+
+    // Stage 1 client helper enabled.`
+      )
+      .replace(
+        `        }
+        */
+    }
+
+    /*
+    Stage 1 client helper to enable:`,
+        `        }
+    }
+
+    /*
+    Stage 1 client helper to enable:`
+      )
+  }
+}
 
 export default {
   name: 'SpringAiFundamentalsHome',
   components: {
+    WorkshopContentRenderer,
     WorkshopShell
   },
   props: {
@@ -168,271 +512,739 @@ export default {
   },
   data() {
     return {
+      activeCodeEditorFilePath: '',
+      activeCodeEditorLine: 0,
+      activeCodeEditorColumn: 1,
+      appFrameVersion: 0,
+      codeEditorFilePathByName: {},
+      codeEditorOpenRequest: 0,
+      codeEditorWorkspaceRoot: '',
       content: null,
       contentError: '',
-      status: null,
-      statusError: '',
-      busy: false,
-      error: '',
-      result: null,
-      form: {
-        conversationId: 'fundamentals-demo',
-        message: 'Explain what Spring AI does in one paragraph.',
-        question: 'What is Redis used for in AI applications?',
-        ticker: 'RDIS'
-      }
+      navigationPageTitles: {},
+      runtimeBusy: false,
+      runtimeLogs: [],
+      runtimeMonitorActive: false,
+      runtimeState: 'READY',
+      frontendState: 'READY',
+      backendState: 'READY',
+      runtimeStatusLoaded: false,
+      runtimeStatusMessage: '',
+      springAiStatus: null,
+      springAiStatusError: ''
     }
   },
   computed: {
-    pages() {
-      return PAGES
+    activePageIndex() {
+      return this.pageOrder.findIndex(pageId => pageId === this.pageId)
     },
-    activePage() {
-      return PAGES.find(page => page.id === this.pageId) || PAGES[0]
-    },
-    panelKind() {
-      return this.activePage.kind
-    },
-    needsConversationId() {
-      return ['memory', 'helper'].includes(this.panelKind)
-    },
-    needsMessage() {
-      return ['prompt', 'structured', 'memory'].includes(this.panelKind)
-    },
-    needsQuestion() {
-      return ['tools', 'helper'].includes(this.panelKind)
-    },
-    needsTicker() {
-      return ['tools', 'helper'].includes(this.panelKind)
-    },
-    hasResult() {
-      return Boolean(this.result)
-    },
-    structuredResult() {
-      return this.result?.decision || this.result || {}
-    },
-    statusMissingKey() {
-      if (!this.status) {
-        return false
+    appFrameMessage() {
+      if (!this.runtimeStatusLoaded) {
+        return 'Checking learner app status before loading the frame.'
       }
 
-      const values = [
-        this.status.openAiApiKeyConfigured,
-        this.status.openaiApiKeyConfigured,
-        this.status.apiKeyConfigured,
-        this.status.ready
-      ]
+      if (!this.runtimeInteractionBusy) {
+        return ''
+      }
 
-      return values.some(value => value === false)
-        || this.status.missingOpenAiApiKey === true
-        || this.status.missingApiKey === true
-        || String(this.status.status || '').toLowerCase().includes('missing')
+      return this.runtimeDisplayState === 'REBUILDING'
+        ? 'The learner app is rebuilding. The frame will reload automatically when it is ready.'
+        : 'The learner app is restarting. The frame will reload automatically when it is ready.'
     },
-    statusMessage() {
-      if (this.statusError) {
-        return this.statusError
-      }
-
-      if (!this.status) {
-        return 'Checking Spring AI status...'
-      }
-
-      if (this.statusMissingKey) {
-        return 'OPENAI_API_KEY is missing. Set it before running model backed requests.'
-      }
-
-      return this.status.message || 'Spring AI backend is ready.'
+    basePath() {
+      return getBasePath()
     },
-    statusClass() {
+    contentActionHandlers() {
       return {
-        'status-banner--warning': this.statusMissingKey || Boolean(this.statusError),
-        'status-banner--ready': Boolean(this.status) && !this.statusMissingKey && !this.statusError
+        applyEditorStep: ({ args }) => this.applyEditorStep(args?.stepId),
+        openEditor: () => this.openEditor(),
+        openFile: ({ args }) => this.openFile(args?.file, args),
+        openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
+        openRedisInsight: () => this.openRedisInsightPanel(),
+        openRoute: ({ args }) => this.openRoute(args?.route),
+        recompileApp: () => this.restartRuntime(true),
+        restartRuntime: () => this.restartRuntime(false)
       }
     },
     contentContext() {
       return {
-        links: this.shellLinks,
-        runtime: this.runtime
+        links: {
+          editor: this.codeEditorUrl,
+          hub: this.workshopHubUrl,
+          learnerApp: this.learnerAppUrl,
+          redisInsight: this.redisInsightFrameUrl,
+          workshopHub: this.workshopHubUrl
+        },
+        runtime: this.shellRuntime,
+        springAi: {
+          status: this.springAiStatus,
+          error: this.springAiStatusError
+        }
       }
+    },
+    codeEditorUrl() {
+      if (this.activeCodeEditorFilePath) {
+        return getCodeEditorFileUrl(this.activeCodeEditorFilePath, {
+          workspaceRoot: this.codeEditorWorkspaceRoot,
+          line: this.activeCodeEditorLine,
+          column: this.activeCodeEditorColumn,
+          requestId: this.codeEditorOpenRequest
+        })
+      }
+
+      return getCodeEditorUrl({ workspaceRoot: this.codeEditorWorkspaceRoot })
+    },
+    defaultSidePanel() {
+      return this.stageUsesInlineEditor ? 'codeEditor' : 'learnerApp'
+    },
+    hasStageNavigation() {
+      return this.pageOrder.length > 1 && this.activePageIndex >= 0
+    },
+    instructionsHeaderTitle() {
+      const title = this.content?.title
+        || this.navigationPageTitles[this.pageId]
+        || `Stage ${this.pageId}`
+
+      return this.formatInstructionsTitle(title)
     },
     learnerApp() {
       return {
-        title: this.activePage.title,
-        url: this.learnerAppUrl
+        title: 'Learner app',
+        url: this.learnerAppUrl,
+        message: this.appFrameMessage
       }
     },
     learnerAppUrl() {
-      return getApiUrl('/api/learner-app')
+      const route = this.buildRouteUrl('/app/')
+      const separator = route.includes('?') ? '&' : '?'
+      const params = new URLSearchParams({
+        stage: this.pageId,
+        frame: String(this.appFrameVersion)
+      })
+      return `${route}${separator}${params.toString()}`
     },
-    redisInsightUrl() {
-      return getRedisInsightUrl()
-    },
-    runtime() {
-      return {
-        state: this.statusMissingKey ? 'DISABLED' : 'READY',
-        frontendState: 'READY',
-        backendState: this.statusMissingKey ? 'DISABLED' : 'READY',
-        status: this.statusMissingKey ? 'blocked' : 'ready',
-        rebuildAvailable: true
+    nextStage() {
+      if (!this.hasStageNavigation) {
+        return null
       }
+
+      return this.pageOrder[this.activePageIndex + 1] || null
+    },
+    nextStageLabel() {
+      return this.stageNavigationLabel('nextLabel', this.nextStage)
+    },
+    nextStageAriaLabel() {
+      return this.stageNavigationAriaLabel(this.nextStageLabel, this.nextStage)
+    },
+    pageOrder() {
+      return PAGES.map(page => page.id)
+    },
+    previousStage() {
+      if (!this.hasStageNavigation) {
+        return null
+      }
+
+      return this.pageOrder[this.activePageIndex - 1] || null
+    },
+    previousStageLabel() {
+      return this.stageNavigationLabel('previousLabel', this.previousStage)
+    },
+    previousStageAriaLabel() {
+      return this.stageNavigationAriaLabel(this.previousStageLabel, this.previousStage)
+    },
+    redisInsightFrameUrl() {
+      const normalizedBasePath = this.basePath && this.basePath !== '/' ? this.basePath : ''
+      return `${window.location.origin}${normalizedBasePath}/redis-insight/`
+    },
+    runtimeDisplayState() {
+      if (!this.runtimeStatusLoaded) {
+        return 'STARTING'
+      }
+
+      return isRebuildRunnerState(this.runtimeState) ? 'REBUILDING' : 'RESTARTING'
+    },
+    runtimeInteractionBusy() {
+      return !this.runtimeStatusLoaded
+        || this.runtimeBusy
+        || isBusyRunnerState(this.runtimeState)
+        || isBusyRunnerState(this.backendState)
     },
     shellActions() {
-      return ['openEditor', 'openRedisInsight', 'openHub']
+      return ['restartRuntime', 'rebuildRuntime', 'openRedisInsight', 'openEditor', 'openHub', 'refreshStatus']
     },
     shellLinks() {
       return {
-        editor: getApiUrl('/editor'),
+        editor: this.codeEditorUrl,
         hub: this.workshopHubUrl,
         learnerApp: this.learnerAppUrl,
-        redisInsight: this.redisInsightUrl,
+        redisInsight: this.redisInsightFrameUrl,
         workshopHub: this.workshopHubUrl
       }
     },
+    shellRuntime() {
+      return {
+        state: this.runtimeState,
+        frontendState: this.frontendState,
+        backendState: this.backendState,
+        status: this.runtimeStatusMessage,
+        rebuildAvailable: true
+      }
+    },
+    stageUsesInlineEditor() {
+      return ['1', '2', '3', '4', '5'].includes(this.pageId)
+    },
     workshopHubUrl() {
       return getWorkshopHubUrl()
-    },
-    actionHandlers() {
-      return {
-        openEditor: () => this.goToEditor(),
-        openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
-        openRoute: ({ args }) => this.goToRoute(args?.route)
-      }
     }
   },
   watch: {
-    pageId: {
-      immediate: true,
-      async handler() {
-        this.result = null
-        this.error = ''
-        await this.loadContent()
-      }
-    }
+    async pageId() {
+      this.contentError = ''
+      this.content = null
+      await Promise.all([
+        this.loadContent(),
+        this.loadNavigationPageTitles()
+      ])
+    },
   },
   async mounted() {
-    await this.loadStatus()
+    await Promise.all([
+      this.loadContent(),
+      this.loadCodeEditorFiles(),
+      this.loadNavigationPageTitles(),
+      this.loadSpringAiStatus(),
+      this.refreshRuntimeState()
+    ])
   },
   methods: {
-    async loadContent() {
-      this.content = null
-      this.contentError = ''
-
-      try {
-        this.content = await fetchWorkshopContent(this.pageId)
-      } catch (error) {
-        this.contentError = error.message || 'Failed to load workshop content.'
-        this.content = {
-          title: this.activePage.title,
-          summary: this.contentError,
-          sections: []
-        }
-      }
-    },
-    async loadStatus() {
-      try {
-        this.status = await springAiGet('/api/spring-ai/status')
-      } catch (error) {
-        this.statusError = error.message || 'Unable to read Spring AI status.'
-      }
-    },
-    async runActivePanel() {
-      this.busy = true
-      this.error = ''
-      this.result = null
-
-      try {
-        if (this.panelKind === 'prompt') {
-          this.applyResult(await springAiPost('/api/spring-ai/prompt', { message: this.form.message }))
-        } else if (this.panelKind === 'structured') {
-          this.applyResult(await springAiPost('/api/spring-ai/structured', { message: this.form.message }))
-        } else if (this.panelKind === 'tools') {
-          this.applyResult(await springAiPost('/api/spring-ai/tools', {
-            ticker: this.form.ticker,
-            question: this.form.question
-          }))
-        } else if (this.panelKind === 'memory') {
-          this.applyResult(await springAiPost('/api/spring-ai/memory', {
-            conversationId: this.form.conversationId,
-            message: this.form.message
-          }))
-        } else if (this.panelKind === 'helper') {
-          this.applyResult(await springAiPost('/api/spring-ai/helper', {
-            conversationId: this.form.conversationId,
-            ticker: this.form.ticker,
-            question: this.form.question
-          }))
-        }
-      } catch (error) {
-        this.error = error.message || 'The request failed.'
-      } finally {
-        this.busy = false
-      }
-    },
-    applyResult(payload) {
-      this.result = payload
-      if (payload?.success === false && payload?.error) {
-        this.error = payload.error
-      }
-    },
-    goToPage(pageId) {
-      if (PAGES.some(page => page.id === pageId)) {
-        this.$router.push(`/${pageId}`).catch(() => {})
-      }
-    },
-    goToEditor() {
-      this.$router.push('/editor').catch(() => {})
-    },
-    goToRoute(route) {
-      if (route === '/editor' || route === 'editor') {
-        this.goToEditor()
+    async applyEditorStep(stepId) {
+      const config = EDITOR_STEP_CONFIG[stepId]
+      if (!config) {
         return
       }
 
-      this.goToPage(String(route || '').replace('/', ''))
+      try {
+        const currentContent = await this.loadEditableFile(config.fileName)
+        const nextContent = config.transform(currentContent)
+        if (nextContent !== currentContent) {
+          await this.saveEditableFile(config.fileName, nextContent)
+        }
+        await this.openFile(config.fileName, { line: config.line })
+      } catch (error) {
+        console.error('Failed to apply editor step:', error)
+      }
     },
-    displayValue(value) {
-      if (value === null || value === undefined || value === '') {
-        return 'Not returned'
+    applyRuntimeLogs(status) {
+      if (!Array.isArray(status?.recentLogs)) {
+        return
       }
 
-      if (typeof value === 'object') {
-        return this.formatValue(value)
-      }
-
-      return String(value)
+      this.runtimeLogs = status.recentLogs.slice(-80)
     },
-    boolLabel(value) {
-      if (value === true) {
-        return 'Yes'
+    applyRuntimeStatus(status) {
+      const state = status?.state
+      this.applyRuntimeLogs(status)
+
+      if (!state) {
+        return
       }
 
-      if (value === false) {
-        return 'No'
-      }
+      this.runtimeState = normalizeRunnerState(state)
+      this.backendState = this.runtimeState
+      this.frontendState = 'READY'
 
-      return 'Not returned'
+      if (isBusyRunnerState(this.runtimeState)) {
+        this.runtimeStatusMessage = isRebuildRunnerState(this.runtimeState)
+          ? 'Rebuilding learner runtime...'
+          : 'Restarting learner runtime...'
+      } else if (READY_STATES.has(this.runtimeState)) {
+        this.runtimeStatusMessage = 'Runtime is ready'
+      }
     },
-    toolInvokedLabel(result) {
-      if (Object.prototype.hasOwnProperty.call(result, 'toolInvoked')) {
-        return this.boolLabel(result.toolInvoked)
+    buildRouteUrl(route) {
+      const normalizedRoute = route.startsWith('/') ? route : `/${route}`
+      if (!this.basePath || this.basePath === '/') {
+        return normalizedRoute
       }
-
-      if (Object.prototype.hasOwnProperty.call(result, 'invokedTool')) {
-        return this.boolLabel(result.invokedTool)
-      }
-
-      return this.boolLabel(result.usedTool)
+      return `${this.basePath}${normalizedRoute}`
     },
-    formatValue(value) {
-      if (value === null || value === undefined || value === '') {
-        return 'Not returned'
+    async fetchSessionStatus() {
+      try {
+        const response = await fetch(getApiUrl('/internal/session-runner/status'), {
+          credentials: 'include'
+        })
+
+        if (!response.ok) {
+          return null
+        }
+
+        const status = await response.json()
+        this.applyRuntimeLogs(status)
+        return status
+      } catch {
+        return null
+      }
+    },
+    formatInstructionsTitle(title) {
+      const match = String(title || '').match(/^STAGE\s+(\d+):\s*(.+)$/i)
+      if (!match) {
+        return title
       }
 
-      if (typeof value === 'string') {
-        return value
+      return `#${match[1]}: ${match[2]}`
+    },
+    async goToEditor(fileName = '', contentId = this.pageId) {
+      const query = {
+        returnTo: `/${this.pageId}`,
+        content: contentId
       }
 
-      return JSON.stringify(value, null, 2)
+      if (fileName) {
+        query.file = fileName
+      }
+
+      await this.$router.push({
+        path: '/6',
+        query
+      }).catch(() => {})
+    },
+    async openEditor() {
+      await this.openCodeEditorPanel()
+    },
+    async openFile(fileName = '', options = {}) {
+      await this.openCodeEditorPanel(fileName, options)
+    },
+    async openCodeEditorPanel(fileName = '', options = {}) {
+      this.replaceToolQuery('code-editor')
+
+      if (fileName) {
+        await this.openEmbeddedEditorFile(fileName, options)
+      }
+    },
+    async openEmbeddedEditorFile(fileName, options = {}) {
+      if (!fileName) {
+        return
+      }
+
+      if (!Object.keys(this.codeEditorFilePathByName).length) {
+        await this.loadCodeEditorFiles()
+      }
+
+      const workspacePath = this.codeEditorFilePathByName[fileName]
+      if (!workspacePath) {
+        return
+      }
+
+      this.codeEditorOpenRequest += 1
+      this.activeCodeEditorFilePath = workspacePath
+      this.activeCodeEditorLine = this.normalizeEditorLine(options.line)
+      this.activeCodeEditorColumn = this.normalizeEditorLine(options.column) || 1
+    },
+    async goToPage(pageId) {
+      if (PAGES.some(page => page.id === pageId)) {
+        await this.$router.push(`/${pageId}`).catch(() => {})
+      }
+    },
+    async openRoute(route) {
+      if (!route) {
+        return
+      }
+
+      if (route === '/editor' || route === 'editor' || route === '/6') {
+        await this.openEditor()
+        return
+      }
+
+      if (/^\/[0-5]\?tool=learner-app$/.test(route)) {
+        await this.$router.push(route).catch(() => {})
+        this.showLearnerAppPanel()
+        return
+      }
+
+      if (/^\/[0-5](\?.*)?$/.test(route)) {
+        await this.$router.push(route).catch(() => {})
+        return
+      }
+
+      await this.goToPage(String(route).replace('/', ''))
+    },
+    openRedisInsightPanel() {
+      this.replaceToolQuery('redis-insight')
+    },
+    refreshLearnerAppFrame() {
+      this.showLearnerAppPanel()
+      this.refreshRuntimeState()
+      this.loadSpringAiStatus()
+      this.appFrameVersion += 1
+    },
+    handleEditorRecompileStart() {
+      this.runtimeBusy = true
+      this.runtimeState = 'REBUILDING'
+      this.backendState = 'REBUILDING'
+      this.runtimeStatusMessage = 'Rebuilding learner runtime...'
+    },
+    async handleEditorRecompileSuccess() {
+      this.runtimeBusy = false
+      this.runtimeState = 'READY'
+      this.backendState = 'READY'
+      this.frontendState = 'READY'
+      this.runtimeStatusMessage = 'Runtime is ready'
+      this.appFrameVersion += 1
+      await this.loadSpringAiStatus()
+      await this.refreshRuntimeState()
+    },
+    handleEditorRecompileError(error) {
+      this.runtimeBusy = false
+      this.runtimeState = 'FAILED'
+      this.backendState = 'FAILED'
+      this.runtimeStatusMessage = error?.message || 'Recompile failed'
+    },
+    handleEditorResetSuccess() {
+      this.activeCodeEditorFilePath = ''
+      this.activeCodeEditorLine = 0
+      this.activeCodeEditorColumn = 1
+      this.codeEditorOpenRequest += 1
+    },
+    async refreshRuntimeState() {
+      try {
+        const status = await this.fetchSessionStatus()
+        const state = status?.state
+        if (state) {
+          this.applyRuntimeStatus(status)
+          if (isBusyRunnerState(state)) {
+            this.monitorRuntimeUntilReady()
+          }
+        } else {
+          this.runtimeState = 'READY'
+          this.backendState = 'READY'
+          this.frontendState = 'READY'
+          this.runtimeStatusMessage = 'Runtime is ready'
+        }
+      } finally {
+        this.runtimeStatusLoaded = true
+      }
+    },
+    replaceToolQuery(tool) {
+      const nextQuery = { ...this.$route.query }
+      if (tool) {
+        nextQuery.tool = tool
+      } else {
+        delete nextQuery.tool
+      }
+
+      if (nextQuery.tool === this.$route.query.tool) {
+        return
+      }
+
+      this.$router.replace({
+        path: this.$route.path,
+        query: nextQuery
+      })
+    },
+    showLearnerAppPanel() {
+      this.replaceToolQuery(this.stageUsesInlineEditor ? 'learner-app' : null)
+    },
+    normalizeEditorLine(value) {
+      const number = Number.parseInt(value, 10)
+      return Number.isFinite(number) && number > 0 ? number : 0
+    },
+    handleRuntimeAction(action) {
+      if (action.type === 'restart') {
+        this.restartRuntime(false)
+      }
+
+      if (action.type === 'rebuild') {
+        this.restartRuntime(true)
+      }
+
+      if (action.type === 'refresh') {
+        this.refreshLearnerAppFrame()
+      }
+
+      if (action.type === 'recompile-start') {
+        this.handleEditorRecompileStart()
+      }
+
+      if (action.type === 'recompile-success') {
+        this.handleEditorRecompileSuccess()
+      }
+
+      if (action.type === 'recompile-error') {
+        this.handleEditorRecompileError(action.payload)
+      }
+
+      if (action.type === 'reset-success') {
+        this.handleEditorResetSuccess()
+      }
+    },
+    handleContentAction(payload) {
+      const handler = this.contentActionHandlers[payload.actionId]
+      if (typeof handler === 'function') {
+        handler(payload)
+      }
+    },
+    async handleRuntimeLogsToggle(open) {
+      if (open) {
+        await this.refreshRuntimeState()
+      }
+    },
+    async loadCodeEditorFiles() {
+      try {
+        const metadata = await loadEditorWorkspaceMetadata()
+        this.codeEditorFilePathByName = metadata.filePathMap
+        this.codeEditorWorkspaceRoot = metadata.codeEditorWorkspaceRoot || metadata.workspaceRoot
+      } catch (error) {
+        console.warn('Failed to load code editor file metadata:', error)
+      }
+    },
+    async loadEditableFile(fileName) {
+      const response = await fetch(getApiUrl(`/api/editor/file/${encodeURIComponent(fileName)}`), {
+        cache: 'no-store',
+        credentials: 'include'
+      })
+
+      if (!response.ok) {
+        throw new Error(`Failed to load ${fileName}: ${response.status}`)
+      }
+
+      const payload = await response.json()
+      if (payload.error) {
+        throw new Error(payload.error)
+      }
+      if (typeof payload.content !== 'string') {
+        throw new Error(`No content returned for ${fileName}`)
+      }
+
+      return payload.content
+    },
+    async loadContent() {
+      try {
+        this.content = await fetchWorkshopContent(this.pageId)
+        this.storeNavigationPageTitle(this.pageId, this.content)
+      } catch (error) {
+        this.contentError = error.message || 'Failed to load workshop content.'
+      }
+    },
+    async loadNavigationPageTitles() {
+      const missingPageIds = this.pageOrder.filter(pageId => !this.navigationPageTitles[pageId])
+      if (missingPageIds.length === 0) {
+        return
+      }
+
+      const titles = {}
+
+      await Promise.all(missingPageIds.map(async pageId => {
+        try {
+          const content = pageId === this.pageId && this.content
+            ? this.content
+            : await fetchWorkshopContent(pageId)
+
+          if (content?.title) {
+            titles[pageId] = content.title
+          }
+        } catch (error) {
+          console.warn(`Unable to load navigation title for page ${pageId}`, error)
+        }
+      }))
+
+      if (Object.keys(titles).length > 0) {
+        this.navigationPageTitles = {
+          ...this.navigationPageTitles,
+          ...titles
+        }
+      }
+    },
+    async loadSpringAiStatus() {
+      try {
+        const response = await fetch(getApiUrl('/api/spring-ai/status'), {
+          credentials: 'include'
+        })
+
+        if (!response.ok) {
+          throw new Error(`Status request failed with ${response.status}`)
+        }
+
+        this.springAiStatus = await response.json()
+        this.springAiStatusError = ''
+      } catch (error) {
+        this.springAiStatusError = error.message || 'Unable to read Spring AI status.'
+      }
+    },
+    async saveEditableFile(fileName, content) {
+      const response = await fetch(getApiUrl(`/api/editor/file/${encodeURIComponent(fileName)}`), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ content })
+      })
+      const payload = await response.json()
+
+      if (!response.ok || payload.error) {
+        throw new Error(payload.error || `Failed to save ${fileName}: ${response.status}`)
+      }
+
+      return payload
+    },
+    async monitorRuntimeUntilReady() {
+      if (this.runtimeMonitorActive) {
+        return
+      }
+
+      this.runtimeMonitorActive = true
+      this.runtimeBusy = true
+      const visibleStateStartedAt = Date.now()
+
+      try {
+        await this.waitForReadyState()
+        await this.waitForMinimumBusyState(visibleStateStartedAt)
+        this.runtimeState = 'READY'
+        this.backendState = 'READY'
+        this.frontendState = 'READY'
+        this.runtimeStatusMessage = 'Runtime is ready'
+        this.appFrameVersion += 1
+        await this.loadSpringAiStatus()
+      } catch (error) {
+        await this.waitForMinimumBusyState(visibleStateStartedAt)
+        this.runtimeState = 'FAILED'
+        this.backendState = 'FAILED'
+        this.runtimeStatusMessage = error?.message || 'Restart failed'
+      } finally {
+        this.runtimeBusy = false
+        this.runtimeMonitorActive = false
+      }
+    },
+    async restartRuntime(rebuild) {
+      if (this.runtimeInteractionBusy) {
+        return
+      }
+
+      this.runtimeBusy = true
+      this.runtimeState = rebuild ? 'REBUILDING' : 'RESTARTING'
+      this.backendState = this.runtimeState
+      this.runtimeStatusMessage = rebuild ? 'Rebuilding learner runtime...' : 'Restarting learner runtime...'
+      const visibleStateStartedAt = Date.now()
+
+      try {
+        await this.$nextTick()
+        await this.sendRestartRequest(rebuild)
+        await this.waitForReadyState()
+        await this.waitForMinimumBusyState(visibleStateStartedAt)
+        this.runtimeState = 'READY'
+        this.backendState = 'READY'
+        this.frontendState = 'READY'
+        this.runtimeStatusMessage = 'Runtime is ready'
+        this.appFrameVersion += 1
+        await this.loadSpringAiStatus()
+      } catch (error) {
+        await this.waitForMinimumBusyState(visibleStateStartedAt)
+        this.runtimeState = 'FAILED'
+        this.backendState = 'FAILED'
+        this.runtimeStatusMessage = error?.message || 'Restart failed'
+      } finally {
+        this.runtimeBusy = false
+      }
+    },
+    async sendRestartRequest(rebuild) {
+      const response = await fetch(getApiUrl('/internal/session-runner/restart'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        credentials: 'include',
+        body: JSON.stringify({ rebuild, async: true })
+      })
+
+      if (!response.ok) {
+        throw new Error(await this.readErrorMessage(response, 'Failed to restart session'))
+      }
+    },
+    sleep(ms) {
+      return new Promise(resolve => setTimeout(resolve, ms))
+    },
+    stageNavigationAriaLabel(label, pageId) {
+      return label || this.stageNavigationFallbackLabel(pageId)
+    },
+    stageNavigationFallbackLabel(pageId) {
+      if (!pageId) {
+        return ''
+      }
+
+      return this.navigationPageTitles[pageId] || PAGES.find(page => page.id === pageId)?.title || `Stage ${pageId}`
+    },
+    stageNavigationLabel(labelKey, pageId) {
+      if (!pageId) {
+        return ''
+      }
+
+      if (
+        this.content?.navigation
+        && Object.prototype.hasOwnProperty.call(this.content.navigation, labelKey)
+      ) {
+        return this.content.navigation[labelKey] || ''
+      }
+
+      return this.stageNavigationFallbackLabel(pageId)
+    },
+    storeNavigationPageTitle(pageId, content) {
+      if (!pageId || !content?.title) {
+        return
+      }
+
+      this.navigationPageTitles = {
+        ...this.navigationPageTitles,
+        [pageId]: content.title
+      }
+    },
+    async waitForMinimumBusyState(startedAt) {
+      const remainingMs = MIN_RUNTIME_BUSY_MS - (Date.now() - startedAt)
+      if (remainingMs > 0) {
+        await this.sleep(remainingMs)
+      }
+    },
+    async waitForReadyState() {
+      const startedAt = Date.now()
+
+      while (Date.now() - startedAt < POLL_TIMEOUT_MS) {
+        const status = await this.fetchSessionStatus()
+        const state = normalizeRunnerState(status?.state)
+
+        if (READY_STATES.has(state)) {
+          return
+        }
+        if (FAILED_STATES.has(state)) {
+          throw new Error(status?.lastError || 'Session restart failed')
+        }
+
+        await this.sleep(POLL_INTERVAL_MS)
+      }
+
+      throw new Error('Timed out waiting for the session to restart')
+    },
+    async readErrorMessage(response, fallbackMessage) {
+      const text = await response.text()
+
+      if (!text) {
+        return fallbackMessage
+      }
+
+      try {
+        const data = JSON.parse(text)
+        if (data?.message) {
+          return `${fallbackMessage}: ${data.message}`
+        }
+        if (data?.detail) {
+          return `${fallbackMessage}: ${data.detail}`
+        }
+        if (data?.error) {
+          return `${fallbackMessage}: ${data.error}`
+        }
+      } catch {
+        return `${fallbackMessage}: ${text}`
+      }
+
+      return fallbackMessage
     }
   }
 }
@@ -443,168 +1255,141 @@ export default {
   min-height: 100vh;
 }
 
-.try-panel {
-  min-height: 100%;
-  padding: 1.5rem;
-  background: var(--color-surface);
-  color: var(--color-text);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+:deep(.workshop-shell__instructions) {
+  display: flex;
+  padding: 0;
+  overflow: hidden;
+}
+
+.fundamentals-instructions {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
-}
-
-.try-panel__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  align-items: flex-start;
-}
-
-.try-panel__header h2 {
-  margin: 0.25rem 0 0;
-  font-size: 1.25rem;
-}
-
-.try-panel__eyebrow,
-.result__label {
-  margin: 0;
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
-  font-weight: 700;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.try-panel__step {
-  white-space: nowrap;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-}
-
-.status-banner,
-.result,
-.try-panel__empty {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.04);
-}
-
-.status-banner--warning,
-.result--error {
-  border-color: rgba(239, 68, 68, 0.45);
-  background: rgba(239, 68, 68, 0.12);
-}
-
-.status-banner--ready {
-  border-color: rgba(34, 197, 94, 0.35);
-  background: rgba(34, 197, 94, 0.1);
-}
-
-.try-panel__form,
-.try-panel__empty {
-  display: grid;
-  gap: 0.9rem;
-}
-
-label {
-  display: grid;
-  gap: 0.35rem;
-  color: var(--color-text-muted);
-  font-size: 0.9rem;
-  font-weight: 700;
-}
-
-input,
-textarea {
   width: 100%;
-  box-sizing: border-box;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 0.75rem;
-  background: var(--color-dark-900);
-  color: var(--color-text);
-  font: inherit;
+  height: 100%;
+  min-height: 100%;
 }
 
-textarea {
-  resize: vertical;
-}
-
-button {
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  padding: 0.7rem 0.95rem;
-  background: var(--color-primary-500);
-  color: white;
-  font: inherit;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-button:disabled {
-  cursor: wait;
-  opacity: 0.65;
-}
-
-.result {
-  display: grid;
-  gap: 0.75rem;
-}
-
-.result p {
-  margin: 0;
-}
-
-dl {
-  display: grid;
-  grid-template-columns: minmax(8rem, 0.45fr) 1fr;
-  gap: 0.6rem 1rem;
-  margin: 0;
-}
-
-dt {
-  color: var(--color-text-muted);
-  font-weight: 700;
-}
-
-dd {
-  margin: 0;
-  min-width: 0;
-}
-
-pre {
-  margin: 0;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 0.86rem;
-}
-
-.page-nav {
+.fundamentals-instructions__header {
   display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-  margin-top: auto;
-  padding-top: 0.75rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--spacing-3);
+  min-height: 2.75rem;
+  padding: var(--spacing-2) var(--spacing-3);
+  border-bottom: 1px solid var(--color-border-light, rgba(71, 85, 105, 0.3));
+  background: rgba(13, 26, 34, 0.95);
 }
 
-.page-nav button {
-  min-width: 2.4rem;
-  padding: 0.5rem 0.7rem;
-  background: transparent;
+.fundamentals-instructions__title {
+  min-width: 0;
+  margin: 0;
   color: var(--color-text);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.2;
 }
 
-.page-nav__button--active {
-  background: var(--color-primary-500) !important;
-  color: white !important;
+.fundamentals-instructions__body {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--spacing-4);
+}
+
+.content-state {
+  color: var(--color-text-secondary);
+  line-height: 1.6;
+}
+
+.content-state--error {
+  color: #fca5a5;
+}
+
+:deep(.content-step-item),
+:deep(.content-widget) {
+  background: var(--color-dark-800);
+}
+
+:deep(.content-step-item__heading h4),
+:deep(.workshop-markdown h2),
+:deep(.workshop-markdown h3),
+:deep(.workshop-markdown h4) {
+  color: var(--color-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+:deep(.content-section__header .workshop-markdown),
+:deep(.workshop-markdown),
+:deep(.content-step-item__heading .workshop-markdown) {
+  color: var(--color-text-secondary);
+}
+
+.stage-navigation {
+  position: relative;
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: space-between;
+  margin-top: var(--spacing-6);
+  padding-top: var(--spacing-3);
+  background: rgba(13, 26, 34, 0.96);
+  border-top: 1px solid var(--color-border);
+}
+
+.stage-navigation__button {
+  align-items: center;
+  display: inline-flex;
+  gap: var(--spacing-2);
+  min-height: 2.5rem;
+  padding: 0.65rem 0.95rem;
+  border: 1px solid var(--color-restart-border, rgba(59, 130, 246, 0.4));
+  border-radius: var(--radius-lg);
+  background: var(--color-restart-bg, rgba(59, 130, 246, 0.2));
+  color: var(--color-restart-text, #93c5fd);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.stage-navigation__button:hover {
+  background: rgba(59, 130, 246, 0.28);
+  border-color: rgba(59, 130, 246, 0.58);
+  color: #bfdbfe;
+}
+
+.stage-navigation__button--next {
+  margin-left: auto;
+}
+
+.stage-navigation__button--previous {
+  margin-right: auto;
+}
+
+.stage-navigation__label {
+  line-height: 1.25;
+  text-align: left;
+}
+
+.stage-navigation__button--next .stage-navigation__label {
+  text-align: right;
 }
 
 @media (max-width: 900px) {
-  dl {
-    grid-template-columns: 1fr;
+  .fundamentals-instructions__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stage-navigation {
+    flex-wrap: wrap;
+  }
+
+  .stage-navigation__button {
+    flex: 1 1 auto;
+    justify-content: center;
   }
 }
 </style>

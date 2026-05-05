@@ -32,6 +32,21 @@
             <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0zM7 5v2h2V5H7zm0 4v4h2V9H7z"/>
           </svg>
         </div>
+
+        <button
+          v-if="!activeSession"
+          type="button"
+          :class="['environment-toggle-btn', { open: showEnvironmentPanel }]"
+          :disabled="isBusy"
+          :aria-expanded="String(showEnvironmentPanel)"
+          aria-label="Toggle session environment variables"
+          title="Session environment"
+          @click="toggleEnvironmentPanel"
+        >
+          <svg width="18" height="18" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M5.5 9a3.5 3.5 0 1 1 3.163-2H15v2h-2v2h-2V9H8.663A3.49 3.49 0 0 1 5.5 9zm0-5A1.5 1.5 0 1 0 5.5 7a1.5 1.5 0 0 0 0-3z"/>
+          </svg>
+        </button>
       </div>
     </div>
 
@@ -43,6 +58,67 @@
 
     <div v-if="workshop.topics && workshop.topics.length" class="topic-list">
       <span v-for="topic in workshop.topics" :key="topic">{{ topic }}</span>
+    </div>
+
+    <div
+      v-if="!activeSession && showEnvironmentPanel"
+      class="environment-panel"
+      aria-label="Session environment variables"
+    >
+      <div class="environment-panel-header">
+        <span class="environment-panel-title">Session environment</span>
+        <button
+          type="button"
+          class="environment-icon-btn"
+          :disabled="isBusy"
+          aria-label="Add environment variable"
+          @click="addEnvironmentRow"
+        >
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+            <path d="M7 1h2v6h6v2H9v6H7V9H1V7h6V1z"/>
+          </svg>
+        </button>
+      </div>
+      <div class="environment-rows">
+        <div
+          v-for="(row, index) in environmentRows"
+          :key="row.id"
+          class="environment-row"
+        >
+          <input
+            v-model.trim="row.key"
+            class="environment-input"
+            type="text"
+            :disabled="isBusy"
+            autocomplete="off"
+            autocapitalize="off"
+            spellcheck="false"
+            placeholder="Name"
+            aria-label="Environment variable name"
+          >
+          <input
+            v-model="row.value"
+            class="environment-input"
+            type="password"
+            :disabled="isBusy"
+            autocomplete="off"
+            placeholder="Value"
+            aria-label="Environment variable value"
+          >
+          <button
+            v-if="index > 0"
+            type="button"
+            class="environment-icon-btn remove"
+            :disabled="isBusy"
+            aria-label="Remove environment variable"
+            @click="removeEnvironmentRow(row.id)"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M3 7h10v2H3V7z"/>
+            </svg>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div v-if="activeSession" class="session-panel">
@@ -149,6 +225,12 @@ const STEP_INDEX_BY_STATE = {
 };
 const COMPLETED_LAUNCH_STATES = new Set(['READY', 'DEGRADED', 'TERMINATING', 'CLEANUP_PENDING']);
 
+function createDefaultEnvironmentRows() {
+  return [
+    { id: 1, key: '', value: '' }
+  ];
+}
+
 export default {
   name: 'WorkshopCard',
   components: {
@@ -162,6 +244,9 @@ export default {
   },
   data() {
     return {
+      environmentRows: createDefaultEnvironmentRows(),
+      nextEnvironmentRowId: 2,
+      showEnvironmentPanel: false,
       showBlockedPopup: false
     };
   },
@@ -253,8 +338,14 @@ export default {
         return;
       }
 
+      const sessionEnvironment = this.buildSessionEnvironment();
+      this.resetEnvironmentForm();
+
       try {
-        await this.launchWorkshop(this.workshop);
+        await this.launchWorkshop({
+          workshop: this.workshop,
+          sessionEnvironment
+        });
       } catch (error) {
         if (error.code === 'active_session_exists' || error.data?.code === 'active_session_exists') {
           this.showBlockedPopup = true;
@@ -264,6 +355,42 @@ export default {
 
     closeBlockedPopup() {
       this.showBlockedPopup = false;
+    },
+
+    toggleEnvironmentPanel() {
+      this.showEnvironmentPanel = !this.showEnvironmentPanel;
+    },
+
+    addEnvironmentRow() {
+      this.environmentRows.push({
+        id: this.nextEnvironmentRowId,
+        key: '',
+        value: ''
+      });
+      this.nextEnvironmentRowId += 1;
+    },
+
+    removeEnvironmentRow(rowId) {
+      if (this.environmentRows.length <= 1) {
+        return;
+      }
+      this.environmentRows = this.environmentRows.filter(row => row.id !== rowId);
+    },
+
+    resetEnvironmentForm() {
+      this.environmentRows = createDefaultEnvironmentRows();
+      this.nextEnvironmentRowId = 2;
+      this.showEnvironmentPanel = false;
+    },
+
+    buildSessionEnvironment() {
+      return this.environmentRows.reduce((environment, row) => {
+        const key = row.key.trim();
+        if (key && row.value.trim()) {
+          environment[key] = row.value;
+        }
+        return environment;
+      }, {});
     },
 
     async handleTerminate() {
@@ -313,18 +440,52 @@ export default {
 }
 
 .status-icon,
-.info-icon {
+.info-icon,
+.environment-toggle-btn {
   align-items: center;
   color: var(--color-text-secondary);
-  cursor: help;
   display: flex;
   position: relative;
   transition: all var(--transition-fast);
 }
 
+.status-icon,
+.info-icon {
+  cursor: help;
+}
+
 .status-icon:hover,
-.info-icon:hover {
+.info-icon:hover,
+.environment-toggle-btn:hover:not(:disabled),
+.environment-toggle-btn.open {
   color: var(--color-primary-400);
+}
+
+.environment-toggle-btn {
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  font-family: inherit;
+  height: 26px;
+  justify-content: center;
+  padding: 0;
+  width: 26px;
+}
+
+.environment-toggle-btn:hover:not(:disabled),
+.environment-toggle-btn.open {
+  background-color: rgba(0, 188, 212, 0.08);
+}
+
+.environment-toggle-btn:focus-visible {
+  outline: 2px solid rgba(0, 188, 212, 0.45);
+  outline-offset: 2px;
+}
+
+.environment-toggle-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .status-tooltip {
@@ -525,6 +686,107 @@ export default {
   color: rgb(252, 165, 165);
 }
 
+.environment-panel {
+  background-color: rgba(15, 23, 42, 0.35);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-3);
+  margin-bottom: var(--spacing-4);
+  padding: var(--spacing-3);
+}
+
+.environment-panel-header {
+  align-items: center;
+  display: flex;
+  gap: var(--spacing-3);
+  justify-content: space-between;
+}
+
+.environment-panel-title {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-transform: uppercase;
+}
+
+.environment-rows {
+  display: flex;
+  flex-direction: column;
+  gap: var(--spacing-2);
+}
+
+.environment-row {
+  align-items: center;
+  display: grid;
+  gap: var(--spacing-2);
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 32px;
+}
+
+.environment-input {
+  background-color: rgba(2, 6, 23, 0.35);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  color: var(--color-text);
+  font-family: inherit;
+  font-size: var(--font-size-sm);
+  min-height: 36px;
+  min-width: 0;
+  padding: var(--spacing-2) var(--spacing-3);
+  width: 100%;
+}
+
+.environment-input:focus {
+  border-color: rgba(0, 188, 212, 0.6);
+  outline: none;
+}
+
+.environment-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.environment-input:disabled {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.environment-icon-btn {
+  align-items: center;
+  background-color: rgba(0, 188, 212, 0.14);
+  border: 1px solid rgba(0, 188, 212, 0.32);
+  border-radius: var(--radius-md);
+  color: var(--color-primary-400);
+  cursor: pointer;
+  display: inline-flex;
+  height: 32px;
+  justify-content: center;
+  padding: 0;
+  transition: all var(--transition-base);
+  width: 32px;
+}
+
+.environment-icon-btn:hover:not(:disabled) {
+  background-color: rgba(0, 188, 212, 0.24);
+  border-color: rgba(0, 188, 212, 0.5);
+}
+
+.environment-icon-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.environment-icon-btn.remove {
+  background-color: rgba(239, 68, 68, 0.14);
+  border-color: rgba(239, 68, 68, 0.32);
+  color: rgb(252, 165, 165);
+}
+
+.environment-icon-btn.remove:hover:not(:disabled) {
+  background-color: rgba(239, 68, 68, 0.24);
+  border-color: rgba(239, 68, 68, 0.5);
+}
+
 .workshop-controls {
   display: flex;
   flex-wrap: nowrap;
@@ -672,6 +934,14 @@ export default {
 
   .control-btn {
     min-width: 0;
+  }
+
+  .environment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .environment-icon-btn.remove {
+    justify-self: end;
   }
 
   .info-icon::after {

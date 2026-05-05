@@ -5,6 +5,7 @@
 export {
   getBasePath,
   getApiUrl,
+  getCodeEditorUrl,
   getWorkshopHubUrl,
   getRedisInsightUrl
 } from '../../../../../workshop-frontend-shared/src/utils/basePath.js';

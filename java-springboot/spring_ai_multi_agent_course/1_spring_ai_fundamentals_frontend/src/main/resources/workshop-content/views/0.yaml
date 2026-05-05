@@ -2,38 +2,102 @@ schemaVersion: 1
 viewId: "0"
 route: /0
 pageType: narrative
-title: "Part 0: Intro And Setup"
+title: "STAGE 0: Spring AI Mental Model"
 slot: instructions
-summary: Start with the smallest Spring AI stock helper and keep the first build intentionally shallow.
+summary: Skim the Spring AI concepts you will use before changing the stock helper.
 navigation:
   nextLabel: Build the first prompt
 sections:
-  - sectionId: overview
-    title: What You Will Build
+  - sectionId: spring-ai
+    title: What Is Spring AI?
     blocks:
       - type: markdown
         body: |
-          This module is a Part 0 workshop for Spring AI. You will build a small stock analysis helper that can answer simple questions, return structured data, call a local market data tool, and remember enough context to make follow up prompts useful.
+          Spring AI gives Spring apps one API for AI models.
 
-          The goal is not financial accuracy. The goal is to understand the Spring AI surface area before the later orchestration modules.
-      - type: stepList
-        listId: setup-checklist
-        variant: checklist
-        items:
-          - itemId: inspect-files
-            title: Inspect the learner files
-            body: Open the editor and find the Gradle build, application properties, AI config, demo service, and market data tools.
-            actions:
-              - id: openEditor
-                label: Open Editor
-          - itemId: add-key
-            title: Configure your model access
-            body: Put the model API key in the expected environment variable or local configuration used by your runtime.
-            hint: Keep secrets out of committed files.
-          - itemId: run-first
-            title: Run once before changing code
-            body: Start from a known baseline so each exercise has a clear before and after.
+          In this module, the stock helper uses that API to send prompts, return typed results, call Java tools, and keep short conversation context.
+  - sectionId: chat-apis
+    title: ChatModel And ChatClient
+    blocks:
+      - type: markdown
+        body: |
+          `ChatModel` is the provider connection. Spring Boot wires the implementation for OpenAI, Gemini, Anthropic, Azure OpenAI, or another configured provider.
+
+          The value is a common interface. Your service code can stay mostly the same while configuration chooses the provider and model.
+
+          `ChatClient` sits on top of `ChatModel`. It is the fluent API you use for system messages, user messages, tools, advisors, and structured output.
+      - type: codeSnippet
+        language: java
+        title: Smallest Useful Chat Call
+        caption: Stage 1 starts from this shape.
+        code: |
+          String answer = chatClient.prompt()
+              .user("Explain what changed for MSFT in three bullets.")
+              .call()
+              .content();
+  - sectionId: structured-output
+    title: Structured Output
+    blocks:
+      - type: markdown
+        body: |
+          Natural language is easy for people to read. Code works better with predictable JSON fields and a stable schema.
+
+          Structured output asks the model for data Spring AI can bind into a Java type, such as a record. In this lab, the stock helper returns separate fields for finish reason, ticker, resolved question, and reasoning.
+      - type: codeSnippet
+        language: java
+        title: Typed Result Shape
+        caption: A small type gives the UI and the next step stable fields.
+        code: |
+          record StockDecision(
+              String finishReason,
+              String resolvedTicker,
+              String resolvedQuestion,
+              String reasoning
+          ) {
+          }
+  - sectionId: tools-agents
+    title: Tools And Agents
+    blocks:
+      - type: markdown
+        body: |
+          A tool is Java code the model is allowed to call. In Spring AI, a tool is commonly a method annotated with `@Tool`.
+
+          Use tools when the model needs application data or application behavior. The model chooses when to ask. Your Java method still owns the real work.
+      - type: codeSnippet
+        language: java
+        title: Tool Boundary
+        caption: The model can ask for the tool, but the Java method owns the data.
+        code: |
+          @Tool(name = "stock_snapshot", description = "Return a stock snapshot for a ticker symbol.")
+          StockSnapshot stockSnapshot(String ticker) {
+              return snapshotFor(ticker);
+          }
       - type: callout
         tone: info
-        title: Keep The Domain Small
-        body: Use stocks as the running example, but stay shallow. Prompts should ask for observations, risk notes, and next questions, not trading advice.
+        body: |
+          An agent repeats a simple loop: receive a task, choose a tool if needed, observe the result, then answer or stop.
+  - sectionId: memory-advisors
+    title: Memory And Advisors
+    blocks:
+      - type: markdown
+        body: |
+          LLMs are stateless. They only know what your app sends in the current request.
+
+          `ChatMemoryRepository` stores messages. `ChatMemory` chooses how much history to include.
+
+          A memory advisor connects that memory to `ChatClient`. At runtime, a conversation id tells Spring AI which history to load.
+      - type: markdown
+        body: |
+          Advisors are helpers around `ChatClient` requests and responses.
+
+          They can add memory, inject context, influence structured output, or inspect traffic. Tools help the model act. Advisors help the client behave.
+  - sectionId: baseline-chat
+    title: Baseline Chat
+    blocks:
+      - type: markdown
+        body: |
+          The learner app starts as a chat scaffold.
+
+          Send any stock question. The UI sends the message to the backend, but the backend returns the same fixed response every time.
+
+          That is intentional. Stage 1 replaces the hardcoded response with the first real `ChatClient` call.

@@ -41,6 +41,7 @@ class CloudRunSessionRuntimeAdapterTest {
         assertThat(spec.maxInstances()).isEqualTo(1);
         assertThat(spec.environment())
             .containsEntry("WORKSHOP_SESSION_ID", "sess-001")
+            .containsEntry("OPENAI_API_KEY", "test-openai-key")
             .containsEntry("WORKSHOP_REDIS_MODE", "local-process")
             .containsEntry("WORKSHOP_LOCAL_REDIS_PORT", "6379");
         assertThat(spec.secretEnvironment()).isEmpty();
@@ -126,6 +127,7 @@ class CloudRunSessionRuntimeAdapterTest {
 
     private Map<String, String> runtimeConfig() {
         return Map.of(
+            "OPENAI_API_KEY", "test-openai-key",
             "WORKSHOP_CHILD_PORT", "18080",
             "WORKSHOP_ENVIRONMENT", "prod-event",
             "WORKSHOP_EVENT_ID", "redis-days-2026",

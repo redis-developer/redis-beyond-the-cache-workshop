@@ -37,8 +37,8 @@
     class="content-block content-callout"
     :class="`content-callout--${block.tone}`"
   >
-    <div class="content-callout__header">
-      <h4 v-if="block.title" class="content-callout__title">{{ block.title }}</h4>
+    <div v-if="block.title" class="content-callout__header">
+      <h4 class="content-callout__title">{{ block.title }}</h4>
     </div>
     <div class="content-callout__body">
       <WorkshopMarkdownRenderer :body="block.body" />
@@ -140,7 +140,7 @@
       <div class="content-editor-step-item__body">
         <WorkshopMarkdownRenderer :body="item.body" />
       </div>
-      <div v-if="item.hint || item.action" class="content-editor-step-item__controls">
+      <div v-if="item.hint || resolveEditorStepAction(item)" class="content-editor-step-item__controls">
         <div v-if="item.hint" class="content-editor-step-item__hint-control">
           <button
             type="button"
@@ -154,12 +154,12 @@
           </div>
         </div>
         <button
-          v-if="item.action"
+          v-if="resolveEditorStepAction(item)"
           type="button"
           class="content-editor-step-item__play-button"
-          :aria-label="item.action.label"
-          :title="item.action.label"
-          @click="emitAction(item.action, item)"
+          :aria-label="resolveEditorStepAction(item).label"
+          :title="resolveEditorStepAction(item).label"
+          @click.stop.prevent="handleEditorStepAction(item)"
         >
           <span class="content-editor-step-item__play-icon" aria-hidden="true"></span>
         </button>
@@ -214,6 +214,33 @@ export default {
       return Object.prototype.hasOwnProperty.call(this.widgetProps, widgetId)
         ? this.widgetProps[widgetId]
         : {};
+    },
+    resolveEditorStepAction(item) {
+      if (item?.action) {
+        return item.action;
+      }
+
+      const file = this.inferEditorStepFile(item);
+      return {
+        id: file ? 'openFile' : 'openEditor',
+        label: file ? `Open ${file}` : 'Open editor',
+        args: file ? { file } : {},
+        context: {
+          listId: this.block.listId,
+          itemId: item?.itemId
+        }
+      };
+    },
+    inferEditorStepFile(item) {
+      const source = `${item?.body || ''} ${this.block.title || ''}`;
+      const match = source.match(/`([^`]+\.(?:java|kt|kts|properties|yaml|yml|xml|gradle|md|js|vue|ts|css|html))`/i);
+      return match?.[1] || '';
+    },
+    handleEditorStepAction(item) {
+      const action = this.resolveEditorStepAction(item);
+      if (action) {
+        this.emitAction(action, item);
+      }
     },
     emitAction(action, item = null) {
       this.$emit('action', {

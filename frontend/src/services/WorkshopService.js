@@ -17,11 +17,14 @@ export default {
     return ApiService.get(`${apiUrl}/api/sessions/${sessionId}`);
   },
 
-  async createSession(workshopId, mode, releaseVersion) {
+  async createSession(workshopId, mode, releaseVersion, sessionEnvironment) {
+    const hasSessionEnvironment = sessionEnvironment
+      && Object.keys(sessionEnvironment).length > 0;
     const payload = {
       workshopId,
       ...(mode ? { mode } : {}),
-      ...(releaseVersion ? { releaseVersion } : {})
+      ...(releaseVersion ? { releaseVersion } : {}),
+      ...(hasSessionEnvironment ? { sessionEnvironment } : {})
     };
     return ApiService.post(`${apiUrl}/api/sessions`, payload);
   },

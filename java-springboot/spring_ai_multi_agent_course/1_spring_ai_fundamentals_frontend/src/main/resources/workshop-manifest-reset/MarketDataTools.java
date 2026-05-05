@@ -2,16 +2,34 @@ package com.redis.workshop.springai.fundamentals;
 
 import java.math.BigDecimal;
 import java.time.Instant;
+
+/*
+Stage 3 imports to enable later:
+
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
+*/
+
 import org.springframework.stereotype.Component;
 
 @Component
 public class MarketDataTools {
+
+    public record StockSnapshot(String ticker, String companyName, BigDecimal price, BigDecimal changePercent,
+                                String summary, Instant asOf) {
+
+        public StockSnapshot(String ticker, String companyName, BigDecimal price, BigDecimal changePercent,
+                             String summary) {
+            this(ticker, companyName, price, changePercent, summary, Instant.parse("2026-05-04T09:00:00Z"));
+        }
+    }
+
+    /*
+    Stage 3 will turn this scaffold into a Spring AI tool.
 
     private final AtomicBoolean invoked = new AtomicBoolean(false);
 
@@ -53,13 +71,5 @@ public class MarketDataTools {
         }
         return ticker.trim().toUpperCase(Locale.ROOT);
     }
-
-    public record StockSnapshot(String ticker, String companyName, BigDecimal price, BigDecimal changePercent,
-                                String summary, Instant asOf) {
-
-        public StockSnapshot(String ticker, String companyName, BigDecimal price, BigDecimal changePercent,
-                             String summary) {
-            this(ticker, companyName, price, changePercent, summary, Instant.parse("2026-05-04T09:00:00Z"));
-        }
-    }
+    */
 }

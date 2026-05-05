@@ -21,8 +21,16 @@
           class="workshop-shell__header-actions"
           aria-label="Workshop navigation"
         >
+          <button
+            v-if="sidePanelEnabled && shellState.canOpenRedisInsight"
+            type="button"
+            class="workshop-shell__header-action"
+            @click="selectSidePanel(headerRedisInsightTarget)"
+          >
+            {{ headerRedisInsightLabel }}
+          </button>
           <a
-            v-if="shellState.canOpenRedisInsight && !redisInsightInPlace"
+            v-else-if="shellState.canOpenRedisInsight && !redisInsightInPlace"
             class="workshop-shell__header-action"
             :href="shellState.redisInsightUrl"
             @click="handleHeaderLinkAction('redisInsight')"
@@ -37,13 +45,21 @@
           >
             {{ redisInsightLabel }}
           </button>
+          <button
+            v-if="sidePanelEnabled && shellState.canOpenEditor"
+            type="button"
+            class="workshop-shell__header-action"
+            @click="selectSidePanel(headerEditorTarget)"
+          >
+            {{ headerEditorLabel }}
+          </button>
           <a
-            v-if="shellState.canOpenEditor"
+            v-else-if="shellState.canOpenEditor"
             class="workshop-shell__header-action"
             :href="shellState.editorUrl"
             @click="handleHeaderLinkAction('editor')"
           >
-            Code Editor
+            {{ editorLabel }}
           </a>
           <a
             v-if="shellState.canOpenHub"
@@ -108,20 +124,47 @@
 
       <aside class="workshop-shell__app">
         <slot name="app-frame">
-          <WorkshopAppFrame
-            :src="shellState.learnerAppUrl"
-            :title="resolvedLearnerApp.title || learnerAppTitle"
-            :state="appFrameState"
-            :message="appFrameMessage"
-            :refresh-key="appRefreshKey"
-            :can-restart="shellState.canRestart"
-            :can-rebuild="shellState.canRebuild"
-            :actions-disabled="runtimeActionsDisabled"
-            @load="$emit('app-load', $event)"
-            @error="$emit('app-error', $event)"
-            @retry="handleAppRetry"
-            @runtime-action="handleRuntimeAction"
-          />
+          <section class="workshop-shell__side-panel">
+            <div class="workshop-shell__side-panel-frame">
+              <WorkshopToolFrame
+                v-if="resolvedActiveSidePanel === 'redisInsight'"
+                eyebrow="Redis Insight"
+                title="Redis Insight"
+                :src="shellState.redisInsightUrl"
+              />
+              <WorkshopCodeEditorFrame
+                v-else-if="resolvedActiveSidePanel === 'codeEditor'"
+                :src="shellState.editorUrl"
+                title="Code Editor"
+                eyebrow="Code editor"
+                :actions-disabled="runtimeActionsDisabled"
+                @load="$emit('app-load', $event)"
+                @error="$emit('app-error', $event)"
+                @recompile-start="handleCodeEditorRuntimeEvent('recompile-start', $event)"
+                @recompile-success="handleCodeEditorRuntimeEvent('recompile-success', $event)"
+                @recompile-error="handleCodeEditorRuntimeEvent('recompile-error', $event)"
+                @reset-success="handleCodeEditorRuntimeEvent('reset-success', $event)"
+              />
+              <WorkshopAppFrame
+                v-else
+                :src="shellState.learnerAppUrl"
+                :title="resolvedLearnerApp.title || learnerAppTitle"
+                :state="appFrameState"
+                :message="appFrameMessage"
+                :refresh-key="appRefreshKey"
+                :can-restart="shellState.canRestart"
+                :can-rebuild="shellState.canRebuild"
+                :actions-disabled="runtimeActionsDisabled"
+                :runtime-logs="resolvedRuntimeLogs"
+                @load="$emit('app-load', $event)"
+                @error="$emit('app-error', $event)"
+                @retry="handleAppRetry"
+                @runtime-action="handleRuntimeAction"
+                @logs-toggle="$emit('logs-toggle', $event)"
+                @environment-updated="$emit('environment-updated', $event)"
+              />
+            </div>
+          </section>
         </slot>
       </aside>
     </section>
@@ -138,15 +181,27 @@
 </template>
 
 <script>
-import { resolveWorkshopShellState } from '../composables/useWorkshopShellState.js';
+import {
+  isRuntimeBlocked,
+  isRuntimeReady,
+  resolveWorkshopShellState
+} from '../composables/useWorkshopShellState.js';
+import { getApiUrl } from '../utils/basePath.js';
 import WorkshopAppFrame from './WorkshopAppFrame.vue';
+import WorkshopCodeEditorFrame from './WorkshopCodeEditorFrame.vue';
 import WorkshopContentRenderer from './WorkshopContentRenderer.vue';
+import WorkshopToolFrame from './WorkshopToolFrame.vue';
+
+const LOCAL_RUNTIME_POLL_INTERVAL_MS = 2000;
+const LOCAL_RUNTIME_POLL_TIMEOUT_MS = 480000;
 
 export default {
   name: 'WorkshopShell',
   components: {
     WorkshopAppFrame,
-    WorkshopContentRenderer
+    WorkshopCodeEditorFrame,
+    WorkshopContentRenderer,
+    WorkshopToolFrame
   },
   props: {
     title: { type: String, required: true },
@@ -165,9 +220,13 @@ export default {
     actions: { type: [Array, Object], default: null },
     learnerApp: { type: Object, default: () => ({}) },
     learnerAppTitle: { type: String, default: 'Learner application' },
+    runtimeLogs: { type: Array, default: () => [] },
     runtimeActionsDisabled: { type: Boolean, default: false },
     redisInsightInPlace: { type: Boolean, default: false },
     redisInsightLabel: { type: String, default: 'Redis Insight' },
+    editorLabel: { type: String, default: 'Code Editor' },
+    defaultSidePanel: { type: String, default: 'learnerApp' },
+    sidePanelEnabled: { type: Boolean, default: true },
     showContentTitle: { type: Boolean, default: false },
     showContentSummary: { type: Boolean, default: true },
     showStageTitle: { type: Boolean, default: true }
@@ -179,11 +238,16 @@ export default {
     'render-error',
     'app-load',
     'app-error',
-    'app-retry'
+    'app-retry',
+    'logs-toggle',
+    'environment-updated'
   ],
   data() {
     return {
+      activeSidePanel: 'learnerApp',
       appRefreshKey: 0,
+      localRuntimeOverride: null,
+      localRuntimeMonitorGeneration: 0,
       instructionsPanelPercent: 42,
       isResizingShell: false,
       editorPreloadEnabled: false,
@@ -198,13 +262,86 @@ export default {
         url: this.learnerApp.url ?? this.links.learnerApp
       };
     },
+    effectiveRuntime() {
+      if (!this.localRuntimeOverride) {
+        return this.runtime;
+      }
+
+      return {
+        ...this.runtime,
+        ...this.localRuntimeOverride
+      };
+    },
     shellState() {
       return resolveWorkshopShellState({
-        runtime: this.runtime,
+        runtime: this.effectiveRuntime,
         learnerApp: this.resolvedLearnerApp,
         links: this.links,
         actions: this.actions
       });
+    },
+    routeToolQuery() {
+      return this.$route?.query?.tool || '';
+    },
+    normalizedDefaultSidePanel() {
+      return this.normalizeSidePanel(this.defaultSidePanel);
+    },
+    availableSidePanelValues() {
+      const values = [];
+
+      if (this.shellState.learnerAppUrl) {
+        values.push('learnerApp');
+      }
+
+      if (this.shellState.canOpenRedisInsight) {
+        values.push('redisInsight');
+      }
+
+      if (this.shellState.canOpenEditor) {
+        values.push('codeEditor');
+      }
+
+      return values;
+    },
+    sidePanelSwitcherItems() {
+      const labels = {
+        learnerApp: 'Learner App',
+        redisInsight: this.redisInsightLabel,
+        codeEditor: this.editorLabel
+      };
+
+      return this.availableSidePanelValues.map(value => ({
+        value,
+        label: labels[value]
+      }));
+    },
+    resolvedActiveSidePanel() {
+      if (this.isSidePanelAvailable(this.activeSidePanel)) {
+        return this.activeSidePanel;
+      }
+
+      if (this.isSidePanelAvailable(this.normalizedDefaultSidePanel)) {
+        return this.normalizedDefaultSidePanel;
+      }
+
+      return this.availableSidePanelValues[0] || 'learnerApp';
+    },
+    headerEditorTarget() {
+      return this.resolvedActiveSidePanel === 'codeEditor' ? 'learnerApp' : 'codeEditor';
+    },
+    headerEditorLabel() {
+      return this.resolvedActiveSidePanel === 'codeEditor' ? 'Back to the workshop' : this.editorLabel;
+    },
+    headerRedisInsightTarget() {
+      return this.resolvedActiveSidePanel === 'redisInsight' ? 'learnerApp' : 'redisInsight';
+    },
+    headerRedisInsightLabel() {
+      return this.resolvedActiveSidePanel === 'redisInsight' ? 'Learner App' : this.redisInsightLabel;
+    },
+    resolvedRuntimeLogs() {
+      return this.runtimeLogs.length
+        ? this.runtimeLogs
+        : (Array.isArray(this.runtime.recentLogs) ? this.runtime.recentLogs : []);
     },
     appFrameState() {
       if (this.shellState.busy) {
@@ -214,7 +351,7 @@ export default {
       return this.shellState.frontendState;
     },
     appFrameMessage() {
-      return this.resolvedLearnerApp.message || '';
+      return this.localRuntimeOverride?.message || this.resolvedLearnerApp.message || '';
     },
     hasHeroContent() {
       return Boolean(this.eyebrow || this.summary || this.$slots['hero-right']);
@@ -231,10 +368,25 @@ export default {
       return this.shellState.canOpenEditor && Boolean(this.editorPreloadUrl);
     },
     shouldPreloadEditorFrame() {
-      return this.editorPreloadEnabled && this.canPreloadEditorFrame;
+      return this.editorPreloadEnabled
+        && this.canPreloadEditorFrame
+        && this.resolvedActiveSidePanel !== 'codeEditor';
     }
   },
   watch: {
+    routeToolQuery() {
+      this.syncSidePanelFromRoute();
+    },
+    normalizedDefaultSidePanel() {
+      if (!this.routeToolQuery) {
+        this.selectSidePanel(this.normalizedDefaultSidePanel, { updateRoute: false });
+      }
+    },
+    availableSidePanelValues() {
+      if (!this.isSidePanelAvailable(this.activeSidePanel)) {
+        this.selectSidePanel(this.resolvedActiveSidePanel, { updateRoute: false });
+      }
+    },
     canPreloadEditorFrame() {
       this.scheduleEditorPreload();
     },
@@ -244,9 +396,11 @@ export default {
   },
   mounted() {
     this.restoreShellSplit();
+    this.syncSidePanelFromRoute();
     this.scheduleEditorPreload();
   },
   beforeUnmount() {
+    this.localRuntimeMonitorGeneration += 1;
     this.stopShellResize();
     this.clearEditorPreloadTimer();
   },
@@ -260,6 +414,105 @@ export default {
       this.$emit('runtime-action', action);
       this.$emit('action', { source: 'runtime', ...action });
     },
+    handleCodeEditorRuntimeEvent(type, payload) {
+      if (type === 'recompile-start') {
+        this.localRuntimeOverride = {
+          state: 'REBUILDING',
+          backendState: 'REBUILDING',
+          status: 'Rebuilding learner runtime...',
+          message: 'The learner app is rebuilding. The frame will reload automatically when it is ready.'
+        };
+        this.startLocalRuntimeMonitor();
+      }
+
+      if (type === 'recompile-success') {
+        this.localRuntimeMonitorGeneration += 1;
+        this.localRuntimeOverride = null;
+        this.appRefreshKey += 1;
+      }
+
+      if (type === 'recompile-error') {
+        this.localRuntimeMonitorGeneration += 1;
+        this.localRuntimeOverride = {
+          state: 'FAILED',
+          backendState: 'FAILED',
+          status: payload?.message || 'Recompile failed',
+          message: payload?.message || 'The learner app did not finish recompiling.'
+        };
+      }
+
+      this.handleRuntimeAction({ type, payload });
+    },
+    startLocalRuntimeMonitor() {
+      const generation = this.localRuntimeMonitorGeneration + 1;
+      this.localRuntimeMonitorGeneration = generation;
+      this.monitorLocalRuntimeUntilReady(generation);
+    },
+    async monitorLocalRuntimeUntilReady(generation) {
+      const deadline = Date.now() + LOCAL_RUNTIME_POLL_TIMEOUT_MS;
+
+      while (generation === this.localRuntimeMonitorGeneration && Date.now() < deadline) {
+        await this.sleep(LOCAL_RUNTIME_POLL_INTERVAL_MS);
+
+        const status = await this.fetchLocalRuntimeStatus();
+        if (!status) {
+          continue;
+        }
+
+        if (isRuntimeReady(status.state)) {
+          if (generation === this.localRuntimeMonitorGeneration) {
+            this.localRuntimeOverride = {
+              state: 'READY',
+              backendState: 'READY',
+              frontendState: 'READY',
+              status: 'Runtime is ready'
+            };
+            this.appRefreshKey += 1;
+            this.handleRuntimeAction({ type: 'recompile-success', payload: status });
+            window.setTimeout(() => {
+              if (
+                generation === this.localRuntimeMonitorGeneration
+                && this.localRuntimeOverride?.state === 'READY'
+              ) {
+                this.localRuntimeOverride = null;
+              }
+            }, 1000);
+          }
+          return;
+        }
+
+        if (isRuntimeBlocked(status.state)) {
+          if (generation === this.localRuntimeMonitorGeneration) {
+            this.localRuntimeOverride = {
+              state: 'FAILED',
+              backendState: 'FAILED',
+              status: status.lastError || 'Recompile failed',
+              message: status.lastError || 'The learner app did not finish recompiling.'
+            };
+            this.handleRuntimeAction({ type: 'recompile-error', payload: status });
+          }
+          return;
+        }
+      }
+    },
+    async fetchLocalRuntimeStatus() {
+      try {
+        const response = await fetch(getApiUrl('/internal/session-runner/status'), {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          return null;
+        }
+
+        return response.json();
+      } catch {
+        return null;
+      }
+    },
+    sleep(ms) {
+      return new Promise(resolve => window.setTimeout(resolve, ms));
+    },
     handleContentAction(action) {
       this.$emit('content-action', action);
       this.$emit('action', { source: 'content', ...action });
@@ -271,6 +524,99 @@ export default {
     handleAppRetry() {
       this.appRefreshKey += 1;
       this.$emit('app-retry');
+    },
+    normalizeSidePanel(value) {
+      const normalized = String(value || '').trim();
+      const aliases = {
+        app: 'learnerApp',
+        learner: 'learnerApp',
+        learnerApp: 'learnerApp',
+        'learner-app': 'learnerApp',
+        redis: 'redisInsight',
+        redisInsight: 'redisInsight',
+        'redis-insight': 'redisInsight',
+        code: 'codeEditor',
+        codeEditor: 'codeEditor',
+        'code-editor': 'codeEditor',
+        editor: 'codeEditor'
+      };
+
+      return aliases[normalized] || normalized || 'learnerApp';
+    },
+    sidePanelRouteValue(value) {
+      const routeValues = {
+        learnerApp: 'learner-app',
+        redisInsight: 'redis-insight',
+        codeEditor: 'code-editor'
+      };
+
+      return routeValues[value] || '';
+    },
+    isSidePanelAvailable(value) {
+      return this.availableSidePanelValues.includes(this.normalizeSidePanel(value));
+    },
+    selectSidePanel(value, options = {}) {
+      const nextPanel = this.normalizeSidePanel(value);
+      if (!this.isSidePanelAvailable(nextPanel)) {
+        return;
+      }
+
+      this.activeSidePanel = nextPanel;
+
+      if (options.updateRoute === false) {
+        return;
+      }
+
+      this.replaceSidePanelQuery(nextPanel);
+    },
+    syncSidePanelFromRoute() {
+      const routePanel = this.normalizeSidePanel(this.routeToolQuery);
+
+      if (this.routeToolQuery && this.isSidePanelAvailable(routePanel)) {
+        this.selectSidePanel(routePanel, { updateRoute: false });
+        return;
+      }
+
+      if (this.isSidePanelAvailable(this.normalizedDefaultSidePanel)) {
+        this.selectSidePanel(this.normalizedDefaultSidePanel, { updateRoute: false });
+        return;
+      }
+
+      this.selectSidePanel(this.resolvedActiveSidePanel, { updateRoute: false });
+    },
+    replaceSidePanelQuery(panel) {
+      const routeValue = this.sidePanelRouteValue(panel);
+      const nextQuery = { ...(this.$route?.query || {}) };
+
+      if (panel === this.normalizedDefaultSidePanel) {
+        delete nextQuery.tool;
+      } else {
+        nextQuery.tool = routeValue;
+      }
+
+      if (this.$route && nextQuery.tool === this.$route.query?.tool) {
+        return;
+      }
+
+      if (this.$router && this.$route) {
+        this.$router.replace({
+          path: this.$route.path,
+          query: nextQuery
+        }).catch(() => {});
+        return;
+      }
+
+      if (typeof window === 'undefined') {
+        return;
+      }
+
+      const url = new URL(window.location.href);
+      if (nextQuery.tool) {
+        url.searchParams.set('tool', nextQuery.tool);
+      } else {
+        url.searchParams.delete('tool');
+      }
+      window.history.replaceState(window.history.state, '', `${url.pathname}${url.search}${url.hash}`);
     },
     scheduleEditorPreload() {
       this.clearEditorPreloadTimer();
@@ -514,6 +860,21 @@ export default {
 .workshop-shell__app {
   display: flex;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.workshop-shell__side-panel {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.workshop-shell__side-panel-frame {
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: hidden;

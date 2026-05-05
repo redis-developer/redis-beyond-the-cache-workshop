@@ -12,7 +12,8 @@ const routes = [
   { path: '/3', name: 'SpringAiFundamentalsTools', component: HomeView, props: { pageId: '3' } },
   { path: '/4', name: 'SpringAiFundamentalsMemory', component: HomeView, props: { pageId: '4' } },
   { path: '/5', name: 'SpringAiFundamentalsHelper', component: HomeView, props: { pageId: '5' } },
-  { path: '/editor', name: 'SpringAiFundamentalsEditor', component: EditorView }
+  { path: '/6', name: 'SpringAiFundamentalsEditor', component: EditorView },
+  { path: '/editor', redirect: '/6' }
 ]
 
 export default createRouter({

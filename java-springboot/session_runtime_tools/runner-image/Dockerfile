@@ -5,6 +5,8 @@ FROM ${BUILDER_BASE_IMAGE} AS builder
 
 ARG MANAGER_MODULE
 ARG WORKSHOP_ID
+ARG MANAGER_SOURCE_DIR=${MANAGER_MODULE}
+ARG WORKSHOP_SOURCE_DIR=${WORKSHOP_ID}
 
 WORKDIR /workspace
 COPY java-springboot ./java-springboot
@@ -31,8 +33,8 @@ RUN set -eux; \
     ./gradlew --no-daemon -I /tmp/workshop-warm-dependencies.gradle -PskipFrontendBuild=true ":${WORKSHOP_ID}:warmWorkshopDependencies" || true
 RUN set -eux; \
     mkdir -p /image/manager /image/child /image/baseline /image/gradle-cache; \
-    cp "${MANAGER_MODULE}/build/libs/"*.jar /image/manager/manager.jar; \
-    cp "${WORKSHOP_ID}/build/libs/"*.jar /image/child/child.jar; \
+    cp "${MANAGER_SOURCE_DIR}/build/libs/"*.jar /image/manager/manager.jar; \
+    cp "${WORKSHOP_SOURCE_DIR}/build/libs/"*.jar /image/child/child.jar; \
     cp -R /workspace/java-springboot /image/baseline/java-springboot; \
     cp -R /workspace/workshop-frontend-shared /image/baseline/workshop-frontend-shared; \
     cp /workspace/workshops.yaml /image/baseline/workshops.yaml; \
@@ -51,6 +53,8 @@ FROM ${RUNNER_BASE_IMAGE} AS runner
 
 ARG MANAGER_MODULE
 ARG WORKSHOP_ID
+ARG MANAGER_SOURCE_DIR=${MANAGER_MODULE}
+ARG WORKSHOP_SOURCE_DIR=${WORKSHOP_ID}
 ARG RUNNER_VARIANT=local-redis-insight
 ARG SOURCE_REVISION=local
 ARG REDIS_INSIGHT_ARCHIVE_NAME=
@@ -238,12 +242,12 @@ RUN set -eux; \
       'export WORKSHOP_RUNTIME_CLASSPATH_FILE="${WORKSHOP_RUNTIME_CLASSPATH_FILE:-${WORKSHOP_SESSION_ROOT_PATH}/.runner/runtime-classpath.txt}"' \
       'export WORKSHOP_DEV_CLASSES_READY="${WORKSHOP_DEV_CLASSES_READY:-${WORKSHOP_SESSION_ROOT_PATH}/.runner/dev-classes-ready}"' \
       'if [ -f "${WORKSHOP_DEV_CLASSES_READY}" ] && [ -s "${WORKSHOP_RUNTIME_CLASSPATH_FILE}" ]; then' \
-      '  main_source="$(find "${WORKSHOP_ID}/src/main/java" -name "*Application.java" -print -quit)"' \
+      '  main_source="$(find "${WORKSHOP_SOURCE_DIR}/src/main/java" -name "*Application.java" -print -quit)"' \
       '  if [ -n "${main_source}" ]; then' \
       '    package_name="$(sed -n '"'"'s/^package \(.*\);$/\1/p'"'"' "${main_source}" | head -n 1)"' \
       '    class_name="$(basename "${main_source}" .java)"' \
       '    main_class="${package_name:+${package_name}.}${class_name}"' \
-      '    classpath="${WORKSHOP_ID}/build/classes/java/main:${WORKSHOP_ID}/build/resources/main:$(cat "${WORKSHOP_RUNTIME_CLASSPATH_FILE}")"' \
+      '    classpath="${WORKSHOP_SOURCE_DIR}/build/classes/java/main:${WORKSHOP_SOURCE_DIR}/build/resources/main:$(cat "${WORKSHOP_RUNTIME_CLASSPATH_FILE}")"' \
       '    exec java ${WORKSHOP_CHILD_JAVA_OPTS:-} -cp "${classpath}" "${main_class}"' \
       '  fi' \
       'fi' \
@@ -317,7 +321,7 @@ RUN set -eux; \
       '  cp -a "${WORKSHOP_BASELINE_PATH}/." "${WORKSHOP_SESSION_ROOT_PATH}/"' \
       'fi' \
       'mkdir -p "${WORKSHOP_SESSION_ROOT_PATH}/.runner"' \
-      'export WORKSHOP_SESSION_WORKSPACE_PATH="${WORKSHOP_SESSION_WORKSPACE_PATH:-${WORKSHOP_SESSION_ROOT_PATH}/java-springboot/${WORKSHOP_ID}}"' \
+      'export WORKSHOP_SESSION_WORKSPACE_PATH="${WORKSHOP_SESSION_WORKSPACE_PATH:-${WORKSHOP_SESSION_ROOT_PATH}/java-springboot/${WORKSHOP_SOURCE_DIR}}"' \
       'export WORKSHOP_LOCAL_CODE_EDITOR_PORT="${WORKSHOP_LOCAL_CODE_EDITOR_PORT:-39000}"' \
       'export WORKSHOP_LOCAL_CODE_EDITOR_HEALTH_PATH="${WORKSHOP_LOCAL_CODE_EDITOR_HEALTH_PATH:-/healthz}"' \
       'export WORKSHOP_LOCAL_CODE_EDITOR_COMMAND="${WORKSHOP_LOCAL_CODE_EDITOR_COMMAND:-/opt/runner/bin/start-code-editor.sh}"' \
@@ -344,6 +348,8 @@ RUN set -eux; \
 ENV RUNNER_VARIANT="${RUNNER_VARIANT}"
 ENV WORKSHOP_ID="${WORKSHOP_ID}"
 ENV MANAGER_MODULE="${MANAGER_MODULE}"
+ENV WORKSHOP_SOURCE_DIR="${WORKSHOP_SOURCE_DIR}"
+ENV MANAGER_SOURCE_DIR="${MANAGER_SOURCE_DIR}"
 ENV PORT=8080
 ENV WORKSHOP_CHILD_PORT=18080
 ENV WORKSHOP_REBUILT_CHILD_JAR=/opt/runner/workspace/.runner/child.jar

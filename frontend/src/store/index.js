@@ -295,7 +295,9 @@ export default createStore({
       }
     },
 
-    async launchWorkshop({ commit, dispatch, state }, workshop) {
+    async launchWorkshop({ commit, dispatch, state }, payload) {
+      const workshop = payload?.workshop || payload;
+      const sessionEnvironment = payload?.workshop ? payload.sessionEnvironment : {};
       const workshopId = workshop.workshopId || workshop.id;
       const blockingSession = activeSession(state.sessions);
       if (blockingSession && blockingSession.workshopId !== workshopId) {
@@ -312,7 +314,8 @@ export default createStore({
         const session = await WorkshopService.createSession(
           workshopId,
           workshop.defaultMode,
-          workshop.defaultReleaseVersion
+          workshop.defaultReleaseVersion,
+          sessionEnvironment
         );
         commit('upsertSession', session);
         await dispatch('pollSessionUntilSettled', {

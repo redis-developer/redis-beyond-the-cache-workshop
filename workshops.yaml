@@ -135,6 +135,49 @@ workshops:
         mutableDependencies:
           - redis
           - postgres
+  - id: 1_spring_ai_fundamentals
+    title: "Module 1: Spring AI Fundamentals"
+    description: >-
+      Learn the Spring AI basics used by the multi agent course through a small
+      stock analysis application with prompts, structured output, tools, memory,
+      and advisors.
+    difficulty: Beginner
+    estimatedMinutes: 35
+    serviceName: spring-ai-fundamentals
+    url: /workshop/spring-ai-fundamentals/
+    dockerfile: java-springboot/spring_ai_multi_agent_course/1_spring_ai_fundamentals_frontend/Dockerfile
+    frontendServiceName: spring-ai-fundamentals
+    frontendDockerfile: java-springboot/spring_ai_multi_agent_course/1_spring_ai_fundamentals_frontend/Dockerfile
+    backendServiceName: spring-ai-fundamentals-api
+    backendDockerfile: java-springboot/spring_ai_multi_agent_course/1_spring_ai_fundamentals/Dockerfile
+    infrastructureDependencies:
+      - redis
+    sessionScopedInfrastructureDependencies:
+      - redis
+    redisFlavor: standard
+    frontendPrebuild: true
+    topics:
+      - Spring AI
+      - OpenAI
+      - Tools
+      - Memory
+    releases:
+      - releaseId: spring-ai-fundamentals-2026.05.1
+        releaseVersion: 2026.05.1
+        mode: LAB
+        defaultForWorkshop: true
+        enabled: true
+        environments:
+          - local
+          - cloud-run
+        images:
+          frontend: registry.example.com/workshops/spring-ai-fundamentals-frontend@sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd
+          backend: registry.example.com/workshops/spring-ai-fundamentals-backend@sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee
+          combined: registry.example.com/workshops/spring-ai-fundamentals-runner@sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff
+        resourceClass: small
+        sessionTtlMinutes: 180
+        mutableDependencies:
+          - redis
   - id: 4_agent_memory
     title: Agent Memory Server
     description: >-

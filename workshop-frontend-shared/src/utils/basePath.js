@@ -101,6 +101,8 @@ export function getCodeEditorUrl(options = {}) {
  * @param {Location} [options.location] - Override location, mainly for tests
  * @param {string} [options.basePath] - Explicit base path override
  * @param {string} [options.workspaceRoot] - Absolute code-server workspace folder
+ * @param {number|string} [options.line] - Optional one-based line number to reveal
+ * @param {number|string} [options.column] - Optional one-based column number to reveal
  * @param {string|number} [options.requestId] - Optional value to force iframe reloads
  * @returns {string} The same origin editor proxy URL with open-file payload
  */
@@ -116,7 +118,12 @@ export function getCodeEditorFileUrl(filePath, options = {}) {
     return toSameOriginPath(editorUrl, runtimeLocation);
   }
 
-  editorUrl.searchParams.set('payload', JSON.stringify([['openFile', toCodeServerRemoteUri(normalizedFilePath)]]));
+  const payload = [['openFile', toCodeServerRemoteUri(normalizedFilePath, options)]];
+  if (normalizeCodeEditorLineNumber(options.line)) {
+    payload.push(['gotoLineMode', 'true']);
+  }
+
+  editorUrl.searchParams.set('payload', JSON.stringify(payload));
   const normalizedWorkspaceRoot = normalizeCodeEditorFilePath(options.workspaceRoot);
   if (normalizedWorkspaceRoot) {
     editorUrl.searchParams.set('folder', normalizedWorkspaceRoot);
@@ -172,10 +179,18 @@ function normalizeCodeEditorFilePath(filePath) {
   return trimmed.replace(/\/+/g, '/');
 }
 
-function toCodeServerRemoteUri(filePath) {
+function toCodeServerRemoteUri(filePath, options = {}) {
+  const line = normalizeCodeEditorLineNumber(options.line);
+  const column = normalizeCodeEditorLineNumber(options.column) || 1;
   const encodedPath = filePath.split('/').map(encodeURIComponent).join('/');
+  const selection = line ? `:${line}:${column}` : '';
 
-  return `vscode-remote://remote${encodedPath}`;
+  return `vscode-remote://remote${encodedPath}${selection}`;
+}
+
+function normalizeCodeEditorLineNumber(value) {
+  const number = Number.parseInt(value, 10);
+  return Number.isFinite(number) && number > 0 ? number : 0;
 }
 
 function toSameOriginPath(url, location = globalThis.window?.location) {

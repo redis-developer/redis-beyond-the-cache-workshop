@@ -26,6 +26,6 @@ views:
     pageType: narrative
     file: views/5.yaml
   - viewId: "6"
-    route: /editor
+    route: /6
     pageType: editor
     file: views/6.yaml

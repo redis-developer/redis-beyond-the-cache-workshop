@@ -2,7 +2,6 @@ package com.redis.workshop.springai.fundamentals;
 
 import java.util.Map;
 
-import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -17,7 +16,7 @@ public class SpringAiFundamentalsController {
         this.service = service;
     }
 
-    @GetMapping("/api/health")
+    @GetMapping({"/api/health", "/login"})
     public Map<String, String> health() {
         return Map.of("status", "ready");
     }
@@ -50,25 +49,5 @@ public class SpringAiFundamentalsController {
     @PostMapping("/api/spring-ai/helper")
     public HelperResponse helper(@RequestBody HelperRequest request) {
         return service.helper(request);
-    }
-
-    @GetMapping(value = "/api/learner-app", produces = MediaType.TEXT_HTML_VALUE)
-    public String learnerApp() {
-        return """
-            <!doctype html>
-            <html lang="en">
-              <head>
-                <meta charset="utf-8">
-                <meta name="viewport" content="width=device-width, initial-scale=1">
-                <title>Module 1: Spring AI Fundamentals</title>
-              </head>
-              <body>
-                <main>
-                  <h1>Module 1: Spring AI Fundamentals</h1>
-                  <p>Learner app structure is ready for workshop content.</p>
-                </main>
-              </body>
-            </html>
-            """;
     }
 }

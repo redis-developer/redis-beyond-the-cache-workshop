@@ -26,6 +26,7 @@ Workshops:
   2 | 2_full_text_search   | full-text-search
   3 | 3_distributed_locks  | distributed-locks
   4 | 4_agent_memory       | agent-memory
+  5 | 1_spring_ai_fundamentals | spring-ai-fundamentals
 EOF
 }
 
@@ -173,7 +174,13 @@ java_executable() {
 
 find_boot_jar() {
   local project="$1"
-  local libs_dir="${JAVA_DIR}/${project}/build/libs"
+  local project_dir="${JAVA_DIR}/${project}"
+  if [[ "${project}" == "${backend_project:-}" && -n "${backend_project_dir:-}" ]]; then
+    project_dir="${backend_project_dir}"
+  elif [[ "${project}" == "${frontend_project:-}" && -n "${frontend_project_dir:-}" ]]; then
+    project_dir="${frontend_project_dir}"
+  fi
+  local libs_dir="${project_dir}/build/libs"
   local jar_file=""
 
   if [[ ! -d "${libs_dir}" ]]; then
@@ -267,6 +274,18 @@ print_urls() {
   fi
 }
 
+keep_alive_if_requested() {
+  if [[ "${WORKSHOP_KEEP_ALIVE:-false}" != "true" ]]; then
+    return
+  fi
+
+  echo
+  echo "Keeping local workflow attached. Stop it with scripts/run-workshop.sh down ${workshop_id}."
+  while true; do
+    sleep 3600
+  done
+}
+
 load_assigned_ports() {
   frontend_port=""
   backend_port=""
@@ -346,7 +365,7 @@ start_backend() {
 }
 
 managed_runner_enabled() {
-  [[ "${workshop_id}" == "1_session_management" ]]
+  [[ "${workshop_id}" == "1_session_management" || "${workshop_id}" == "1_spring_ai_fundamentals" ]]
 }
 
 build_backend_for_runner() {
@@ -523,7 +542,7 @@ start_frontend() {
 resolve_workshop() {
   local selection="$1"
 
-  unset workshop_id display_name compose_file backend_project frontend_project source_path frontend_url backend_url extra_url
+  unset workshop_id display_name compose_file backend_project frontend_project backend_project_dir frontend_project_dir source_path frontend_url backend_url extra_url
   unset frontend_port backend_port legacy_frontend_port legacy_backend_port ports_file
   infra_services=()
 
@@ -573,6 +592,19 @@ resolve_workshop() {
       infra_services=(redis redis-insight agent-memory-server)
       extra_url="Agent Memory Server: http://localhost:8000/"
       ;;
+    5|1_spring_ai_fundamentals|spring-ai-fundamentals)
+      workshop_id="1_spring_ai_fundamentals"
+      display_name="Spring AI Fundamentals"
+      compose_file="${JAVA_DIR}/spring_ai_multi_agent_course/1_spring_ai_fundamentals/docker-compose.yml"
+      backend_project="1_spring_ai_fundamentals"
+      frontend_project="1_spring_ai_fundamentals_frontend"
+      source_path="${JAVA_DIR}/spring_ai_multi_agent_course/1_spring_ai_fundamentals"
+      backend_project_dir="${source_path}"
+      frontend_project_dir="${JAVA_DIR}/spring_ai_multi_agent_course/1_spring_ai_fundamentals_frontend"
+      legacy_frontend_port="8084"
+      legacy_backend_port="18084"
+      infra_services=(redis redis-insight)
+      ;;
     *)
       echo "Unknown workshop: ${selection}" >&2
       usage
@@ -618,7 +650,11 @@ up() {
   check_local_ports
 
   echo "Starting ${display_name} infrastructure..."
-  docker compose -f "${compose_file}" up -d "${infra_services[@]}"
+  if [[ "${#infra_services[@]}" -gt 0 ]]; then
+    docker compose -f "${compose_file}" up -d "${infra_services[@]}"
+  else
+    echo "No infrastructure services for ${display_name}."
+  fi
 
   if managed_runner_enabled; then
     build_backend_for_runner
@@ -635,6 +671,7 @@ up() {
   print_urls
   echo "Backend log:  ${backend_log_file}"
   echo "Frontend log: ${frontend_log_file}"
+  keep_alive_if_requested
 }
 
 down() {
@@ -644,7 +681,11 @@ down() {
   stop_service "${backend_port}" "${backend_pid_file}" "backend"
   rm -f "${ports_file}"
   echo "Stopping infrastructure..."
-  docker compose -f "${compose_file}" down
+  if [[ "${#infra_services[@]}" -gt 0 ]]; then
+    docker compose -f "${compose_file}" down
+  else
+    echo "No infrastructure services for ${display_name}."
+  fi
 }
 
 restart() {
@@ -704,7 +745,9 @@ status() {
     echo "ports: not assigned"
     print_urls
     echo
-    if ! docker compose -f "${compose_file}" ps "${infra_services[@]}"; then
+    if [[ "${#infra_services[@]}" -eq 0 ]]; then
+      echo "Infrastructure: none"
+    elif ! docker compose -f "${compose_file}" ps "${infra_services[@]}"; then
       echo "Infrastructure status unavailable. Check Docker permissions or start Docker Desktop."
     fi
     return
@@ -722,7 +765,9 @@ status() {
   fi
   print_urls
   echo
-  if ! docker compose -f "${compose_file}" ps "${infra_services[@]}"; then
+  if [[ "${#infra_services[@]}" -eq 0 ]]; then
+    echo "Infrastructure: none"
+  elif ! docker compose -f "${compose_file}" ps "${infra_services[@]}"; then
     echo "Infrastructure status unavailable. Check Docker permissions or start Docker Desktop."
   fi
 }

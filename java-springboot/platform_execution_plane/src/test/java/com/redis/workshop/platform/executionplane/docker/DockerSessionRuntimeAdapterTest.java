@@ -53,6 +53,7 @@ class DockerSessionRuntimeAdapterTest {
             .containsSequence("--env", "WORKSHOP_PUBLIC_BASE_PATH=/session/sess-001/")
             .containsSequence("--env", "PORT=8080")
             .containsSequence("--env", "SERVER_PORT=8080")
+            .containsSequence("--env", "OPENAI_API_KEY=test-openai-key")
             .containsSequence("--env", "WORKSHOP_CHILD_PORT=18080")
             .containsSequence("--env", "WORKSHOP_REDIS_MODE=local-process");
         assertThat(runCommand).containsSequence("--publish", "127.0.0.1::8080/tcp");
@@ -208,6 +209,7 @@ class DockerSessionRuntimeAdapterTest {
 
     private Map<String, String> runtimeConfig() {
         return Map.of(
+            "OPENAI_API_KEY", "test-openai-key",
             "WORKSHOP_CHILD_PORT", "18080",
             "WORKSHOP_ENVIRONMENT", "local-platform",
             "WORKSHOP_EVENT_ID", "redis-days-2026",

@@ -2,9 +2,9 @@ schemaVersion: 1
 viewId: "3"
 route: /3
 pageType: narrative
-title: "Tools"
+title: "STAGE 3: Tools"
 slot: instructions
-summary: Let the model call local Java methods for shallow stock data instead of guessing.
+summary: Let the model call Java code for stock data.
 navigation:
   previousLabel: Structured output
   nextLabel: Add memory
@@ -14,52 +14,128 @@ sections:
     blocks:
       - type: markdown
         body: |
-          A model can explain patterns, but it should not invent current market data. Tools let your app provide facts from Java code.
+          Stage 2 returns typed data.
 
-          In this workshop, the tool can stay fake or static. The important part is the tool boundary.
+          In this stage, give the model a Java method it can call. The model should not invent the stock snapshot. Your application provides that data through a Spring AI tool.
+
+          A tool call is the start of the agent loop: the model receives a task, chooses a tool, observes the tool result, and then answers.
       - type: codeSnippet
         language: java
-        title: Market Data Tool
-        caption: Keep the data shallow so the exercise stays focused on Spring AI mechanics.
+        title: Target Tool Shape
+        caption: A tool is still normal Java code. The annotation describes when the model should use it.
         code: |
-          @Tool(description = "Get a simple market snapshot for a stock symbol")
-          public String marketSnapshot(String symbol) {
-              return symbol.toUpperCase() + " price 185.10, change +0.7%, volume normal";
+          @Tool(name = "stock_snapshot", description = "Return a synthetic stock snapshot for a ticker symbol.")
+          public StockSnapshot stockSnapshot(
+                  @ToolParam(description = "Ticker symbol, for example AAPL or MSFT.") String ticker) {
+              invoked.set(true);
+              return snapshotFor(ticker);
           }
       - type: codeSnippet
         language: java
-        title: Tool Enabled Prompt
-        caption: Register the tool object when the prompt should be allowed to use it.
+        title: Target ChatClient Shape
+        caption: The prompt allows the model to call the Java tool during this request.
         code: |
-          String answer = chatClient.prompt()
-              .user("Use market data and explain what stands out about NVDA.")
+          String answer = client().prompt()
+              .system("Answer stock questions by using the stock_snapshot tool before responding.")
+              .user("Ticker: NVDA\nQuestion: What stands out in this snapshot?")
               .tools(marketDataTools)
               .call()
               .content();
-      - type: stepList
-        listId: tool-work
-        variant: ordered
+  - sectionId: code-edits
+    title: Enable Tool Calling
+    blocks:
+      - type: editorStepList
+        listId: tool-calling
+        title: "`MarketDataTools.java`"
+        startAt: 1
+        progressGroup: stage-3
         items:
           - itemId: open-tools
-            title: Add One Tool Method
-            body: In `MarketDataTools.java`, expose a method that accepts a ticker symbol and returns a short snapshot.
-            actions:
-              - id: openFile
-                label: Open Tools
-                args:
-                  file: MarketDataTools.java
-          - itemId: register-tool
-            title: Register The Tool
-            body: Inject the tool into `SpringAiDemoService.java` and pass it to the prompt.
-            actions:
-              - id: openFile
-                label: Open Service
-                args:
-                  file: SpringAiDemoService.java
-          - itemId: verify-tool-use
-            title: Verify The Answer Mentions Data
-            body: Ask the helper what changed for one ticker and confirm the response uses the supplied snapshot.
+            body: Open `MarketDataTools.java`. The Stage 3 tool code is already present and marked with `Stage 3` comments.
+            action:
+              id: openFile
+              label: Open Tools
+              args:
+                file: MarketDataTools.java
+                line: 5
+          - itemId: enable-tool-imports
+            body: Uncomment the Stage 3 imports for `Locale`, `Map`, `AtomicBoolean`, `Tool`, and `ToolParam`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableToolImports
+          - itemId: enable-tool
+            body: Uncomment the Stage 3 tool implementation, including `stockSnapshot(...)`.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableToolImplementation
+      - type: editorStepList
+        listId: service-tool-wiring
+        title: "`SpringAiDemoService.java`"
+        startAt: 4
+        progressGroup: stage-3
+        items:
+          - itemId: open-service
+            body: Open `SpringAiDemoService.java`. The Stage 3 service wiring and prompt block are already present.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: SpringAiDemoService.java
+                line: 37
+          - itemId: enable-tool-dependency
+            body: Uncomment the `MarketDataTools` field, constructor parameter, and assignment.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableToolDependency
+          - itemId: enable-tools-block
+            body: In `tools(...)`, comment out the scaffold `NOT_IMPLEMENTED` return. Then uncomment the Stage 3 tools block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 3.enableToolsBlock
       - type: callout
-        tone: warning
-        title: Keep Control In Java
-        body: The model decides when a tool is useful, but your code owns what the tool can access and return.
+        tone: info
+        title: Checkpoint
+        body: The model decides whether to call `stock_snapshot`, but Java controls the data the tool can return.
+  - sectionId: run
+    title: Run It
+    blocks:
+      - type: editorStepList
+        listId: run-tool-calling
+        title: Recompile And Test
+        startAt: 7
+        progressGroup: stage-3
+        items:
+          - itemId: recompile
+            body: Click `Recompile App` so the backend restarts with the tool enabled.
+            action:
+              id: recompileApp
+              label: Recompile App
+          - itemId: open-app
+            body: Return to the learner app. Stage 3 sends chat messages to the tool calling endpoint.
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /3?tool=learner-app
+          - itemId: ask-question
+            body: Send `What stands out about NVDA right now?`
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /3?tool=learner-app
+          - itemId: verify-tool
+            body: The assistant response should show that the tool was invoked and include a collapsible JSON area for the stock snapshot.
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /3?tool=learner-app

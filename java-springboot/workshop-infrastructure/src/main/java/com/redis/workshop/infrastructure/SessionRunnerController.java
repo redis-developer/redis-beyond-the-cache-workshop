@@ -3,10 +3,12 @@ package com.redis.workshop.infrastructure;
 import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.io.IOException;
 import java.util.List;
@@ -56,6 +58,24 @@ public class SessionRunnerController {
         return async ? runnerManager.requestRestart(rebuild) : runnerManager.restart(rebuild);
     }
 
+    @GetMapping("/internal/session-runner/environment")
+    public LocalSessionRunnerManager.SessionRunnerEnvironment environment() {
+        return runnerManager.environment();
+    }
+
+    @PostMapping("/internal/session-runner/environment")
+    public LocalSessionRunnerManager.SessionRunnerStatus updateEnvironment(@RequestBody(required = false) Map<String, Object> body) {
+        try {
+            Map<String, String> upsert = extractStringMap(body == null ? null : body.get("upsert"));
+            List<String> remove = extractStringList(body == null ? null : body.get("remove"));
+            boolean restart = !Boolean.FALSE.equals(body == null ? null : body.get("restart"));
+            boolean async = !Boolean.FALSE.equals(body == null ? null : body.get("async"));
+            return runnerManager.updateEnvironment(upsert, remove, restart, async);
+        } catch (IllegalArgumentException exception) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, exception.getMessage(), exception);
+        }
+    }
+
     @PostMapping("/internal/session-runner/diagnostics")
     public Map<String, Object> diagnostics(
         @RequestBody(required = false) Map<String, Object> body,
@@ -97,5 +117,32 @@ public class SessionRunnerController {
             }
         }
         return overrides;
+    }
+
+    private Map<String, String> extractStringMap(Object value) {
+        if (!(value instanceof Map<?, ?> rawMap)) {
+            return Map.of();
+        }
+        java.util.LinkedHashMap<String, String> entries = new java.util.LinkedHashMap<>();
+        for (Map.Entry<?, ?> entry : rawMap.entrySet()) {
+            if (entry.getKey() instanceof String key && entry.getValue() instanceof String stringValue) {
+                entries.put(key, stringValue);
+                continue;
+            }
+            if (entry.getKey() instanceof String key && entry.getValue() == null) {
+                entries.put(key, null);
+            }
+        }
+        return entries;
+    }
+
+    private List<String> extractStringList(Object value) {
+        if (!(value instanceof List<?> rawList)) {
+            return List.of();
+        }
+        return rawList.stream()
+            .filter(String.class::isInstance)
+            .map(String.class::cast)
+            .toList();
     }
 }

@@ -2,9 +2,9 @@ schemaVersion: 1
 viewId: "5"
 route: /5
 pageType: narrative
-title: "Final Stock Helper And Bridge To Orchestration"
+title: "STAGE 5: Final Stock Helper"
 slot: instructions
-summary: Combine prompt, structure, tools, and memory into one small helper before moving to multi agent orchestration.
+summary: Combine prompt, structure, tools, and memory into one small stock helper.
 navigation:
   previousLabel: Memory and advisors
   nextLabel: Open editor checklist
@@ -14,45 +14,124 @@ sections:
     blocks:
       - type: markdown
         body: |
-          Finish with one helper method that shows the complete Part 0 pattern.
+          Finish with one helper method that combines the pieces you have already enabled.
 
-          It should accept a ticker symbol and conversation id, use the market data tool, return a typed response, and keep enough context for one follow up.
+          The final helper will use:
+
+          - `ChatClient` for the prompt
+          - structured output for the typed result
+          - `MarketDataTools` for the stock snapshot
+          - Redis memory for the conversation
+          - advisors for memory and structured output behavior
+
+          This stage assumes the previous Stage 1 through Stage 4 edits are already enabled.
       - type: codeSnippet
         language: java
-        title: Final Helper Shape
-        caption: This is the target shape, not a full solution.
+        title: Target Result Shape
+        caption: The UI displays these typed fields instead of parsing prose.
         code: |
-          StockSnapshot analyze(String symbol, String conversationId) {
-              return chatClient.prompt()
-                  .advisors(advisor -> advisor.param("conversationId", conversationId))
-                  .tools(marketDataTools)
-                  .user("Analyze " + symbol + " using the market snapshot tool.")
-                  .call()
-                  .entity(StockSnapshot.class);
+          record StockHelperResult(
+                  String ticker,
+                  String question,
+                  String answer,
+                  String action,
+                  String reasoning,
+                  String riskLevel
+          ) {
           }
-      - type: stepList
-        listId: final-helper-checklist
-        variant: checklist
-        items:
-          - itemId: prompt
-            title: Prompt
-            body: The helper asks a clear stock question and names the symbol.
-          - itemId: structure
-            title: Structure
-            body: The helper returns a typed snapshot instead of raw text.
-          - itemId: tools
-            title: Tools
-            body: The helper gives the model access to local market data.
-          - itemId: memory
-            title: Memory
-            body: The helper accepts or creates a conversation id for follow up prompts.
+      - type: codeSnippet
+        language: java
+        title: Target Helper Shape
+        caption: One call combines memory, tools, and structured output.
+        code: |
+          StockHelperResult result = memoryClient().prompt()
+                  .system("Use the stock_snapshot tool first, then return the structured helper result.")
+                  .user("Ticker: " + ticker + "\nQuestion: " + question)
+                  .tools(marketDataTools)
+                  .advisors(spec -> spec.param(ChatMemory.CONVERSATION_ID, conversationId))
+                  .advisors(AdvisorParams.ENABLE_NATIVE_STRUCTURED_OUTPUT)
+                  .call()
+                  .entity(StockHelperResult.class);
       - type: callout
-        tone: success
-        title: Bridge To Module 2
-        body: This helper is still a single model call. Multi agent orchestration starts when planning, tool selection, review, and final response become separate responsibilities.
-      - type: actionRow
-        actions:
-          - id: openRoute
-            label: Open Editor Checklist
-            args:
-              route: /editor
+        tone: info
+        title: What To Notice
+        body: |
+          This is still a small helper, not a full multi-agent system. The important part is the shape: one stable Java method coordinates prompt, tool access, typed output, and conversation context.
+  - sectionId: code-edits
+    title: Enable Final Helper
+    blocks:
+      - type: editorStepList
+        listId: final-helper-service
+        title: "`SpringAiDemoService.java`"
+        startAt: 1
+        progressGroup: stage-5
+        items:
+          - itemId: open-service
+            body: Open `SpringAiDemoService.java`. The Stage 5 final helper block is already present near `helper(...)`.
+            action:
+              id: openFile
+              label: Open Service
+              args:
+                file: SpringAiDemoService.java
+                line: 14
+          - itemId: enable-uuid-import
+            body: Uncomment the Stage 5 import for `UUID`. The helper uses it only when a request does not provide a conversation id.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableUuidImport
+          - itemId: enable-helper-block
+            body: In `helper(...)`, comment out the scaffold `NOT_IMPLEMENTED` return. Then uncomment the Stage 5 final helper block.
+            action:
+              id: applyEditorStep
+              label: Apply Change
+              args:
+                stepId: 5.enableHelperBlock
+      - type: callout
+        tone: info
+        title: Checkpoint
+        body: The helper should not manually call the tool. Give the tool to `ChatClient` and let the model decide when it needs the snapshot.
+  - sectionId: run
+    title: Run It
+    blocks:
+      - type: editorStepList
+        listId: run-final-helper
+        title: Recompile And Test
+        startAt: 4
+        progressGroup: stage-5
+        items:
+          - itemId: recompile
+            body: Click `Recompile App` so the backend restarts with the final helper enabled.
+            action:
+              id: recompileApp
+              label: Recompile App
+          - itemId: open-app
+            body: Return to the learner app. Stage 5 sends requests to the final helper endpoint.
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /5?tool=learner-app
+          - itemId: ask-stock
+            body: Keep `fundamentals-demo` as the conversation id and send `What should I notice about NVDA right now?`
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /5?tool=learner-app
+          - itemId: ask-follow-up
+            body: With the same conversation id, send `For that same stock, what risk level did you choose?`
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /5?tool=learner-app
+          - itemId: verify-helper
+            body: |
+              The response should show typed result fields, `toolInvoked: true`, a stock snapshot, and no error.
+            action:
+              id: openRoute
+              label: Return To App
+              args:
+                route: /5?tool=learner-app

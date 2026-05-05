@@ -36,12 +36,19 @@ class SpringAiFundamentalsFrontendApplicationTest {
 
         mockMvc.perform(get("/api/content/views/6"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.route").value("/editor"))
+                .andExpect(jsonPath("$.route").value("/6"))
                 .andExpect(jsonPath("$.pageType").value("editor"));
     }
 
     @ParameterizedTest
-    @ValueSource(strings = {"/", "/0", "/1", "/2", "/3", "/4", "/5", "/editor"})
+    @ValueSource(strings = {"0", "1", "2", "3", "4", "5", "6"})
+    void allWorkshopContentViewsLoad(String viewId) throws Exception {
+        mockMvc.perform(get("/api/content/views/{viewId}", viewId))
+                .andExpect(status().isOk());
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"/", "/0", "/1", "/2", "/3", "/4", "/5", "/6", "/editor"})
     void spaRoutesResolveToFrontend(String route) throws Exception {
         mockMvc.perform(get(route))
                 .andExpect(status().isOk());

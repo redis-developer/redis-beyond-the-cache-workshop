@@ -19,12 +19,18 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 
 @Component
 public class LocalSessionRunnerManager {
@@ -41,6 +47,24 @@ public class LocalSessionRunnerManager {
     }
 
     private static final int MAX_RECENT_LOG_LINES = 80;
+    private static final String SESSION_ENVIRONMENT_KEYS_CONFIG = "WORKSHOP_SESSION_ENVIRONMENT_KEYS";
+    private static final Pattern SESSION_ENVIRONMENT_KEY_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final Set<String> RESERVED_SESSION_ENVIRONMENT_KEYS = Set.of(
+        "PORT",
+        "SERVER_PORT",
+        "JAVA_OPTS",
+        "JAVA_TOOL_OPTIONS",
+        "GRADLE_USER_HOME",
+        "PATH",
+        "HOME",
+        "SHELL"
+    );
+    private static final List<String> RESERVED_SESSION_ENVIRONMENT_PREFIXES = List.of(
+        "WORKSHOP_",
+        "RI_",
+        "REDIS_",
+        "PLATFORM_"
+    );
     private static final Logger logger = LoggerFactory.getLogger(LocalSessionRunnerManager.class);
 
     private final SessionRunnerProperties properties;
@@ -49,6 +73,9 @@ public class LocalSessionRunnerManager {
     private final ExecutorService restartExecutor;
     private final Object lifecycleLock = new Object();
     private final ArrayDeque<String> recentLogs = new ArrayDeque<>();
+    private final Set<String> managedEnvironmentKeys;
+    private final Map<String, String> environmentOverrides = new LinkedHashMap<>();
+    private final Set<String> removedEnvironmentKeys = new LinkedHashSet<>();
 
     private RunnerState state = RunnerState.STOPPED;
     private Process childProcess;
@@ -85,6 +112,7 @@ public class LocalSessionRunnerManager {
         this.logExecutor = logExecutor;
         this.restartExecutor = restartExecutor;
         this.state = properties.isEnabled() ? RunnerState.STOPPED : RunnerState.DISABLED;
+        this.managedEnvironmentKeys = new LinkedHashSet<>(initialManagedEnvironmentKeys(properties));
     }
 
     @PostConstruct
@@ -118,6 +146,46 @@ public class LocalSessionRunnerManager {
         synchronized (lifecycleLock) {
             return statusLocked();
         }
+    }
+
+    public SessionRunnerEnvironment environment() {
+        synchronized (lifecycleLock) {
+            return environmentLocked();
+        }
+    }
+
+    public SessionRunnerStatus updateEnvironment(
+        Map<String, String> upsert,
+        List<String> remove,
+        boolean restart,
+        boolean async
+    ) {
+        synchronized (lifecycleLock) {
+            if (!properties.isEnabled()) {
+                state = RunnerState.DISABLED;
+                lastError = "Session runner is disabled";
+                return statusLocked();
+            }
+
+            Map<String, String> normalizedUpsert = normalizeEnvironmentUpsert(upsert);
+            Set<String> normalizedRemove = normalizeEnvironmentRemove(remove);
+            normalizedRemove.forEach(key -> {
+                environmentOverrides.remove(key);
+                removedEnvironmentKeys.add(key);
+                managedEnvironmentKeys.add(key);
+            });
+            normalizedUpsert.forEach((key, value) -> {
+                removedEnvironmentKeys.remove(key);
+                environmentOverrides.put(key, value);
+                managedEnvironmentKeys.add(key);
+            });
+            appendLog("session environment updated");
+
+            if (!restart) {
+                return statusLocked();
+            }
+        }
+        return async ? requestRestart(false) : restart(false);
     }
 
     public SessionRunnerStatus restart(boolean rebuild) {
@@ -232,7 +300,8 @@ public class LocalSessionRunnerManager {
         );
         properties.resolveChildWorkingDirectory().ifPresent(path -> processBuilder.directory(path.toFile()));
         processBuilder.redirectErrorStream(true);
-        processBuilder.environment().putAll(properties.getEnvironment());
+        applyBaseEnvironment(processBuilder.environment());
+        applySessionEnvironment(processBuilder.environment());
         processBuilder.environment().put("SERVER_PORT", String.valueOf(properties.resolveChildPort()));
         processBuilder.environment().put("WORKSHOP_CHILD_PORT", String.valueOf(properties.resolveChildPort()));
         processBuilder.environment().put(
@@ -310,7 +379,8 @@ public class LocalSessionRunnerManager {
         );
         properties.resolveChildWorkingDirectory().ifPresent(path -> processBuilder.directory(path.toFile()));
         processBuilder.redirectErrorStream(true);
-        processBuilder.environment().putAll(properties.getEnvironment());
+        applyBaseEnvironment(processBuilder.environment());
+        applySessionEnvironment(processBuilder.environment());
         processBuilder.environment().put("SERVER_PORT", String.valueOf(properties.resolveChildPort()));
         processBuilder.environment().put("WORKSHOP_CHILD_PORT", String.valueOf(properties.resolveChildPort()));
         processBuilder.environment().put(
@@ -472,6 +542,19 @@ public class LocalSessionRunnerManager {
         });
     }
 
+    private void applyBaseEnvironment(Map<String, String> environment) {
+        environment.putAll(properties.getEnvironment());
+    }
+
+    private void applySessionEnvironment(Map<String, String> environment) {
+        for (String key : managedEnvironmentKeys) {
+            if (removedEnvironmentKeys.contains(key)) {
+                environment.remove(key);
+            }
+        }
+        environment.putAll(environmentOverrides);
+    }
+
     private void pumpLogs(Process process, long processGeneration) {
         logExecutor.submit(() -> {
             try (BufferedReader reader = new BufferedReader(
@@ -549,8 +632,78 @@ public class LocalSessionRunnerManager {
             lastStartedAt,
             backendUri.map(URI::toString).orElse(""),
             dependencyStatuses(),
+            environmentLocked().variableNames(),
             new ArrayList<>(recentLogs)
         );
+    }
+
+    private SessionRunnerEnvironment environmentLocked() {
+        List<String> names = managedEnvironmentKeys.stream()
+            .filter(key -> !removedEnvironmentKeys.contains(key))
+            .sorted()
+            .toList();
+        return new SessionRunnerEnvironment(names);
+    }
+
+    private Map<String, String> normalizeEnvironmentUpsert(Map<String, String> submittedEnvironment) {
+        if (submittedEnvironment == null || submittedEnvironment.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, String> normalized = new LinkedHashMap<>();
+        submittedEnvironment.forEach((key, value) -> {
+            String normalizedKey = normalizeEnvironmentKey(key);
+            if (value == null) {
+                throw new IllegalArgumentException("environment variable value cannot be null");
+            }
+            normalized.put(normalizedKey, value);
+        });
+        return Map.copyOf(normalized);
+    }
+
+    private Set<String> normalizeEnvironmentRemove(List<String> remove) {
+        if (remove == null || remove.isEmpty()) {
+            return Set.of();
+        }
+        Set<String> normalized = new LinkedHashSet<>();
+        for (String key : remove) {
+            normalized.add(normalizeEnvironmentKey(key));
+        }
+        return Set.copyOf(normalized);
+    }
+
+    private String normalizeEnvironmentKey(String key) {
+        String normalizedKey = key == null ? "" : key.trim();
+        if (!SESSION_ENVIRONMENT_KEY_PATTERN.matcher(normalizedKey).matches()) {
+            throw new IllegalArgumentException("environment variable name is invalid");
+        }
+        if (isReservedSessionEnvironmentKey(normalizedKey)) {
+            throw new IllegalArgumentException("environment variable name is reserved");
+        }
+        return normalizedKey;
+    }
+
+    private boolean isReservedSessionEnvironmentKey(String key) {
+        if (RESERVED_SESSION_ENVIRONMENT_KEYS.contains(key)) {
+            return true;
+        }
+        return RESERVED_SESSION_ENVIRONMENT_PREFIXES.stream().anyMatch(key::startsWith);
+    }
+
+    private List<String> initialManagedEnvironmentKeys(SessionRunnerProperties properties) {
+        String configuredKeys = Optional.ofNullable(properties.getEnvironment().get(SESSION_ENVIRONMENT_KEYS_CONFIG))
+            .orElseGet(() -> System.getenv(SESSION_ENVIRONMENT_KEYS_CONFIG));
+        if (configuredKeys == null || configuredKeys.isBlank()) {
+            return List.of();
+        }
+        List<String> keys = new ArrayList<>();
+        for (String key : configuredKeys.split(",")) {
+            String normalizedKey = key.trim();
+            if (SESSION_ENVIRONMENT_KEY_PATTERN.matcher(normalizedKey).matches()
+                && !isReservedSessionEnvironmentKey(normalizedKey)) {
+                keys.add(normalizedKey);
+            }
+        }
+        return keys;
     }
 
     private List<SessionRunnerDependencyStatus> dependencyStatuses() {
@@ -603,8 +756,24 @@ public class LocalSessionRunnerManager {
         Instant lastStartedAt,
         String backendUri,
         List<SessionRunnerDependencyStatus> dependencies,
+        List<String> environmentVariableNames,
         List<String> recentLogs
     ) {
+        public SessionRunnerStatus {
+            environmentVariableNames = environmentVariableNames == null
+                ? List.of()
+                : Collections.unmodifiableList(new ArrayList<>(environmentVariableNames));
+        }
+    }
+
+    public record SessionRunnerEnvironment(
+        List<String> variableNames
+    ) {
+        public SessionRunnerEnvironment {
+            variableNames = variableNames == null
+                ? List.of()
+                : Collections.unmodifiableList(new ArrayList<>(variableNames));
+        }
     }
 
     public record SessionRunnerDependencyStatus(

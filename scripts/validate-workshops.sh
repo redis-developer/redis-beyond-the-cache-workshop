@@ -305,6 +305,17 @@ def display_path(path: Path, relative_to: Path) -> str:
         return path.as_posix()
 
 
+def module_dir_from_dockerfile(workshop: dict[str, object], docker_key: str, fallback: Path) -> Path:
+    dockerfile_value = str(workshop.get(docker_key, "")).strip()
+    if not dockerfile_value:
+        return fallback
+
+    dockerfile_path = ROOT / dockerfile_value
+    if dockerfile_path.name == "Dockerfile":
+        return dockerfile_path.parent
+    return fallback
+
+
 def iter_text_source_files(root: Path):
     if not root.is_dir():
         return
@@ -317,7 +328,7 @@ def iter_text_source_files(root: Path):
 def collect_shell_app_boundary_errors() -> list[str]:
     errors: list[str] = []
 
-    for app_source_root in sorted(JAVA_DIR.glob("*_frontend/frontend/src")):
+    for app_source_root in sorted(JAVA_DIR.rglob("*_frontend/frontend/src")):
         for source_path in iter_text_source_files(app_source_root):
             source_text = source_path.read_text(encoding="utf-8")
             for marker, reason in APP_SOURCE_FORBIDDEN_MARKERS:
@@ -1034,8 +1045,16 @@ def validate_existing_workshops() -> None:
                     f"{workshop_id} references a missing {docker_key}: {dockerfile_value}"
                 )
 
-        backend_dir = JAVA_DIR / workshop_id
-        frontend_dir = JAVA_DIR / f"{workshop_id}_frontend"
+        backend_dir = module_dir_from_dockerfile(
+            workshop,
+            "backendDockerfile",
+            JAVA_DIR / workshop_id,
+        )
+        frontend_dir = module_dir_from_dockerfile(
+            workshop,
+            "frontendDockerfile",
+            JAVA_DIR / f"{workshop_id}_frontend",
+        )
 
         ensure_dir(backend_dir, errors, f"{workshop_id} backend module")
         ensure_dir(frontend_dir, errors, f"{workshop_id} frontend module")

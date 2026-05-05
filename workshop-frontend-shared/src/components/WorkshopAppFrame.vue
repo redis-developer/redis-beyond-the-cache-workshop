@@ -39,6 +39,17 @@
           Logs
         </button>
         <button
+          v-if="showEnvironmentControls"
+          type="button"
+          class="workshop-app-frame__action"
+          :class="{ 'workshop-app-frame__action--active': environmentOpen }"
+          :disabled="actionsDisabled || Boolean(pendingAction) || environmentSaving"
+          :aria-pressed="environmentOpen ? 'true' : 'false'"
+          @click="toggleEnvironment"
+        >
+          Env
+        </button>
+        <button
           type="button"
           class="workshop-app-frame__action workshop-app-frame__action--icon"
           :class="{ 'workshop-app-frame__action--busy': refreshInProgress }"
@@ -109,7 +120,7 @@
 
     <div class="workshop-app-frame__viewport">
       <iframe
-        v-if="src && !isBlocked"
+        v-if="src && !frameSuppressed"
         :key="frameKey"
         class="workshop-app-frame__iframe"
         :src="src"
@@ -141,6 +152,99 @@
         </header>
         <pre class="workshop-app-frame__logs-body">{{ formattedRuntimeLogs }}</pre>
       </aside>
+
+      <aside
+        v-if="environmentOpen"
+        class="workshop-app-frame__environment"
+        aria-label="Environment variables"
+      >
+        <header class="workshop-app-frame__environment-header">
+          <p class="workshop-app-frame__environment-title">Environment variables</p>
+          <button
+            type="button"
+            class="workshop-app-frame__environment-close"
+            aria-label="Close environment variables"
+            @click="toggleEnvironment"
+          >
+            Close
+          </button>
+        </header>
+
+        <div class="workshop-app-frame__environment-body">
+          <p
+            v-if="environmentError"
+            class="workshop-app-frame__environment-message workshop-app-frame__environment-message--error"
+            role="alert"
+          >
+            {{ environmentError }}
+          </p>
+          <p
+            v-else-if="environmentNotice"
+            class="workshop-app-frame__environment-message"
+            role="status"
+          >
+            {{ environmentNotice }}
+          </p>
+
+          <div class="workshop-app-frame__environment-rows">
+            <div
+              v-for="row in environmentRows"
+              :key="row.id"
+              class="workshop-app-frame__environment-row"
+            >
+              <label class="workshop-app-frame__environment-field">
+                <span>Name</span>
+                <input
+                  v-model="row.key"
+                  type="text"
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder="OPENAI_API_KEY"
+                  :disabled="environmentLoading || environmentSaving"
+                />
+              </label>
+              <label class="workshop-app-frame__environment-field">
+                <span>Value</span>
+                <input
+                  v-model="row.value"
+                  type="password"
+                  autocomplete="off"
+                  spellcheck="false"
+                  :placeholder="row.existing ? 'Hidden' : 'Value'"
+                  :disabled="environmentLoading || environmentSaving"
+                />
+              </label>
+              <button
+                type="button"
+                class="workshop-app-frame__environment-remove"
+                :disabled="environmentLoading || environmentSaving"
+                @click="removeEnvironmentRow(row)"
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+
+          <div class="workshop-app-frame__environment-footer">
+            <button
+              type="button"
+              class="workshop-app-frame__environment-secondary"
+              :disabled="environmentLoading || environmentSaving"
+              @click="addEnvironmentRow"
+            >
+              Add variable
+            </button>
+            <button
+              type="button"
+              class="workshop-app-frame__environment-primary"
+              :disabled="environmentLoading || environmentSaving"
+              @click="saveEnvironment"
+            >
+              {{ environmentSaving ? 'Applying' : 'Save and restart' }}
+            </button>
+          </div>
+        </div>
+      </aside>
     </div>
   </section>
 </template>
@@ -152,6 +256,7 @@ import {
   isRuntimeReady,
   normalizeRuntimeState
 } from '../composables/useWorkshopShellState.js';
+import { getApiUrl } from '../utils/basePath.js';
 
 export default {
   name: 'WorkshopAppFrame',
@@ -165,9 +270,12 @@ export default {
     canRestart: { type: Boolean, default: false },
     canRebuild: { type: Boolean, default: false },
     actionsDisabled: { type: Boolean, default: false },
-    runtimeLogs: { type: Array, default: () => [] }
+    runtimeLogs: { type: Array, default: () => [] },
+    showEnvironmentControls: { type: Boolean, default: true },
+    environmentEndpoint: { type: String, default: '/internal/session-runner/environment' },
+    environmentStatusEndpoint: { type: String, default: '/internal/session-runner/status' }
   },
-  emits: ['load', 'error', 'retry', 'runtime-action', 'logs-toggle'],
+  emits: ['load', 'error', 'retry', 'runtime-action', 'logs-toggle', 'environment-updated'],
   data() {
     return {
       loading: Boolean(this.src),
@@ -176,6 +284,14 @@ export default {
       pendingAction: '',
       pendingActionTimer: null,
       logsOpen: false,
+      environmentOpen: false,
+      environmentLoading: false,
+      environmentSaving: false,
+      environmentRows: [],
+      environmentRemovedKeys: [],
+      environmentError: '',
+      environmentNotice: '',
+      nextEnvironmentRowId: 1,
       isMaximized: false,
       previousBodyOverflow: ''
     };
@@ -189,6 +305,11 @@ export default {
     },
     isBlocked() {
       return !this.src || isRuntimeBlocked(this.normalizedState);
+    },
+    frameSuppressed() {
+      return this.isBlocked
+        || isRuntimeBusy(this.normalizedState)
+        || ['restart', 'rebuild'].includes(this.pendingAction);
     },
     restartInProgress() {
       return this.pendingAction === 'restart' || this.normalizedState === 'restarting';
@@ -351,7 +472,239 @@ export default {
     },
     toggleLogs() {
       this.logsOpen = !this.logsOpen;
+      if (this.logsOpen) {
+        this.environmentOpen = false;
+      }
       this.$emit('logs-toggle', this.logsOpen);
+    },
+    async toggleEnvironment() {
+      this.environmentOpen = !this.environmentOpen;
+      this.environmentError = '';
+      this.environmentNotice = '';
+
+      if (!this.environmentOpen) {
+        return;
+      }
+
+      if (this.logsOpen) {
+        this.logsOpen = false;
+        this.$emit('logs-toggle', false);
+      }
+
+      await this.loadEnvironment();
+    },
+    createEnvironmentRow(key = '', value = '', existing = false) {
+      return {
+        id: this.nextEnvironmentRowId++,
+        key,
+        value,
+        existing,
+        originalKey: key
+      };
+    },
+    addEnvironmentRow() {
+      this.environmentRows = [
+        ...this.environmentRows,
+        this.createEnvironmentRow()
+      ];
+    },
+    removeEnvironmentRow(row) {
+      const key = String(row.originalKey || row.key || '').trim();
+      if (row.existing && key) {
+        this.environmentRemovedKeys = [
+          ...new Set([...this.environmentRemovedKeys, key])
+        ];
+      }
+
+      this.environmentRows = this.environmentRows.filter(item => item.id !== row.id);
+      if (this.environmentRows.length === 0) {
+        this.addEnvironmentRow();
+      }
+    },
+    async loadEnvironment() {
+      this.environmentLoading = true;
+      this.environmentError = '';
+
+      try {
+        const response = await fetch(getApiUrl(this.environmentEndpoint), {
+          credentials: 'include'
+        });
+
+        if (!response.ok) {
+          throw new Error(await this.readEnvironmentError(response, 'Unable to load environment variables'));
+        }
+
+        const body = await response.json();
+        const names = Array.isArray(body?.variableNames) ? body.variableNames : [];
+        this.environmentRows = names.map(name => this.createEnvironmentRow(name, '', true));
+        this.environmentRemovedKeys = [];
+
+        if (this.environmentRows.length === 0) {
+          this.addEnvironmentRow();
+        }
+      } catch (error) {
+        this.environmentError = error.message || 'Unable to load environment variables';
+        if (this.environmentRows.length === 0) {
+          this.addEnvironmentRow();
+        }
+      } finally {
+        this.environmentLoading = false;
+      }
+    },
+    buildEnvironmentPayload() {
+      const upsert = {};
+      const remove = [...this.environmentRemovedKeys];
+      const seenKeys = new Set();
+
+      for (const row of this.environmentRows) {
+        const key = String(row.key || '').trim();
+        const value = row.value ?? '';
+        const originalKey = String(row.originalKey || '').trim();
+
+        if (!key && !value) {
+          continue;
+        }
+
+        if (!key) {
+          throw new Error('Enter a variable name before saving.');
+        }
+
+        if (seenKeys.has(key)) {
+          throw new Error(`Remove the duplicate ${key} entry before saving.`);
+        }
+        seenKeys.add(key);
+
+        if (row.existing && originalKey && originalKey !== key) {
+          remove.push(originalKey);
+          if (!value) {
+            throw new Error(`Enter a value for ${key} before saving.`);
+          }
+        }
+
+        if (row.existing && originalKey === key && !value) {
+          continue;
+        }
+
+        if (!value) {
+          throw new Error(`Enter a value for ${key} before saving.`);
+        }
+
+        upsert[key] = value;
+      }
+
+      return {
+        upsert,
+        remove: [...new Set(remove)]
+      };
+    },
+    async saveEnvironment() {
+      this.environmentSaving = true;
+      this.environmentError = '';
+      this.environmentNotice = '';
+
+      try {
+        const payload = this.buildEnvironmentPayload();
+        if (Object.keys(payload.upsert).length === 0 && payload.remove.length === 0) {
+          this.environmentNotice = 'No changes to save.';
+          return;
+        }
+
+        this.pendingAction = 'restart';
+        this.clearPendingActionTimer();
+
+        const response = await fetch(getApiUrl(this.environmentEndpoint), {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          credentials: 'include',
+          body: JSON.stringify({
+            ...payload,
+            restart: true,
+            async: true
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(await this.readEnvironmentError(response, 'Unable to save environment variables'));
+        }
+
+        const requestedStatus = await response.json().catch(() => null);
+        const status = await this.waitForEnvironmentReady(requestedStatus);
+        const names = Array.isArray(status?.environmentVariableNames)
+          ? status.environmentVariableNames
+          : Object.keys(payload.upsert);
+        this.environmentRows = names.map(name => this.createEnvironmentRow(name, '', true));
+        this.environmentRemovedKeys = [];
+        this.environmentNotice = 'Environment saved. Learner app restarted.';
+        this.localRefreshKey += 1;
+        this.$emit('environment-updated', status);
+      } catch (error) {
+        this.environmentError = error.message || 'Unable to save environment variables';
+      } finally {
+        this.environmentSaving = false;
+        this.clearPendingAction();
+      }
+    },
+    async waitForEnvironmentReady(initialStatus) {
+      if (initialStatus && isRuntimeReady(initialStatus.state)) {
+        return initialStatus;
+      }
+
+      const deadline = Date.now() + 480000;
+      let status = initialStatus;
+      while (Date.now() < deadline) {
+        await this.sleep(2000);
+        status = await this.fetchEnvironmentStatus();
+
+        if (isRuntimeReady(status?.state)) {
+          return status;
+        }
+
+        if (isRuntimeBlocked(status?.state)) {
+          throw new Error(status?.lastError || 'Environment update failed.');
+        }
+      }
+
+      throw new Error('Timed out waiting for the learner app to restart.');
+    },
+    async fetchEnvironmentStatus() {
+      const response = await fetch(getApiUrl(this.environmentStatusEndpoint), {
+        credentials: 'include'
+      });
+
+      if (!response.ok) {
+        throw new Error(await this.readEnvironmentError(response, 'Unable to read runtime status'));
+      }
+
+      return response.json();
+    },
+    sleep(ms) {
+      return new Promise(resolve => window.setTimeout(resolve, ms));
+    },
+    async readEnvironmentError(response, fallbackMessage) {
+      const text = await response.text();
+
+      if (!text) {
+        return fallbackMessage;
+      }
+
+      try {
+        const data = JSON.parse(text);
+        if (data?.message) {
+          return `${fallbackMessage}: ${data.message}`;
+        }
+        if (data?.detail) {
+          return `${fallbackMessage}: ${data.detail}`;
+        }
+        if (data?.error) {
+          return `${fallbackMessage}: ${data.error}`;
+        }
+      } catch {
+        return `${fallbackMessage}: ${text}`;
+      }
+
+      return fallbackMessage;
     },
     toggleMaximized() {
       this.isMaximized = !this.isMaximized;
@@ -565,7 +918,8 @@ export default {
   line-height: 1.6;
 }
 
-.workshop-app-frame__logs {
+.workshop-app-frame__logs,
+.workshop-app-frame__environment {
   position: absolute;
   right: var(--spacing-3, 0.75rem);
   bottom: var(--spacing-3, 0.75rem);
@@ -581,7 +935,12 @@ export default {
   box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
 }
 
-.workshop-app-frame__logs-header {
+.workshop-app-frame__environment {
+  max-height: min(28rem, 78%);
+}
+
+.workshop-app-frame__logs-header,
+.workshop-app-frame__environment-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -591,7 +950,8 @@ export default {
   background: rgba(13, 26, 34, 0.96);
 }
 
-.workshop-app-frame__logs-title {
+.workshop-app-frame__logs-title,
+.workshop-app-frame__environment-title {
   margin: 0;
   color: var(--color-text, #e2e8f0);
   font-size: var(--font-size-xs, 0.75rem);
@@ -600,7 +960,8 @@ export default {
   letter-spacing: 0.08em;
 }
 
-.workshop-app-frame__logs-close {
+.workshop-app-frame__logs-close,
+.workshop-app-frame__environment-close {
   border: 0;
   background: transparent;
   color: var(--color-restart-text, #93c5fd);
@@ -609,7 +970,8 @@ export default {
   cursor: pointer;
 }
 
-.workshop-app-frame__logs-close:hover {
+.workshop-app-frame__logs-close:hover,
+.workshop-app-frame__environment-close:hover {
   color: #bfdbfe;
 }
 
@@ -624,13 +986,133 @@ export default {
   white-space: pre-wrap;
 }
 
+.workshop-app-frame__environment-body {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  overflow: auto;
+}
+
+.workshop-app-frame__environment-message {
+  margin: 0;
+  color: #bfdbfe;
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.workshop-app-frame__environment-message--error {
+  color: #fecaca;
+}
+
+.workshop-app-frame__environment-rows {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.workshop-app-frame__environment-row {
+  display: grid;
+  grid-template-columns: minmax(9rem, 0.9fr) minmax(12rem, 1.1fr) auto;
+  gap: 0.55rem;
+  align-items: end;
+}
+
+.workshop-app-frame__environment-field {
+  display: grid;
+  gap: 0.25rem;
+  min-width: 0;
+  color: #94a3b8;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.workshop-app-frame__environment-field input {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
+  border: 1px solid rgba(71, 85, 105, 0.68);
+  border-radius: 6px;
+  background: rgba(10, 21, 27, 0.92);
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 0.82rem;
+  letter-spacing: 0;
+  outline: none;
+  padding: 0.5rem 0.6rem;
+}
+
+.workshop-app-frame__environment-field input:focus {
+  border-color: rgba(96, 165, 250, 0.9);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.22);
+}
+
+.workshop-app-frame__environment-field input::placeholder {
+  color: rgba(148, 163, 184, 0.72);
+}
+
+.workshop-app-frame__environment-footer {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+
+.workshop-app-frame__environment-primary,
+.workshop-app-frame__environment-secondary,
+.workshop-app-frame__environment-remove {
+  min-height: 2.1rem;
+  border: 1px solid rgba(71, 85, 105, 0.68);
+  border-radius: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.workshop-app-frame__environment-primary {
+  background: var(--color-accent, #22c55e);
+  border-color: rgba(34, 197, 94, 0.7);
+  color: #03120a;
+  padding: 0 0.85rem;
+}
+
+.workshop-app-frame__environment-secondary,
+.workshop-app-frame__environment-remove {
+  background: rgba(15, 23, 42, 0.62);
+  color: #cbd5e1;
+  padding: 0 0.75rem;
+}
+
+.workshop-app-frame__environment-primary:hover,
+.workshop-app-frame__environment-secondary:hover,
+.workshop-app-frame__environment-remove:hover {
+  filter: brightness(1.08);
+}
+
+.workshop-app-frame__environment-primary:disabled,
+.workshop-app-frame__environment-secondary:disabled,
+.workshop-app-frame__environment-remove:disabled {
+  cursor: not-allowed;
+  filter: none;
+  opacity: 0.58;
+}
+
 @media (max-width: 720px) {
   .workshop-app-frame--maximized {
     inset: calc(72px + var(--spacing-2, 0.5rem)) var(--spacing-2, 0.5rem) var(--spacing-2, 0.5rem);
   }
 
-  .workshop-app-frame__logs {
+  .workshop-app-frame__logs,
+  .workshop-app-frame__environment {
     max-height: 55%;
+  }
+
+  .workshop-app-frame__environment-row {
+    grid-template-columns: 1fr;
+  }
+
+  .workshop-app-frame__environment-footer {
+    flex-direction: column;
   }
 }
 </style>

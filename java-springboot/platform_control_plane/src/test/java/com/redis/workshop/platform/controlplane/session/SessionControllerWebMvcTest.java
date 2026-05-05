@@ -10,6 +10,7 @@ import com.redis.workshop.platform.controlplane.security.HeaderAuthenticatedActo
 import com.redis.workshop.platform.controlplane.security.SecurityConfiguration;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
@@ -23,12 +24,16 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -81,6 +86,30 @@ class SessionControllerWebMvcTest {
             .andExpect(jsonPath("$.state").value("ADMITTED"));
 
         verify(portalSessionService).attachSession("opaque-token", "sess-001");
+    }
+
+    @Test
+    void acceptsSessionEnvironmentWithoutEchoingValues() throws Exception {
+        given(sessionService.createSession(any())).willReturn(sampleSession("sess-001", SessionState.ADMITTED));
+
+        mockMvc.perform(post("/api/sessions")
+                .header(HeaderAuthenticatedActorFilter.ACTOR_ID_HEADER, "learner-1")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("""
+                    {
+                      "workshopId": "1_session_management",
+                      "sessionEnvironment": {
+                        "OPENAI_API_KEY": "sk-secret"
+                      }
+                    }
+                    """))
+            .andExpect(status().isAccepted())
+            .andExpect(jsonPath("$.sessionEnvironment").doesNotExist())
+            .andExpect(content().string(not(containsString("sk-secret"))));
+
+        ArgumentCaptor<CreateSessionRequest> requestCaptor = ArgumentCaptor.forClass(CreateSessionRequest.class);
+        verify(sessionService).createSession(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().sessionEnvironment()).containsEntry("OPENAI_API_KEY", "sk-secret");
     }
 
     @Test

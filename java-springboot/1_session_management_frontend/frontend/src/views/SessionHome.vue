@@ -8,10 +8,10 @@
       :links="shellLinks"
       :actions="shellActions"
       :learner-app="learnerApp"
+      :runtime-logs="runtimeLogs"
       :runtime-actions-disabled="runtimeInteractionBusy"
-      :redis-insight-in-place="true"
-      :redis-insight-label="redisInsightHeaderLabel"
       @runtime-action="handleRuntimeAction"
+      @logs-toggle="handleRuntimeLogsToggle"
     >
       <template #instructions>
         <div class="session-instructions">
@@ -78,29 +78,6 @@
         </div>
       </template>
 
-      <template #app-frame>
-        <WorkshopToolFrame
-          v-if="activeSidePanel === 'redisInsight'"
-          eyebrow="Redis Insight"
-          title="Redis Insight"
-          :src="redisInsightFrameUrl"
-        />
-        <WorkshopAppFrame
-          v-else
-          :src="learnerApp.url"
-          :title="learnerApp.title"
-          :state="learnerAppFrameState"
-          :message="learnerApp.message"
-          :refresh-key="appFrameVersion"
-          :can-restart="!runtimeInteractionBusy"
-          :can-rebuild="!runtimeInteractionBusy"
-          :actions-disabled="runtimeInteractionBusy"
-          :runtime-logs="runtimeLogs"
-          @retry="refreshLearnerAppFrame"
-          @runtime-action="handleRuntimeAction"
-          @logs-toggle="handleRuntimeLogsToggle"
-        />
-      </template>
     </WorkshopShell>
 
     <WorkshopModal
@@ -118,14 +95,13 @@
 import {
   getApiUrl,
   getBasePath,
+  getCodeEditorUrl,
   getWorkshopHubUrl
 } from '../utils/basePath';
 import {
-  WorkshopAppFrame,
   WorkshopContentRenderer,
   WorkshopModal,
-  WorkshopShell,
-  WorkshopToolFrame
+  WorkshopShell
 } from '../utils/components';
 import SessionComparisonWidget from '../components/content/SessionComparisonWidget.vue';
 import { loadWorkshopContentView } from '../utils/workshopContent';
@@ -239,11 +215,9 @@ function prepareSessionHomeContent(content, pageId, stage1Tests, stage3Tests) {
 export default {
   name: 'SessionHome',
   components: {
-    WorkshopAppFrame,
     WorkshopContentRenderer,
     WorkshopModal,
-    WorkshopShell,
-    WorkshopToolFrame
+    WorkshopShell
   },
   props: {
     pageId: { type: String, default: '0' }
@@ -272,7 +246,6 @@ export default {
       runtimeStatusMessage: '',
       runtimeLogs: [],
       appFrameVersion: 0,
-      activeSidePanel: 'learnerApp',
       navigationPageTitles: {},
       modal: {
         show: false,
@@ -306,7 +279,7 @@ export default {
     contentActionHandlers() {
       return {
         markItemComplete: ({ args }) => this.completeContentItem(args.groupId, args.itemId),
-        openEditor: () => this.openRoute('/4'),
+        openEditor: () => this.openCodeEditorPanel(),
         openHub: () => window.open(this.workshopHubUrl, '_blank', 'noopener'),
         openRedisInsight: () => this.openRedisInsightPanel(),
         openRoute: ({ args }) => this.openRoute(args.route),
@@ -329,7 +302,7 @@ export default {
         links: {
           hub: this.workshopHubUrl,
           learnerApp: this.learnerAppUrl,
-          redisInsight: this.redisInsightViewUrl,
+          redisInsight: this.redisInsightFrameUrl,
           workshopHub: this.workshopHubUrl
         },
         runtime: {
@@ -392,9 +365,6 @@ export default {
       const separator = route.includes('?') ? '&' : '?';
       return `${route}${separator}frame=${this.appFrameVersion}`;
     },
-    learnerAppFrameState() {
-      return this.runtimeInteractionBusy ? this.runtimeDisplayState : this.frontendState;
-    },
     runtimeDisplayState() {
       if (!this.runtimeStatusLoaded) {
         return 'STARTING';
@@ -418,15 +388,6 @@ export default {
     redisInsightFrameUrl() {
       const normalizedBasePath = this.basePath && this.basePath !== '/' ? this.basePath : '';
       return `${window.location.origin}${normalizedBasePath}/redis-insight/`;
-    },
-    redisInsightHeaderLabel() {
-      return this.activeSidePanel === 'redisInsight' ? 'Learner App' : 'Redis Insight';
-    },
-    redisInsightPanelUrl() {
-      return this.buildRouteUrl(`/${this.pageId}?tool=redis-insight`);
-    },
-    redisInsightViewUrl() {
-      return this.redisInsightPanelUrl;
     },
     resolvedHomeContent() {
       if (!this.homeContent) {
@@ -469,10 +430,10 @@ export default {
     },
     shellLinks() {
       return {
-        editor: this.buildRouteUrl(`/4?returnTo=${encodeURIComponent(`/${this.pageId}`)}`),
+        editor: getCodeEditorUrl(),
         hub: this.workshopHubUrl,
         learnerApp: this.learnerAppUrl,
-        redisInsight: this.redisInsightPanelUrl,
+        redisInsight: this.redisInsightFrameUrl,
         workshopHub: this.workshopHubUrl
       };
     },
@@ -497,7 +458,6 @@ export default {
   },
   async mounted() {
     window.addEventListener('message', this.handleAppMessage);
-    this.syncSidePanelFromRoute();
     this.loadTestProgress();
     await Promise.all([
       this.fetchSessionInfo(),
@@ -522,9 +482,6 @@ export default {
       await this.loadNavigationPageTitles();
       this.redirectIfPageUnavailable();
     },
-    '$route.query.tool'() {
-      this.syncSidePanelFromRoute();
-    }
   },
   beforeUnmount() {
     window.removeEventListener('message', this.handleAppMessage);
@@ -628,10 +585,6 @@ export default {
       this.modal.onConfirm = null;
     },
     handleRuntimeAction(action) {
-      if (action.type === 'redisInsight') {
-        this.toggleRedisInsightPanel();
-      }
-
       if (action.type === 'restart') {
         this.restartRuntime(false);
       }
@@ -641,6 +594,10 @@ export default {
       }
 
       if (action.type === 'refresh') {
+        this.refreshLearnerAppFrame();
+      }
+
+      if (action.type === 'recompile-success') {
         this.refreshLearnerAppFrame();
       }
     },
@@ -663,8 +620,10 @@ export default {
       await this.openRoute(routes[stageId] || '/0');
     },
     openRedisInsightPanel() {
-      this.activeSidePanel = 'redisInsight';
       this.replaceToolQuery('redis-insight');
+    },
+    openCodeEditorPanel() {
+      this.replaceToolQuery('code-editor');
     },
     refreshLearnerAppFrame() {
       this.showLearnerAppPanel();
@@ -776,21 +735,7 @@ export default {
 
       await this.$router.push(route);
     },
-    syncSidePanelFromRoute() {
-      this.activeSidePanel = this.$route.query.tool === 'redis-insight'
-        ? 'redisInsight'
-        : 'learnerApp';
-    },
-    toggleRedisInsightPanel() {
-      if (this.activeSidePanel === 'redisInsight') {
-        this.showLearnerAppPanel();
-        return;
-      }
-
-      this.openRedisInsightPanel();
-    },
     showLearnerAppPanel() {
-      this.activeSidePanel = 'learnerApp';
       this.replaceToolQuery(null);
     },
     replaceToolQuery(tool) {

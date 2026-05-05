@@ -34,11 +34,16 @@ import org.springframework.web.server.ResponseStatusException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.regex.Pattern;
 
-import static org.springframework.http.HttpStatus.FORBIDDEN;
+import static org.springframework.http.HttpStatus.BAD_REQUEST;
 import static org.springframework.http.HttpStatus.CONFLICT;
+import static org.springframework.http.HttpStatus.FORBIDDEN;
 import static org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR;
 import static org.springframework.http.HttpStatus.NOT_FOUND;
 
@@ -77,6 +82,24 @@ public class SessionService {
         PlatformSessionState.DEGRADED,
         PlatformSessionState.TERMINATING,
         PlatformSessionState.CLEANUP_PENDING
+    );
+    private static final Pattern SESSION_ENVIRONMENT_KEY_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*");
+    private static final String SESSION_ENVIRONMENT_KEYS_CONFIG = "WORKSHOP_SESSION_ENVIRONMENT_KEYS";
+    private static final Set<String> RESERVED_SESSION_ENVIRONMENT_KEYS = Set.of(
+        "PORT",
+        "SERVER_PORT",
+        "JAVA_OPTS",
+        "JAVA_TOOL_OPTIONS",
+        "GRADLE_USER_HOME",
+        "PATH",
+        "HOME",
+        "SHELL"
+    );
+    private static final List<String> RESERVED_SESSION_ENVIRONMENT_PREFIXES = List.of(
+        "WORKSHOP_",
+        "RI_",
+        "REDIS_",
+        "PLATFORM_"
     );
 
     private final PlatformSessionRecordRepository sessionRepository;
@@ -130,6 +153,7 @@ public class SessionService {
             request.workshopId()
         )));
 
+        Map<String, String> sessionEnvironment = normalizeSessionEnvironment(request.sessionEnvironment());
         PlatformSessionRecord existingSession = findActiveSessionConflict(actor.actorId());
         if (existingSession != null) {
             throw activeSessionConflict(existingSession);
@@ -149,6 +173,7 @@ public class SessionService {
             requestedMode,
             provisioningProfile
         );
+        Map<String, String> runtimeConfig = mergeRuntimeConfig(launchDescriptor.runtimeConfig(), sessionEnvironment);
         PlatformSessionRecord record = new PlatformSessionRecord();
         record.setSessionId(sessionId);
         record.setOwnerUserId(actor.actorId());
@@ -183,7 +208,7 @@ public class SessionService {
             launchDescriptor.artifacts(),
             launchDescriptor.resourcePolicy(),
             launchDescriptor.workspacePolicy(),
-            launchDescriptor.runtimeConfig()
+            runtimeConfig
         ));
 
         return SessionResponse.fromRecord(record);
@@ -432,6 +457,54 @@ public class SessionService {
             }
         }
         return null;
+    }
+
+    private Map<String, String> normalizeSessionEnvironment(Map<String, String> submittedEnvironment) {
+        if (submittedEnvironment == null || submittedEnvironment.isEmpty()) {
+            return Map.of();
+        }
+
+        Map<String, String> normalizedEnvironment = new LinkedHashMap<>();
+        submittedEnvironment.forEach((key, value) -> {
+            String normalizedKey = key == null ? "" : key.trim();
+            if (!SESSION_ENVIRONMENT_KEY_PATTERN.matcher(normalizedKey).matches()) {
+                throw new ResponseStatusException(BAD_REQUEST, "sessionEnvironment contains an invalid variable name");
+            }
+            if (isReservedSessionEnvironmentKey(normalizedKey)) {
+                throw new ResponseStatusException(BAD_REQUEST, "sessionEnvironment contains a reserved variable name");
+            }
+            if (value == null) {
+                throw new ResponseStatusException(BAD_REQUEST, "sessionEnvironment contains a null variable value");
+            }
+            normalizedEnvironment.put(normalizedKey, value.trim());
+        });
+        return Map.copyOf(normalizedEnvironment);
+    }
+
+    private boolean isReservedSessionEnvironmentKey(String key) {
+        if (RESERVED_SESSION_ENVIRONMENT_KEYS.contains(key)) {
+            return true;
+        }
+        return RESERVED_SESSION_ENVIRONMENT_PREFIXES.stream().anyMatch(key::startsWith);
+    }
+
+    private Map<String, String> mergeRuntimeConfig(
+        Map<String, String> releaseRuntimeConfig,
+        Map<String, String> sessionEnvironment
+    ) {
+        if (sessionEnvironment.isEmpty()) {
+            return releaseRuntimeConfig;
+        }
+
+        Map<String, String> runtimeConfig = new LinkedHashMap<>(releaseRuntimeConfig);
+        sessionEnvironment.forEach((key, value) -> {
+            if (runtimeConfig.containsKey(key)) {
+                throw new ResponseStatusException(BAD_REQUEST, "sessionEnvironment cannot override runtime config");
+            }
+            runtimeConfig.put(key, value);
+        });
+        runtimeConfig.put(SESSION_ENVIRONMENT_KEYS_CONFIG, String.join(",", sessionEnvironment.keySet()));
+        return Map.copyOf(runtimeConfig);
     }
 
     private ErrorResponseException activeSessionConflict(PlatformSessionRecord existingSession) {

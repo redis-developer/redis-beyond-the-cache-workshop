@@ -1,0 +1,732 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Spring AI Fundamentals App</title>
+  <style>
+    :root {
+      --bg: #0a151b;
+      --surface: #101a21;
+      --surface-strong: #0d1a22;
+      --border: #26384a;
+      --text: #ecf4ff;
+      --muted: #9aaabe;
+      --accent: #dc382c;
+      --accent-strong: #ff4438;
+      --success: #4ade80;
+      --warning: #fbbf24;
+      --danger: #f87171;
+      font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+    }
+
+    button,
+    input,
+    textarea {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr);
+      gap: 1rem;
+      height: 100vh;
+      min-height: 32rem;
+      padding: 1rem;
+    }
+
+    .topbar,
+    .chat {
+      border: 1px solid var(--border);
+      border-radius: 0.75rem;
+      background: var(--surface);
+    }
+
+    .topbar {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .eyebrow {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 0.2rem 0 0;
+      font-size: 1.35rem;
+      line-height: 1.2;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      min-height: 2rem;
+      padding: 0.3rem 0.65rem;
+      border: 1px solid rgba(251, 191, 36, 0.4);
+      border-radius: 999px;
+      background: rgba(251, 191, 36, 0.12);
+      color: var(--warning);
+      font-size: 0.82rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    .status-pill.ready {
+      border-color: rgba(74, 222, 128, 0.35);
+      background: rgba(74, 222, 128, 0.1);
+      color: var(--success);
+    }
+
+    .chat {
+      display: grid;
+      grid-template-rows: minmax(0, 1fr) auto;
+      min-height: 0;
+      overflow: hidden;
+    }
+
+    .messages {
+      display: flex;
+      flex-direction: column;
+      gap: 0.85rem;
+      min-height: 0;
+      overflow: auto;
+      padding: 1rem;
+    }
+
+    .message {
+      display: grid;
+      gap: 0.35rem;
+      max-width: min(42rem, 92%);
+      padding: 0.85rem;
+      border: 1px solid var(--border);
+      border-radius: 0.65rem;
+      background: var(--surface-strong);
+    }
+
+    .message.user {
+      align-self: flex-end;
+      border-color: rgba(255, 68, 56, 0.42);
+      background: rgba(255, 68, 56, 0.12);
+    }
+
+    .message.assistant {
+      align-self: flex-start;
+    }
+
+    .message-role {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+    }
+
+    .message-text {
+      margin: 0;
+      color: #dbeafe;
+      font-size: 0.95rem;
+      line-height: 1.55;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .json-details {
+      margin-top: 0.35rem;
+      border-top: 1px solid rgba(38, 56, 74, 0.8);
+      padding-top: 0.65rem;
+    }
+
+    .json-details summary {
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 0.82rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .json-details pre {
+      margin: 0.65rem 0 0;
+      overflow: auto;
+      max-width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      background: #071017;
+      color: #dbeafe;
+      padding: 0.75rem;
+      font-size: 0.84rem;
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+
+    .composer {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 0.75rem;
+      padding: 1rem;
+      border-top: 1px solid var(--border);
+      background: rgba(13, 26, 34, 0.92);
+    }
+
+    .composer-fields {
+      display: grid;
+      gap: 0.55rem;
+      min-width: 0;
+    }
+
+    .conversation-field {
+      display: grid;
+      grid-template-columns: auto minmax(0, 1fr);
+      align-items: center;
+      gap: 0.55rem;
+      color: var(--muted);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .conversation-field[hidden] {
+      display: none;
+    }
+
+    input,
+    textarea {
+      width: 100%;
+      border: 1px solid var(--border);
+      border-radius: 0.5rem;
+      background: #071017;
+      color: var(--text);
+      padding: 0.75rem;
+      line-height: 1.45;
+    }
+
+    input {
+      min-height: 2.55rem;
+    }
+
+    textarea {
+      min-height: 3rem;
+      max-height: 8rem;
+      resize: vertical;
+    }
+
+    input:focus,
+    textarea:focus {
+      border-color: rgba(255, 68, 56, 0.65);
+      outline: 2px solid rgba(255, 68, 56, 0.18);
+    }
+
+    .button {
+      min-height: 3rem;
+      padding: 0.75rem 1rem;
+      border: 1px solid rgba(255, 68, 56, 0.55);
+      border-radius: 0.5rem;
+      background: rgba(255, 68, 56, 0.14);
+      color: #fecaca;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    .button:disabled {
+      cursor: wait;
+      opacity: 0.65;
+    }
+
+    @media (max-width: 760px) {
+      .app {
+        min-height: 100vh;
+        padding: 0.75rem;
+      }
+
+      .topbar,
+      .composer {
+        grid-template-columns: 1fr;
+        flex-direction: column;
+      }
+
+      .composer {
+        display: grid;
+      }
+
+      .conversation-field {
+        grid-template-columns: 1fr;
+      }
+
+      .message {
+        max-width: 100%;
+      }
+
+      .status-pill {
+        white-space: normal;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Learner app</p>
+        <h1>Stock Analysis Helper</h1>
+      </div>
+      <span id="status" class="status-pill">Checking scaffold</span>
+    </header>
+
+    <section class="chat" aria-label="Stock helper chat">
+      <div id="messages" class="messages" aria-live="polite">
+        <article class="message assistant">
+          <span class="message-role">Assistant</span>
+          <p class="message-text">Ask a stock question. The chat path works, but Spring AI is not wired yet.</p>
+        </article>
+      </div>
+
+      <form id="composer" class="composer">
+        <div class="composer-fields">
+          <label id="conversation-field" class="conversation-field" hidden>
+            <span>Conversation</span>
+            <input id="conversation" value="fundamentals-demo" autocomplete="off">
+          </label>
+          <textarea
+            id="message"
+            rows="2"
+            placeholder="Ask about AAPL, MSFT, NVDA, or RDIS"
+            autocomplete="off"
+          >Explain what Spring AI ChatClient does for a stock helper.</textarea>
+        </div>
+        <button id="send" class="button" type="submit">Send</button>
+      </form>
+    </section>
+  </main>
+
+  <script>
+    const statusEl = document.querySelector('#status');
+    const titleEl = document.querySelector('h1');
+    const messagesEl = document.querySelector('#messages');
+    const firstMessageEl = document.querySelector('#messages .message-text');
+    const composerEl = document.querySelector('#composer');
+    const conversationFieldEl = document.querySelector('#conversation-field');
+    const conversationEl = document.querySelector('#conversation');
+    const messageEl = document.querySelector('#message');
+    const sendButton = document.querySelector('#send');
+    const searchParams = new URLSearchParams(window.location.search);
+    const stage = searchParams.get('stage') || '0';
+    const structuredMode = stage === '2';
+    const toolsMode = stage === '3';
+    const memoryMode = stage === '4';
+    const helperMode = stage === '5';
+
+    const state = {
+      busy: false,
+      lastTicker: ''
+    };
+
+    function appBaseUrl() {
+      const href = window.location.href.endsWith('/app')
+        ? `${window.location.href}/`
+        : window.location.href;
+      return new URL('.', href);
+    }
+
+    function apiUrl(path) {
+      return new URL(`../api/spring-ai/${path}`, appBaseUrl()).toString();
+    }
+
+    function appendMessage(role, text) {
+      const article = document.createElement('article');
+      article.className = `message ${role}`;
+
+      const roleEl = document.createElement('span');
+      roleEl.className = 'message-role';
+      roleEl.textContent = role === 'user' ? 'You' : 'Assistant';
+
+      const textEl = document.createElement('p');
+      textEl.className = 'message-text';
+      textEl.textContent = text;
+
+      article.append(roleEl, textEl);
+      messagesEl.append(article);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendStructuredMessage(payload) {
+      if (payload.error) {
+        appendMessage('assistant', payload.error);
+        return;
+      }
+
+      const decision = payload.decision || {};
+      const article = document.createElement('article');
+      article.className = 'message assistant';
+
+      const roleEl = document.createElement('span');
+      roleEl.className = 'message-role';
+      roleEl.textContent = 'Assistant';
+
+      const textEl = document.createElement('p');
+      textEl.className = 'message-text';
+      textEl.textContent = formatStructuredResponse(payload);
+
+      const detailsEl = document.createElement('details');
+      detailsEl.className = 'json-details';
+
+      const summaryEl = document.createElement('summary');
+      summaryEl.textContent = 'View JSON structure';
+
+      const jsonEl = document.createElement('pre');
+      jsonEl.textContent = JSON.stringify(decision, null, 2);
+
+      detailsEl.append(summaryEl, jsonEl);
+      article.append(roleEl, textEl, detailsEl);
+      messagesEl.append(article);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendToolMessage(payload) {
+      if (payload.error) {
+        appendMessage('assistant', payload.error);
+        return;
+      }
+
+      const snapshot = payload.snapshot || {};
+      const article = document.createElement('article');
+      article.className = 'message assistant';
+
+      const roleEl = document.createElement('span');
+      roleEl.className = 'message-role';
+      roleEl.textContent = 'Assistant';
+
+      const textEl = document.createElement('p');
+      textEl.className = 'message-text';
+      textEl.textContent = [
+        `toolInvoked: ${payload.toolInvoked === true ? 'true' : 'false'}`,
+        `snapshotTicker: ${displayValue(snapshot.ticker)}`,
+        `answer: ${displayValue(payload.answer)}`
+      ].join('\n');
+
+      const detailsEl = document.createElement('details');
+      detailsEl.className = 'json-details';
+
+      const summaryEl = document.createElement('summary');
+      summaryEl.textContent = 'View stock snapshot JSON';
+
+      const jsonEl = document.createElement('pre');
+      jsonEl.textContent = JSON.stringify(snapshot, null, 2);
+
+      detailsEl.append(summaryEl, jsonEl);
+      article.append(roleEl, textEl, detailsEl);
+      messagesEl.append(article);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendMemoryMessage(payload) {
+      if (payload.error) {
+        appendMessage('assistant', payload.error);
+        return;
+      }
+
+      const article = document.createElement('article');
+      article.className = 'message assistant';
+
+      const roleEl = document.createElement('span');
+      roleEl.className = 'message-role';
+      roleEl.textContent = 'Assistant';
+
+      const textEl = document.createElement('p');
+      textEl.className = 'message-text';
+      textEl.textContent = [
+        `conversationId: ${displayValue(payload.conversationId)}`,
+        `messageCount: ${displayValue(payload.messageCount)}`,
+        `answer: ${displayValue(payload.answer)}`
+      ].join('\n');
+
+      const detailsEl = document.createElement('details');
+      detailsEl.className = 'json-details';
+
+      const summaryEl = document.createElement('summary');
+      summaryEl.textContent = 'View memory response JSON';
+
+      const jsonEl = document.createElement('pre');
+      jsonEl.textContent = JSON.stringify(payload, null, 2);
+
+      detailsEl.append(summaryEl, jsonEl);
+      article.append(roleEl, textEl, detailsEl);
+      messagesEl.append(article);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function appendHelperMessage(payload) {
+      if (payload.error) {
+        appendMessage('assistant', payload.error);
+        return;
+      }
+
+      const result = payload.result || {};
+      const snapshot = payload.snapshot || {};
+      const article = document.createElement('article');
+      article.className = 'message assistant';
+
+      const roleEl = document.createElement('span');
+      roleEl.className = 'message-role';
+      roleEl.textContent = 'Assistant';
+
+      const textEl = document.createElement('p');
+      textEl.className = 'message-text';
+      textEl.textContent = [
+        `ticker: ${displayValue(result.ticker)}`,
+        `action: ${displayValue(result.action)}`,
+        `riskLevel: ${displayValue(result.riskLevel)}`,
+        `answer: ${displayValue(result.answer)}`,
+        `reasoning: ${displayValue(result.reasoning)}`,
+        `toolInvoked: ${payload.toolInvoked === true ? 'true' : 'false'}`,
+        `snapshotTicker: ${displayValue(snapshot.ticker)}`
+      ].join('\n');
+
+      const detailsEl = document.createElement('details');
+      detailsEl.className = 'json-details';
+
+      const summaryEl = document.createElement('summary');
+      summaryEl.textContent = 'View helper JSON';
+
+      const jsonEl = document.createElement('pre');
+      jsonEl.textContent = JSON.stringify(payload, null, 2);
+
+      detailsEl.append(summaryEl, jsonEl);
+      article.append(roleEl, textEl, detailsEl);
+      messagesEl.append(article);
+      messagesEl.scrollTop = messagesEl.scrollHeight;
+    }
+
+    function configureMode() {
+      conversationFieldEl.hidden = !(memoryMode || helperMode);
+
+      if (structuredMode) {
+        titleEl.textContent = 'Structured Stock Helper';
+        firstMessageEl.textContent = 'Ask a stock question. Stage 2 maps the model response into typed fields.';
+        messageEl.value = 'Should I look at MSFT for an AI portfolio?';
+        return;
+      }
+
+      if (toolsMode) {
+        titleEl.textContent = 'Tool Calling Stock Helper';
+        firstMessageEl.textContent = 'Ask a stock question. Stage 3 lets the model call a Java tool for the snapshot.';
+        messageEl.value = 'What stands out about NVDA right now?';
+        return;
+      }
+
+      if (memoryMode) {
+        titleEl.textContent = 'Memory Stock Helper';
+        firstMessageEl.textContent = 'Ask two related messages with the same conversation id. Stage 4 stores the history in Redis and loads it through an advisor.';
+        conversationEl.value = 'fundamentals-demo';
+        messageEl.value = 'Remember that I am reviewing NVDA.';
+        return;
+      }
+
+      if (helperMode) {
+        titleEl.textContent = 'Final Stock Helper';
+        firstMessageEl.textContent = 'Ask a stock question. Stage 5 combines the prompt, structured output, tools, memory, and advisors.';
+        conversationEl.value = 'fundamentals-demo';
+        state.lastTicker = 'NVDA';
+        messageEl.value = 'What should I notice about NVDA right now?';
+        return;
+      }
+
+      if (stage === '1') {
+        firstMessageEl.textContent = 'Ask a stock question. Stage 1 replaces the scaffold with a ChatClient prompt.';
+        messageEl.value = 'Explain MSFT for a beginner in three short bullets.';
+      }
+    }
+
+    function currentModeLabel() {
+      if (structuredMode) {
+        return 'Structured output mode';
+      }
+
+      if (toolsMode) {
+        return 'Tool calling mode';
+      }
+
+      if (memoryMode) {
+        return 'Memory mode';
+      }
+
+      if (helperMode) {
+        return 'Final helper mode';
+      }
+
+      if (stage === '1') {
+        return 'Prompt mode';
+      }
+
+      return 'Scaffold mode';
+    }
+
+    function displayValue(value) {
+      return value === null || value === undefined || value === '' ? 'Not returned' : String(value);
+    }
+
+    function formatStructuredResponse(payload) {
+      if (payload.error) {
+        return payload.error;
+      }
+
+      const decision = payload.decision || {};
+      return [
+        `finishReason: ${displayValue(decision.finishReason)}`,
+        `resolvedTicker: ${displayValue(decision.resolvedTicker)}`,
+        `resolvedQuestion: ${displayValue(decision.resolvedQuestion)}`,
+        `reasoning: ${displayValue(decision.reasoning)}`
+      ].join('\n');
+    }
+
+    function inferTicker(message) {
+      return detectTicker(message) || 'RDIS';
+    }
+
+    function detectTicker(message) {
+      const match = message.toUpperCase().match(/\b(AAPL|MSFT|NVDA|RDIS)\b/);
+      return match ? match[1] : '';
+    }
+
+    function requestPath() {
+      if (structuredMode) {
+        return 'structured';
+      }
+
+      if (toolsMode) {
+        return 'tools';
+      }
+
+      if (memoryMode) {
+        return 'memory';
+      }
+
+      if (helperMode) {
+        return 'helper';
+      }
+
+      return 'prompt';
+    }
+
+    function requestBody(message) {
+      if (toolsMode) {
+        return {
+          ticker: inferTicker(message),
+          question: message
+        };
+      }
+
+      if (memoryMode) {
+        return {
+          conversationId: conversationEl.value.trim() || 'fundamentals-demo',
+          message
+        };
+      }
+
+      if (helperMode) {
+        const detectedTicker = detectTicker(message);
+        if (detectedTicker) {
+          state.lastTicker = detectedTicker;
+        }
+
+        return {
+          conversationId: conversationEl.value.trim() || 'fundamentals-demo',
+          ticker: state.lastTicker || 'RDIS',
+          question: message
+        };
+      }
+
+      return { message };
+    }
+
+    async function loadStatus() {
+      try {
+        await fetch(apiUrl('status'), { credentials: 'include' });
+        statusEl.textContent = currentModeLabel();
+        statusEl.classList.remove('ready');
+      } catch {
+        statusEl.textContent = currentModeLabel();
+        statusEl.classList.remove('ready');
+      }
+    }
+
+    async function sendMessage(event) {
+      event.preventDefault();
+      if (state.busy) {
+        return;
+      }
+
+      const message = messageEl.value.trim();
+      if (!message) {
+        return;
+      }
+
+      appendMessage('user', message);
+      messageEl.value = '';
+      state.busy = true;
+      sendButton.disabled = true;
+      sendButton.textContent = 'Sending';
+
+      try {
+        const response = await fetch(apiUrl(requestPath()), {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(requestBody(message))
+        });
+        const payload = await response.json();
+        if (structuredMode) {
+          appendStructuredMessage(payload);
+        } else if (toolsMode) {
+          appendToolMessage(payload);
+        } else if (memoryMode) {
+          appendMemoryMessage(payload);
+        } else if (helperMode) {
+          appendHelperMessage(payload);
+        } else {
+          appendMessage('assistant', payload.answer || payload.error || 'No response returned.');
+        }
+      } catch (error) {
+        appendMessage('assistant', error.message || 'Request failed.');
+      } finally {
+        state.busy = false;
+        sendButton.disabled = false;
+        sendButton.textContent = 'Send';
+        messageEl.focus();
+      }
+    }
+
+    messageEl.addEventListener('keydown', event => {
+      if (event.key === 'Enter' && !event.shiftKey) {
+        event.preventDefault();
+        composerEl.requestSubmit();
+      }
+    });
+
+    composerEl.addEventListener('submit', sendMessage);
+    configureMode();
+    loadStatus();
+  </script>
+</body>
+</html>

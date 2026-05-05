@@ -20,7 +20,14 @@ repositories {
     maven { url = uri("https://repo.spring.io/snapshot") }
 }
 
-val springAiVersion = "1.1.2"
+val springBootRuntimeVersion = "4.0.5"
+val springAiVersion = "2.0.0-M5"
+
+dependencyManagement {
+    imports {
+        mavenBom("org.springframework.boot:spring-boot-dependencies:$springBootRuntimeVersion")
+    }
+}
 
 dependencies {
     implementation(project(":workshop-infrastructure"))
@@ -28,6 +35,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-web")
     implementation(platform("org.springframework.ai:spring-ai-bom:$springAiVersion"))
     implementation("org.springframework.ai:spring-ai-starter-model-openai")
+    implementation("org.springframework.ai:spring-ai-model-chat-memory-repository-redis")
 
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

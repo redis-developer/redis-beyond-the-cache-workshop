@@ -6,7 +6,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 @Controller
 public class SpringAiFundamentalsSpaController {
 
-    @GetMapping({"/", "/0", "/1", "/2", "/3", "/4", "/5", "/editor"})
+    @GetMapping({"/", "/0", "/1", "/2", "/3", "/4", "/5", "/6", "/editor"})
     public String app() {
         return "forward:/index.html";
     }

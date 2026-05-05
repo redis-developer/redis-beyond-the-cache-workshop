@@ -5,8 +5,11 @@ import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class LocalSessionRunnerManagerTest {
 
@@ -297,6 +300,53 @@ class LocalSessionRunnerManagerTest {
         assertThat(isProcessAlive(editorPid)).isFalse();
     }
 
+    @Test
+    void updatesSessionEnvironmentAndRestartsChildProcess() throws Exception {
+        Path environmentFile = tempDir.resolve("child.env");
+        SessionRunnerProperties properties = enabledRunnerProperties();
+        properties.getEnvironment().put("WORKSHOP_SESSION_ENVIRONMENT_KEYS", "OPENAI_API_KEY");
+        properties.getEnvironment().put("OPENAI_API_KEY", "initial-key");
+        properties.setChildCommand(
+            "printf '%s|%s\\n' \"${OPENAI_API_KEY:-}\" \"${TAVILY_API_KEY:-}\" > "
+                + shellQuote(environmentFile.toString()) + "; exec sleep 600"
+        );
+        LocalSessionRunnerManager manager = new LocalSessionRunnerManager(properties);
+
+        try {
+            LocalSessionRunnerManager.SessionRunnerStatus started = manager.startChild();
+
+            waitForFileContent(environmentFile, "initial-key|");
+            assertThat(started.environmentVariableNames()).containsExactly("OPENAI_API_KEY");
+
+            LocalSessionRunnerManager.SessionRunnerStatus updated = manager.updateEnvironment(
+                Map.of("TAVILY_API_KEY", "tvly-test"),
+                List.of("OPENAI_API_KEY"),
+                true,
+                false
+            );
+
+            waitForFileContent(environmentFile, "|tvly-test");
+            assertThat(updated.state()).isEqualTo("CHILD_READY");
+            assertThat(updated.environmentVariableNames()).containsExactly("TAVILY_API_KEY");
+        } finally {
+            manager.shutdown();
+        }
+    }
+
+    @Test
+    void rejectsInvalidSessionEnvironmentUpdates() {
+        SessionRunnerProperties properties = enabledRunnerProperties();
+        LocalSessionRunnerManager manager = new LocalSessionRunnerManager(properties);
+
+        assertThatThrownBy(() -> manager.updateEnvironment(Map.of("WORKSHOP_ID", "value"), List.of(), false, false))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("environment variable name is reserved");
+
+        assertThatThrownBy(() -> manager.updateEnvironment(Map.of("bad-name", "value"), List.of(), false, false))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessage("environment variable name is invalid");
+    }
+
     private SessionRunnerProperties enabledRunnerProperties() {
         SessionRunnerProperties properties = new SessionRunnerProperties();
         properties.setEnabled(true);
@@ -343,6 +393,16 @@ class LocalSessionRunnerManagerTest {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
         while (System.nanoTime() < deadline) {
             if (Files.exists(path)) {
+                return;
+            }
+            Thread.sleep(50);
+        }
+    }
+
+    private void waitForFileContent(Path path, String expectedContent) throws Exception {
+        long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            if (Files.exists(path) && expectedContent.equals(Files.readString(path).trim())) {
                 return;
             }
             Thread.sleep(50);
